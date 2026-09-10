@@ -1,0 +1,61 @@
+# PAFTA dependency catalogue.
+#
+# Licence policy (project constraint): only MIT / BSD / Apache-2.0 / LGPL /
+# GPL / AGPL artefacts. No commercial or subscription-gated SDK.
+[versions]
+kotlin = "2.0.21"
+agp = "8.7.3"
+coroutines = "1.9.0"
+serialization = "1.7.3"
+composeBom = "2024.10.01"
+activityCompose = "1.9.3"
+lifecycle = "2.8.7"
+navigation = "2.8.4"
+room = "2.6.1"
+ksp = "2.0.21-1.0.25"
+# Google Filament (Apache-2.0) - real-time renderer, published to Maven Central.
+filament = "1.75.1"
+junit = "5.11.3"
+
+[libraries]
+kotlin-stdlib = { module = "org.jetbrains.kotlin:kotlin-stdlib", version.ref = "kotlin" }
+kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "coroutines" }
+kotlinx-coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-android", version.ref = "coroutines" }
+kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "serialization" }
+
+androidx-core-ktx = { module = "androidx.core:core-ktx", version = "1.15.0" }
+androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "activityCompose" }
+androidx-lifecycle-runtime-ktx = { module = "androidx.lifecycle:lifecycle-runtime-ktx", version.ref = "lifecycle" }
+androidx-lifecycle-runtime-compose = { module = "androidx.lifecycle:lifecycle-runtime-compose", version.ref = "lifecycle" }
+androidx-lifecycle-viewmodel-compose = { module = "androidx.lifecycle:lifecycle-viewmodel-compose", version.ref = "lifecycle" }
+androidx-navigation-compose = { module = "androidx.navigation:navigation-compose", version.ref = "navigation" }
+androidx-documentfile = { module = "androidx.documentfile:documentfile", version = "1.0.1" }
+
+compose-bom = { module = "androidx.compose:compose-bom", version.ref = "composeBom" }
+compose-ui = { module = "androidx.compose.ui:ui" }
+compose-ui-graphics = { module = "androidx.compose.ui:ui-graphics" }
+compose-ui-tooling = { module = "androidx.compose.ui:ui-tooling" }
+compose-ui-tooling-preview = { module = "androidx.compose.ui:ui-tooling-preview" }
+compose-foundation = { module = "androidx.compose.foundation:foundation" }
+compose-material3 = { module = "androidx.compose.material3:material3" }
+compose-material-icons-extended = { module = "androidx.compose.material:material-icons-extended" }
+
+room-runtime = { module = "androidx.room:room-runtime", version.ref = "room" }
+room-ktx = { module = "androidx.room:room-ktx", version.ref = "room" }
+room-compiler = { module = "androidx.room:room-compiler", version.ref = "room" }
+
+filament-android = { module = "com.google.android.filament:filament-android", version.ref = "filament" }
+filament-utils-android = { module = "com.google.android.filament:filament-utils-android", version.ref = "filament" }
+filament-gltfio-android = { module = "com.google.android.filament:gltfio-android", version.ref = "filament" }
+
+junit-jupiter = { module = "org.junit.jupiter:junit-jupiter", version.ref = "junit" }
+kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
+
+[plugins]
+kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
+kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
+kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
+kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
+android-application = { id = "com.android.application", version.ref = "agp" }
+android-library = { id = "com.android.library", version.ref = "agp" }
+ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }

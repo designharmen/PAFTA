@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+      PAFTA is a dark-only application: the drawing surface is near-black so the
+      technical linework reads the way it does on a plotter sheet. The platform
+      theme therefore hard-codes the dark ground rather than following the
+      system setting, and Compose supplies every other colour.
+    -->
+    <style name="Theme.Pafta" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">#1A1A1A</item>
+        <item name="android:statusBarColor">#1A1A1A</item>
+        <item name="android:navigationBarColor">#1A1A1A</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+</resources>
