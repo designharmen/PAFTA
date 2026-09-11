@@ -7,6 +7,7 @@ import com.harmen.pafta.dxf.DxfLayer
 import com.harmen.pafta.geometry.Vec2
 import com.harmen.pafta.geometry.Vec3
 import com.harmen.pafta.measure.Measurement
+import androidx.annotation.StringRes
 import com.harmen.pafta.R
 import com.harmen.pafta.project.LayerState
 import com.harmen.pafta.ui.state.MaterialSwatch
@@ -126,7 +127,10 @@ public object SamplePlan {
         PropertyRow(R.string.property_layer, "BOLME", numeric = false),
     )
 
-    public const val SELECTION_TITLE: Int = R.string.sample_selection
+    // `const` değil: R alanları Java'dan geldiği için Kotlin bunları
+    // derleme-zamanı sabiti saymaz.
+    @StringRes
+    public val SELECTION_TITLE: Int = R.string.sample_selection
 
     // --- helpers ----------------------------------------------------------
     private fun wall(layer: String, x1: Double, y1: Double, x2: Double, y2: Double) =

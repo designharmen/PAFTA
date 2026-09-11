@@ -12,6 +12,9 @@ it does so four minutes into a CI run. This catches them in a second:
   * a leading @ or ? (resource reference syntax)
   * a string id used from Kotlin that is not defined
   * more than one format argument without positional %1$s markers
+  * a file that uses R.string without importing R — the app module cannot be
+    compiled in the development container, so this is caught statically
+  * `const val` initialised from an R field, which Kotlin rejects
 
 Exits non-zero and prints the file and line on the first real problem found.
 """
@@ -106,6 +109,47 @@ def check_references(defined: set[str]) -> list[str]:
     return problems
 
 
+def check_kotlin_usage() -> list[str]:
+    """
+    Static checks for the two mistakes that cost a full CI round trip.
+
+    The app module cannot be compiled in the development container (no Android
+    SDK), so these two error classes used to surface only after four minutes on
+    a runner. Both are decidable by reading the source.
+    """
+    problems: list[str] = []
+    # R lives in the app's namespace, so only files in that exact package may
+    # use it unqualified without an import.
+    r_package = "com.harmen.pafta"
+
+    for directory in KOTLIN_DIRS:
+        for path in directory.rglob("*.kt"):
+            text = path.read_text()
+            where = path.relative_to(ROOT)
+
+            if "R.string." in text:
+                package_match = re.search(r"^package\s+([\w.]+)", text, re.M)
+                package = package_match.group(1) if package_match else ""
+                imported = f"import {r_package}.R" in text
+                if not imported and package != r_package:
+                    line = text[: text.index("R.string.")].count("\n") + 1
+                    problems.append(
+                        f"{where}:{line}: R.string kullanılıyor ama "
+                        f"'import {r_package}.R' yok."
+                    )
+
+            # R fields come from generated Java, so Kotlin does not treat them as
+            # compile-time constants: `const val X = R.string.y` does not compile.
+            for match in re.finditer(r"^\s*(?:\w+\s+)*const\s+val\s+(\w+)[^=]*=\s*R\.", text, re.M):
+                line = text.count("\n", 0, match.start()) + 1
+                problems.append(
+                    f"{where}:{line}: '{match.group(1)}' bir R alanından "
+                    f"`const val` yapılmış; `val` olmalı."
+                )
+
+    return problems
+
+
 def main() -> int:
     if not STRINGS.exists():
         fail(f"{STRINGS} bulunamadı")
@@ -125,14 +169,18 @@ def main() -> int:
         if element.get("name")
     }
 
-    problems = check_escaping(raw) + check_references(defined)
+    problems = check_escaping(raw) + check_references(defined) + check_kotlin_usage()
 
     if problems:
         for problem in problems:
             fail(problem)
         return 1
 
-    print(f"tamam: {len(defined)} Türkçe metin denetlendi, sorun yok")
+    kotlin_files = sum(len(list(d.rglob("*.kt"))) for d in KOTLIN_DIRS)
+    print(
+        f"tamam: {len(defined)} Türkçe metin ve {kotlin_files} Kotlin dosyası "
+        f"denetlendi, sorun yok"
+    )
     return 0
 
 

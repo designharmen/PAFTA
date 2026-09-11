@@ -2,6 +2,7 @@ package com.harmen.pafta.ui.state
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.harmen.pafta.R
 import com.harmen.pafta.data.ProjectRepository
 import com.harmen.pafta.dxf.DxfDrawing
 import com.harmen.pafta.project.AnnotationKind
