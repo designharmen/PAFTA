@@ -1,0 +1,116 @@
+# PAFTA'yı kurulabilir bir uygulama dosyası (APK) haline getirir.
+#
+# Bu dosya, GitHub'ın kendi bilgisayarlarında çalışır. Orada Android araçları
+# hazır kurulu olduğu için, geliştirme ortamında yapılamayan derleme burada
+# yapılabiliyor. Sonuçta çıkan APK, GitHub sayfasından indirilebilir hale gelir.
+#
+# Builds PAFTA into an installable APK on GitHub's runners, which have the
+# Android SDK preinstalled — the step the development container cannot perform.
+
+name: PAFTA APK
+
+on:
+  push:
+    branches:
+      - "claude/**"
+      - main
+  # "Run workflow" düğmesiyle elle de başlatılabilir.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Derle ve APK üret
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Kaynak kodu al
+        uses: actions/checkout@v4
+
+      - name: Java kur
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Gradle hazırla
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Android araçlarını hazırla
+        uses: android-actions/setup-android@v3
+        with:
+          packages: "platforms;android-35 build-tools;35.0.0"
+
+      # Türkçe metin dosyasının denetimi. Saniyeler sürer ve Android'in kaynak
+      # derleyicisinin dört dakika sonra bulacağı hataları hemen yakalar.
+      - name: Türkçe metinleri denetle
+        run: python3 tools/check-strings.py
+
+      # Sonra saf Kotlin çekirdeğinin testleri. Bunlar Android gerektirmez, bu
+      # yüzden bir hata varsa APK'yi beklemeden burada görülür.
+      - name: Çekirdek testleri
+        run: ./gradlew -PpaftaCoreOnly=true test --console=plain
+
+      # Asıl sınav: Android tarafı gerçekten derleniyor mu?
+      #
+      # Çıktı bir dosyaya da yazılıyor; hata olursa bir sonraki adım yalnızca
+      # hata satırlarını, günlüğün en sonunda, okunabilir biçimde yazdırıyor.
+      # (`--stacktrace` bilerek yok: yüzlerce satır teknik iz, hatanın kendisini
+      # görünmez yapıyordu.)
+      - name: APK derle
+        run: |
+          set -o pipefail
+          ./gradlew assembleDebug --console=plain 2>&1 | tee "${RUNNER_TEMP}/build.log"
+
+      # Hata özeti: günlüğün sonunda, sadece işe yarayan satırlar.
+      - name: Derleme hatalarını özetle
+        if: failure()
+        run: |
+          log="${RUNNER_TEMP}/build.log"
+          if [ ! -f "$log" ]; then
+            echo "(derleme günlüğü yok — hata derlemeden önce oluştu)"
+            exit 0
+          fi
+
+          summary="${RUNNER_TEMP}/errors.txt"
+          grep -E '^e: |^w: |error:|warning:|^> Task .* FAILED|What went wrong|Execution failed|Caused by: [A-Za-z]' "$log" \
+            | grep -v 'See log for more details' \
+            | head -n 120 > "$summary" || true
+
+          echo "===== DERLEME HATALARI ====="
+          if [ -s "$summary" ]; then
+            cat "$summary"
+          else
+            echo "(eşleşen hata satırı yok; son 40 satır:)"
+            tail -n 40 "$log"
+          fi
+          echo "===== SON ====="
+
+          # Aynı özeti GitHub'ın iş özeti sayfasına da koy.
+          {
+            echo "## Derleme hataları"
+            echo '```'
+            cat "$summary" 2>/dev/null || echo "(yok)"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: APK'yi yükle
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: PAFTA-apk
+          path: app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+          retention-days: 30
+
+      # Test raporları, derleme başarısız olsa bile işe yarar.
+      - name: Test raporlarını yükle
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-raporlari
+          path: core/*/build/reports/tests/test
+          if-no-files-found: ignore
+          retention-days: 7
