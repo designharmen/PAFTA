@@ -159,7 +159,7 @@ the sources afterwards rather than by trusting the edit, and fixed.
 
 The development container has no Android SDK and cannot install one
 (`dl.google.com` is blocked by network policy), so `assembleDebug` had never run
-through two phases of work. `.github/workflows/pafta-apk.yml` builds on GitHub's
+through two phases of work. `.github/workflows/apk.yml` builds on GitHub's
 runners instead, which have the SDK preinstalled — and produces a downloadable
 APK without the project owner installing any development tools.
 

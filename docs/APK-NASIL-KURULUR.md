@@ -13,7 +13,7 @@ Bu adımları **bilgisayardan** yapmak daha kolay, ama tabletten de yapılabilir
 
 1. İnternet tarayıcınızı açın ve şu adrese gidin:
 
-   `https://github.com/designharmen/mutfakgroup-fiyat/actions`
+   `https://github.com/designharmen/PAFTA/actions`
 
 2. Ekranın ortasında bir liste göreceksiniz. Her satır, bir "uygulama hazırlama"
    denemesidir. En üstteki satır en yeni olanıdır.

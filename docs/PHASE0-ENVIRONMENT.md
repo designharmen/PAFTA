@@ -60,7 +60,6 @@ are recorded in [ROADMAP.md](ROADMAP.md) per phase.
 ## First build on a real machine
 
 ```bash
-cd pafta
 ./gradlew assembleDebug          # expect to iterate on errors here
 ./gradlew installDebug
 ```

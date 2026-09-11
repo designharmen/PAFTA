@@ -26,7 +26,7 @@ looking at the screen.
 
 ## Getting an installable APK without a development setup
 
-A GitHub Actions workflow (`.github/workflows/pafta-apk.yml`) builds the APK on
+A GitHub Actions workflow (`.github/workflows/apk.yml`) builds the APK on
 GitHub's runners, which have the Android SDK preinstalled, and uploads it as a
 downloadable artifact. Step-by-step instructions for downloading and installing
 it — written for someone who has never done it — are in
