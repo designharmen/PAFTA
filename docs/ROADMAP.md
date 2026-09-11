@@ -110,6 +110,35 @@ dirty indicator in the top bar.
 **Exit criterion, still open:** import a real DXF on a device and see it drawn.
 That needs the first `assembleDebug`.
 
+## Turkish interface retrofit ✅
+
+Applied across Phases 0 and 1 after the brief added a Turkish-only requirement.
+The glossary is in [TURKCE-SOZLUK.md](TURKCE-SOZLUK.md).
+
+The mechanical change is the interesting part. `StoreFailure` used to carry an
+English sentence in a `message` property, which the UI showed verbatim — an
+English sentence one step from a Turkish screen. It now carries only structured
+data (`UnknownFormat(extension)`, `TooLarge(sizeBytes, limitBytes)`,
+`Unreadable(format, reason)`, `Io(cause, diagnostic)`), and a single composable
+boundary (`ui/UiText.kt`) turns that data into Turkish from `strings.xml`. The
+platform's own exception text is kept as `diagnostic` for logs and never shown,
+because its language follows the OS rather than the app.
+
+Enum labels became `@StringRes` ids for the same reason: a label cannot be an
+English literal if its type is an integer resource id. 115 strings now live in
+`strings.xml`, and the date format is pinned to Turkish rather than following the
+device locale.
+
+`StoreFailureTest` guards the rule: if a `message` property is ever reintroduced
+on a failure type, that is English prose waiting to reach the screen.
+
+**Verified:** 169 tests, 0 failures (`--no-build-cache --rerun-tasks`, so they
+genuinely executed rather than being restored from Gradle's cache).
+
+Two of these edits silently failed to apply on the first pass and left English
+property keys (`"Wall"`, `"Entities"`) in place. They were caught by re-scanning
+the sources afterwards rather than by trusting the edit, and fixed.
+
 ## Phase 2 — 3D viewer
 
 - Filament `SurfaceView`, orbit/pan/zoom, wireframe and solid modes.

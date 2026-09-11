@@ -226,6 +226,8 @@ class PaftaContainerTest {
             }
         }.toByteArray()
 
+        // The exception text is a developer diagnostic, never shown to the user;
+        // it should still name the entry so a log is actionable.
         val e = assertFailsWith<PaftaFormatException> {
             PaftaContainer.read(ByteArrayInputStream(notPafta))
         }

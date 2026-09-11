@@ -5,6 +5,7 @@ import android.database.Cursor
 import android.net.Uri
 import android.provider.OpenableColumns
 import com.harmen.pafta.project.DrawingDocument
+import com.harmen.pafta.project.IoCause
 import com.harmen.pafta.project.PaftaProject
 import com.harmen.pafta.project.ProjectEntry
 import com.harmen.pafta.project.ProjectStore
@@ -53,23 +54,21 @@ public class ProjectRepository(context: Context) {
     public suspend fun import(uri: Uri): StoreResult<ProjectEntry> = withContext(Dispatchers.IO) {
         val fileName = displayName(uri)
             ?: return@withContext StoreResult.Failure(
-                StoreFailure.Io("could not read the name of the selected file"),
+                StoreFailure.Io(IoCause.FILE_NAME_UNKNOWN),
             )
 
         try {
             appContext.contentResolver.openInputStream(uri).use { input ->
                 if (input == null) {
-                    StoreResult.Failure(StoreFailure.Io("the selected file could not be opened"))
+                    StoreResult.Failure(StoreFailure.Io(IoCause.CANNOT_READ_FILE))
                 } else {
                     store.import(fileName, input, importedFrom = uri.toString())
                 }
             }
         } catch (e: SecurityException) {
-            StoreResult.Failure(
-                StoreFailure.Io("PAFTA was not granted permission to read that file"),
-            )
+            StoreResult.Failure(StoreFailure.Io(IoCause.PERMISSION_DENIED, e.message))
         } catch (e: Exception) {
-            StoreResult.Failure(StoreFailure.Io(e.message ?: "the file could not be read"))
+            StoreResult.Failure(StoreFailure.Io(IoCause.CANNOT_READ_FILE, e.message))
         }
     }
 

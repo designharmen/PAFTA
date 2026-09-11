@@ -19,6 +19,7 @@ import com.harmen.pafta.ui.chrome.ToolRail
 import com.harmen.pafta.ui.chrome.VerticalHairline
 import com.harmen.pafta.ui.state.EditorState
 import com.harmen.pafta.ui.state.EditorViewModel
+import com.harmen.pafta.ui.state.TopMenu
 import com.harmen.pafta.ui.theme.HarmenColours
 import com.harmen.pafta.ui.theme.LocalCompactLayout
 import com.harmen.pafta.ui.viewport.PlanViewport
@@ -40,7 +41,7 @@ public fun PaftaScreen(
     roomLabels: List<RoomLabel> = emptyList(),
     onBack: (() -> Unit)? = null,
     onShare: () -> Unit = {},
-    onMenu: (String) -> Unit = {},
+    onMenu: (TopMenu) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     BoxWithConstraints(modifier.fillMaxSize().background(HarmenColours.Ground)) {

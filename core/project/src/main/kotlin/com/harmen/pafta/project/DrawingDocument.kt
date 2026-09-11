@@ -36,7 +36,7 @@ public fun PaftaProject.openAsDrawing(): StoreResult<DrawingDocument> {
             if (format == null) {
                 StoreFailure.UnknownFormat(manifest.source.format)
             } else {
-                StoreFailure.Unreadable(format, "PAFTA cannot open this as a 2D drawing yet")
+                StoreFailure.Unreadable(format, UnreadableReason.NO_VIEWER_YET)
             },
         )
     }
@@ -45,7 +45,7 @@ public fun PaftaProject.openAsDrawing(): StoreResult<DrawingDocument> {
         DxfReader.read(payload.inputStream())
     } catch (e: Exception) {
         return StoreResult.Failure(
-            StoreFailure.Unreadable(FileFormat.DXF, e.message ?: "the file is malformed"),
+            StoreFailure.Unreadable(FileFormat.DXF, UnreadableReason.MALFORMED),
         )
     }
 

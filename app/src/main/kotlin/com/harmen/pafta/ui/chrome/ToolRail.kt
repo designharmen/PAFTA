@@ -38,6 +38,7 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -112,16 +113,17 @@ private fun ToolButton(
             .clickable(role = Role.Tab, onClick = onClick)
             .padding(vertical = 7.dp),
     ) {
+        val label = stringResource(tool.label)
         Icon(
             imageVector = tool.icon(),
-            contentDescription = tool.label,
+            contentDescription = label,
             tint = tint,
             modifier = Modifier.size(if (compact) 18.dp else 20.dp),
         )
         if (!compact) {
             Spacer(Modifier.height(3.dp))
             Text(
-                text = tool.label,
+                text = label,
                 style = HarmenType.ToolLabel,
                 color = tint,
                 maxLines = 1,

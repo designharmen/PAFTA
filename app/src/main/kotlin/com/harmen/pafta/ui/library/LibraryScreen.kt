@@ -24,18 +24,23 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.annotation.StringRes
+import com.harmen.pafta.R
 import com.harmen.pafta.project.FileFormat
 import com.harmen.pafta.project.ProjectEntry
 import com.harmen.pafta.ui.chrome.HairlineDivider
 import com.harmen.pafta.ui.chrome.Monogram
+import com.harmen.pafta.ui.mesaj
 import com.harmen.pafta.ui.state.LibraryState
 import com.harmen.pafta.ui.theme.HarmenColours
 import com.harmen.pafta.ui.theme.HarmenType
@@ -65,7 +70,7 @@ public fun LibraryScreen(
         LibraryBar(onImport = onImport, importing = state.importing)
         HairlineDivider()
 
-        state.error?.let { ErrorBanner(it, onDismissError) }
+        state.error?.let { ErrorBanner(it.mesaj(), onDismissError) }
 
         when {
             state.loading -> CentredNote { Spinner() }
@@ -84,7 +89,7 @@ public fun LibraryScreen(
                 if (state.unreadable.isNotEmpty()) {
                     item {
                         Text(
-                            text = "[Unreadable]",
+                            text = "[${stringResource(R.string.library_unreadable)}]",
                             style = HarmenType.SectionTitle,
                             color = HarmenColours.TextMuted,
                             modifier = Modifier.padding(
@@ -117,7 +122,7 @@ private fun LibraryBar(onImport: () -> Unit, importing: Boolean) {
         Monogram(letter = "P")
         Spacer(Modifier.width(metrics.gutter))
         Text(
-            text = "PROJECTS",
+            text = stringResource(R.string.library_title),
             style = HarmenType.MenuCaps,
             color = HarmenColours.TextMuted,
         )
@@ -126,12 +131,12 @@ private fun LibraryBar(onImport: () -> Unit, importing: Boolean) {
             Spinner(size = 14.dp)
             Spacer(Modifier.width(metrics.gutterTight))
         }
-        OutlinedAction(text = "IMPORT", enabled = !importing, onClick = onImport)
+        OutlinedAction(text = R.string.library_import, enabled = !importing, onClick = onImport)
     }
 }
 
 @Composable
-private fun OutlinedAction(text: String, enabled: Boolean, onClick: () -> Unit) {
+private fun OutlinedAction(@StringRes text: Int, enabled: Boolean, onClick: () -> Unit) {
     val colour = if (enabled) HarmenColours.Text else HarmenColours.TextFaint
     Box(
         modifier = Modifier
@@ -145,7 +150,7 @@ private fun OutlinedAction(text: String, enabled: Boolean, onClick: () -> Unit) 
             .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 7.dp),
     ) {
-        Text(text = text, style = HarmenType.MenuCaps, color = colour)
+        Text(text = stringResource(text), style = HarmenType.MenuCaps, color = colour)
     }
 }
 
@@ -172,13 +177,12 @@ private fun ProjectRow(entry: ProjectEntry, onOpen: () -> Unit, onDelete: () -> 
             )
             Spacer(Modifier.height(2.dp))
             Text(
-                text = buildString {
-                    append(entry.manifest.source.fileName)
-                    append("  ·  ")
-                    append(formatSize(entry.sizeBytes))
-                    append("  ·  ")
-                    append(formatDate(entry.modifiedAtEpochMs))
-                },
+                text = stringResource(
+                    R.string.library_row_detail,
+                    entry.manifest.source.fileName,
+                    formatSize(entry.sizeBytes),
+                    formatDate(entry.modifiedAtEpochMs),
+                ),
                 style = HarmenType.Status,
                 color = HarmenColours.TextFaint,
                 maxLines = 1,
@@ -189,7 +193,7 @@ private fun ProjectRow(entry: ProjectEntry, onOpen: () -> Unit, onDelete: () -> 
         Spacer(Modifier.width(metrics.gutterTight))
         Icon(
             imageVector = Icons.Outlined.Delete,
-            contentDescription = "Delete ${entry.name}",
+            contentDescription = stringResource(R.string.library_delete, entry.name),
             tint = HarmenColours.TextFaint,
             modifier = Modifier
                 .size(32.dp)
@@ -254,7 +258,7 @@ private fun UnreadableRow(fileName: String) {
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
-                text = "this file is not a readable PAFTA project",
+                text = stringResource(R.string.library_unreadable_hint),
                 style = HarmenType.Status,
                 color = HarmenColours.TextFaint,
             )
@@ -278,18 +282,18 @@ private fun EmptyLibrary(onImport: () -> Unit) {
             )
             Spacer(Modifier.height(metrics.gutter))
             Text(
-                text = "no projects yet",
+                text = stringResource(R.string.library_empty_title),
                 style = HarmenType.Body,
                 color = HarmenColours.TextMuted,
             )
             Spacer(Modifier.height(4.dp))
             Text(
-                text = "import a DXF drawing to begin",
+                text = stringResource(R.string.library_empty_hint),
                 style = HarmenType.PropertyKey,
                 color = HarmenColours.TextFaint,
             )
             Spacer(Modifier.height(metrics.gutter))
-            OutlinedAction(text = "IMPORT", enabled = true, onClick = onImport)
+            OutlinedAction(text = R.string.library_import, enabled = true, onClick = onImport)
         }
     }
 }
@@ -318,7 +322,11 @@ private fun ErrorBanner(message: String, onDismiss: () -> Unit) {
             modifier = Modifier.weight(1f),
         )
         Spacer(Modifier.width(metrics.gutterTight))
-        Text(text = "DISMISS", style = HarmenType.MenuCaps, color = HarmenColours.Accent)
+        Text(
+            text = stringResource(R.string.library_dismiss),
+            style = HarmenType.MenuCaps,
+            color = HarmenColours.Accent,
+        )
     }
     HairlineDivider()
 }
@@ -337,15 +345,26 @@ private fun Spinner(size: androidx.compose.ui.unit.Dp = 22.dp) {
     )
 }
 
+/** Turkish locale, fixed: the interface is Turkish whatever the device is set to. */
+private val TR: Locale = Locale.forLanguageTag("tr-TR")
+
+@Composable
+@ReadOnlyComposable
 private fun formatSize(bytes: Long): String = when {
-    bytes >= 1_048_576 -> String.format(Locale.ROOT, "%.1fMB", bytes / 1_048_576.0)
-    bytes >= 1_024 -> "${bytes / 1_024}KB"
-    else -> "${bytes}B"
+    bytes >= 1_048_576 -> stringResource(
+        R.string.size_megabytes,
+        String.format(TR, "%.1f", bytes / 1_048_576.0),
+    )
+
+    bytes >= 1_024 -> stringResource(R.string.size_kilobytes, (bytes / 1_024).toInt())
+    else -> stringResource(R.string.size_bytes, bytes.toInt())
 }
 
+@Composable
+@ReadOnlyComposable
 private fun formatDate(epochMs: Long): String =
     if (epochMs <= 0) {
-        "—"
+        stringResource(R.string.library_no_date)
     } else {
-        SimpleDateFormat("d MMM yyyy HH:mm", Locale.getDefault()).format(Date(epochMs))
+        SimpleDateFormat("d MMMM yyyy HH:mm", TR).format(Date(epochMs))
     }

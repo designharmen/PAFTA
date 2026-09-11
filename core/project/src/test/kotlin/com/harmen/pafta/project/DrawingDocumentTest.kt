@@ -38,6 +38,7 @@ class DrawingDocumentTest {
         )
         val failure = assertIs<StoreFailure.Unreadable>(f.failure)
         assertEquals(FileFormat.GLB, failure.format)
+        assertEquals(UnreadableReason.NO_VIEWER_YET, failure.reason)
     }
 
     @Test
@@ -53,7 +54,7 @@ class DrawingDocumentTest {
         val f = assertIs<StoreResult.Failure>(
             project("0\nSECTION\n2\n".toByteArray()).openAsDrawing(),
         )
-        assertIs<StoreFailure.Unreadable>(f.failure)
+        assertEquals(UnreadableReason.MALFORMED, assertIs<StoreFailure.Unreadable>(f.failure).reason)
     }
 
     @Test

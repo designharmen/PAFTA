@@ -1,4 +1,148 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  PAFTA'nın arayüzü tamamen Türkçedir. Kullanıcının göreceği her yazı burada
+  tanımlanır; kodun içine gömülü kullanıcı metni bulunmaz. Böylece bir kelimeyi
+  değiştirmek kod değişikliği değil, dil değişikliği olur.
+
+  PAFTA's interface is Turkish throughout. Every string the user can see is
+  defined here and nowhere else, so changing a word is a change to language
+  rather than to code.
+-->
 <resources>
     <string name="app_name">PAFTA</string>
+
+    <!-- ===== Üst bar ===== -->
+    <string name="menu_file">DOSYA</string>
+    <string name="menu_edit">DÜZENLE</string>
+    <string name="action_share">PAYLAŞ</string>
+    <string name="mode_edit">DÜZENLE</string>
+    <string name="mode_view">GÖRÜNÜM</string>
+    <string name="nav_projects">PROJELER</string>
+    <string name="nav_back_to_projects">Projelere dön</string>
+    <string name="action_undo">Geri al</string>
+    <string name="action_redo">Yeniden yap</string>
+    <string name="unsaved_changes">Kaydedilmemiş değişiklik var</string>
+
+    <!-- ===== Üst bar sekmeleri ===== -->
+    <string name="tab_active">Aktif</string>
+    <string name="tab_annotations">Notlar</string>
+    <string name="tab_furniture">Mobilya</string>
+    <string name="tab_walls">Duvarlar</string>
+    <string name="tab_grid">Izgara</string>
+
+    <!-- ===== Sol araç paneli ===== -->
+    <string name="tool_select">Seç</string>
+    <string name="tool_pencil">Kalem</string>
+    <string name="tool_line">Çizgi</string>
+    <string name="tool_arc">Yay</string>
+    <string name="tool_dim">Ölçü</string>
+    <string name="tool_dimensions">Ölçüler</string>
+    <string name="tool_hatch">Tarama</string>
+    <string name="tool_text">Metin</string>
+    <string name="tool_grid">Izgara</string>
+    <string name="tool_measure">Ölç</string>
+    <string name="tool_palette">Palet</string>
+    <string name="tool_layers">Katmanlar</string>
+
+    <!-- ===== Sağ panel bölüm başlıkları ===== -->
+    <string name="panel_layers">Katman Paleti</string>
+    <string name="panel_materials">Malzeme Seçici</string>
+    <string name="panel_properties">Özellikler</string>
+    <string name="panel_annotations">Not Araçları</string>
+    <string name="panel_empty_layers">bu çizimde katman yok</string>
+    <string name="panel_empty_materials">malzeme yüklenmedi</string>
+    <string name="panel_empty_properties">seçili öğe yok</string>
+    <string name="layer_opacity_percent">%1$d%%</string>
+
+    <!-- ===== Not araçları ===== -->
+    <string name="annotation_text">Metin</string>
+    <string name="annotation_arrow">Ok</string>
+    <string name="annotation_pin">İşaret</string>
+    <string name="annotation_dimension">Ölçü</string>
+    <string name="annotation_callout">Açıklama</string>
+    <string name="annotation_stamp">Kaşe</string>
+    <string name="annotation_comment">Yorum</string>
+
+    <!-- ===== Özellikler tablosu ===== -->
+    <string name="property_entities">Öğe sayısı</string>
+    <string name="property_layer_count">Katman sayısı</string>
+    <string name="property_width">Genişlik</string>
+    <string name="property_height">Yükseklik</string>
+    <string name="property_not_shown">Gösterilmeyen</string>
+    <string name="property_wall">Duvar</string>
+    <string name="property_length">Uzunluk</string>
+    <string name="property_area">Alan</string>
+    <string name="property_layer">Katman</string>
+    <!-- Malzeme satırı, malzeme seçimi devreye girdiğinde kullanılacak. -->
+    <string name="property_material">Malzeme</string>
+
+    <!-- ===== Proje kütüphanesi ===== -->
+    <string name="library_title">PROJELER</string>
+    <string name="library_import">İÇE AKTAR</string>
+    <string name="library_unreadable">Okunamayan</string>
+    <string name="library_empty_title">henüz proje yok</string>
+    <string name="library_empty_hint">başlamak için bir DXF çizimi içe aktarın</string>
+    <string name="library_dismiss">KAPAT</string>
+    <string name="library_unreadable_hint">bu dosya okunabilir bir PAFTA projesi değil</string>
+    <string name="library_delete">%1$s projesini sil</string>
+    <string name="library_row_detail">%1$s  ·  %2$s  ·  %3$s</string>
+    <string name="library_no_date">—</string>
+    <string name="size_bytes">%1$d B</string>
+    <string name="size_kilobytes">%1$d KB</string>
+    <string name="size_megabytes">%1$s MB</string>
+
+    <!-- ===== Hata ve bilgi mesajları ===== -->
+    <string name="error_unknown_format">PAFTA .%1$s uzantılı dosyaları tanımıyor</string>
+    <string name="error_no_extension">Bu dosyanın uzantısı yok, bu yüzden PAFTA ne tür bir dosya olduğunu anlayamıyor</string>
+    <string name="error_empty_file">Bu dosyanın içi boş</string>
+    <string name="error_too_large">Dosya %1$d MB. En fazla %2$d MB kabul ediliyor</string>
+    <string name="error_malformed">Bu %1$s bozuk görünüyor, okunamadı</string>
+    <string name="error_no_drawable">Bu %1$s açıldı ama içinde çizilecek bir şey yok</string>
+    <string name="error_no_viewer">PAFTA %1$s dosyalarını henüz gösteremiyor. Dosya projenin içine güvenle kaydedildi, sonraki sürümde açılabilecek</string>
+    <string name="error_cannot_read">Dosya okunamadı</string>
+    <string name="error_cannot_write">Proje kaydedilemedi. Cihazda boş yer kalmamış olabilir</string>
+    <string name="error_permission">PAFTA bu dosyayı okuma izni alamadı</string>
+    <string name="error_not_a_project">Bu dosya bir PAFTA projesi değil</string>
+    <string name="error_name_required">Projeye bir isim vermelisiniz</string>
+    <string name="error_file_name_unknown">Seçilen dosyanın adı okunamadı</string>
+    <string name="error_save_failed">Kaydedilemedi. %1$s</string>
+
+    <!-- ===== Dosya türü adları ===== -->
+    <string name="format_dxf">DXF çizimi</string>
+    <string name="format_dwg">DWG çizimi</string>
+    <string name="format_glb">glTF modeli</string>
+    <string name="format_gltf">glTF modeli</string>
+    <string name="format_obj">OBJ modeli</string>
+    <string name="format_stl">STL modeli</string>
+    <string name="format_ply">PLY modeli</string>
+    <string name="format_dae">COLLADA modeli</string>
+    <string name="format_3ds">3DS modeli</string>
+    <string name="format_ifc">IFC yapı modeli</string>
+    <string name="format_skp">SketchUp modeli</string>
+    <string name="format_pdf">PDF belgesi</string>
+    <string name="format_png">PNG görseli</string>
+    <string name="format_jpg">JPEG görseli</string>
+    <string name="format_webp">WebP görseli</string>
+    <string name="format_pafta">PAFTA projesi</string>
+    <string name="format_unknown">bilinmeyen dosya türü</string>
+
+    <!-- ===== Örnek çizim (ilk açılışta gösterilen plan) ===== -->
+    <string name="sample_unit_label">101 No'lu Daire – 2. Kat</string>
+    <string name="sample_selection">Bölme duvarı</string>
+    <string name="sample_room_living">Salon</string>
+    <string name="sample_room_kitchen">Mutfak</string>
+    <string name="sample_room_bath">Banyo</string>
+    <string name="sample_room_bedroom">Ebeveyn Yatak</string>
+    <string name="sample_room_terrace">Teras</string>
+    <string name="sample_layer_walls">Duvarlar</string>
+    <string name="sample_layer_partitions">Bölmeler</string>
+    <string name="sample_layer_openings">Kapı ve Pencereler</string>
+    <string name="sample_layer_furniture">Mobilya</string>
+    <string name="sample_layer_grid">Izgara</string>
+    <string name="material_plaster">Sıva</string>
+    <string name="material_oak">Meşe</string>
+    <string name="material_concrete">Beton</string>
+    <string name="material_brass">Pirinç</string>
+    <string name="material_slate">Arduvaz</string>
+    <string name="material_glass">Cam</string>
 </resources>

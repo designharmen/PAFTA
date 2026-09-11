@@ -20,7 +20,7 @@ public data class LibraryState(
     val loading: Boolean = true,
     val importing: Boolean = false,
     /** A failure to show the user; cleared when they dismiss it. */
-    val error: String? = null,
+    val error: UiError? = null,
     /** Set after a successful import so the screen can open the new project. */
     val justImported: ProjectEntry? = null,
 )
@@ -59,7 +59,7 @@ public class LibraryViewModel(private val repository: ProjectRepository) : ViewM
                 }
 
                 is StoreResult.Failure -> _state.update {
-                    it.copy(importing = false, error = result.failure.message)
+                    it.copy(importing = false, error = UiError.Store(result.failure))
                 }
             }
         }
@@ -76,7 +76,8 @@ public class LibraryViewModel(private val repository: ProjectRepository) : ViewM
         viewModelScope.launch {
             when (val result = repository.rename(entry, newName)) {
                 is StoreResult.Success -> refresh()
-                is StoreResult.Failure -> _state.update { it.copy(error = result.failure.message) }
+                is StoreResult.Failure ->
+                    _state.update { it.copy(error = UiError.Store(result.failure)) }
             }
         }
     }

@@ -16,42 +16,6 @@ public data class ProjectEntry(
     public val sizeBytes: Long get() = file.length()
 }
 
-/** Why an import or open failed, in terms the UI can show as-is. */
-public sealed interface StoreFailure {
-    public val message: String
-
-    /** The extension is not one PAFTA knows. */
-    public data class UnknownFormat(val extension: String) : StoreFailure {
-        override val message: String =
-            if (extension.isEmpty()) {
-                "this file has no extension, so PAFTA cannot tell what it is"
-            } else {
-                "PAFTA does not recognise .$extension files"
-            }
-    }
-
-    /** The file is empty. */
-    public data object EmptyFile : StoreFailure {
-        override val message: String = "the file is empty"
-    }
-
-    /** The file is larger than the import limit. */
-    public data class TooLarge(val sizeBytes: Long, val limitBytes: Long) : StoreFailure {
-        override val message: String =
-            "the file is ${sizeBytes / 1_048_576}MB; the limit is ${limitBytes / 1_048_576}MB"
-    }
-
-    /** The payload did not parse as the format its extension claims. */
-    public data class Unreadable(val format: FileFormat, val detail: String) : StoreFailure {
-        override val message: String = "this ${format.displayName} could not be read: $detail"
-    }
-
-    /** An I/O problem: permissions, a full disk, a vanished file. */
-    public data class Io(val detail: String) : StoreFailure {
-        override val message: String = detail
-    }
-}
-
 /** The outcome of a store operation. */
 public sealed interface StoreResult<out T> {
     public data class Success<out T>(val value: T) : StoreResult<T>
@@ -131,7 +95,7 @@ public class ProjectStore(
             PaftaContainer.write(project, target)
             StoreResult.Success(ProjectEntry(target, project.manifest))
         } catch (e: IOException) {
-            StoreResult.Failure(StoreFailure.Io(e.message ?: "could not write the project"))
+            StoreResult.Failure(StoreFailure.Io(IoCause.CANNOT_WRITE_PROJECT, e.message))
         }
     }
 
@@ -144,7 +108,7 @@ public class ProjectStore(
     ): StoreResult<ProjectEntry> = try {
         import(fileName, payload.readBytes(), importedFrom, projectName)
     } catch (e: IOException) {
-        StoreResult.Failure(StoreFailure.Io(e.message ?: "could not read the file"))
+        StoreResult.Failure(StoreFailure.Io(IoCause.CANNOT_READ_FILE, e.message))
     }
 
     /**
@@ -175,9 +139,9 @@ public class ProjectStore(
     public fun open(file: File): StoreResult<PaftaProject> = try {
         StoreResult.Success(PaftaContainer.read(file))
     } catch (e: PaftaFormatException) {
-        StoreResult.Failure(StoreFailure.Io(e.message ?: "this is not a PAFTA project"))
+        StoreResult.Failure(StoreFailure.Io(IoCause.NOT_A_PROJECT, e.message))
     } catch (e: IOException) {
-        StoreResult.Failure(StoreFailure.Io(e.message ?: "could not open the project"))
+        StoreResult.Failure(StoreFailure.Io(IoCause.CANNOT_READ_FILE, e.message))
     }
 
     /** Saves a project back to [file], stamping the modified time. */
@@ -189,7 +153,7 @@ public class ProjectStore(
             PaftaContainer.write(stamped, file)
             StoreResult.Success(stamped)
         } catch (e: IOException) {
-            StoreResult.Failure(StoreFailure.Io(e.message ?: "could not save the project"))
+            StoreResult.Failure(StoreFailure.Io(IoCause.CANNOT_WRITE_PROJECT, e.message))
         }
     }
 
@@ -203,7 +167,7 @@ public class ProjectStore(
     public fun rename(entry: ProjectEntry, newName: String): StoreResult<ProjectEntry> {
         val trimmed = newName.trim()
         if (trimmed.isEmpty()) {
-            return StoreResult.Failure(StoreFailure.Io("a project needs a name"))
+            return StoreResult.Failure(StoreFailure.Io(IoCause.NAME_REQUIRED))
         }
 
         return when (val opened = open(entry.file)) {
@@ -241,12 +205,12 @@ public class ProjectStore(
     private fun validateDxf(payload: ByteArray): StoreFailure? = try {
         val drawing = com.harmen.pafta.dxf.DxfReader.read(payload.inputStream())
         if (drawing.entities.isEmpty()) {
-            StoreFailure.Unreadable(FileFormat.DXF, "it contains no drawable entities")
+            StoreFailure.Unreadable(FileFormat.DXF, UnreadableReason.NO_DRAWABLE_CONTENT)
         } else {
             null
         }
     } catch (e: Exception) {
-        StoreFailure.Unreadable(FileFormat.DXF, e.message ?: "the file is malformed")
+        StoreFailure.Unreadable(FileFormat.DXF, UnreadableReason.MALFORMED)
     }
 
     public companion object {

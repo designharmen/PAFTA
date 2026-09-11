@@ -34,11 +34,15 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.annotation.StringRes
+import com.harmen.pafta.R
 import com.harmen.pafta.project.AnnotationKind
 import com.harmen.pafta.project.LayerState
+import com.harmen.pafta.ui.adi
 import com.harmen.pafta.ui.state.MaterialSwatch
 import com.harmen.pafta.ui.state.PropertyRow
 import com.harmen.pafta.ui.theme.HarmenColours
@@ -58,7 +62,7 @@ public fun RightPanel(
     layers: List<LayerState>,
     materials: List<MaterialSwatch>,
     properties: List<PropertyRow>,
-    selectionTitle: String?,
+    @StringRes selectionTitle: Int?,
     activeAnnotationTool: AnnotationKind?,
     onLayerVisibilityToggled: (String, Boolean) -> Unit,
     onLayerOpacityChanged: (String, Double) -> Unit,
@@ -74,9 +78,9 @@ public fun RightPanel(
             .verticalScroll(rememberScrollState())
             .padding(vertical = metrics.gutterTight),
     ) {
-        Section("Layers Palette") {
+        Section(R.string.panel_layers) {
             if (layers.isEmpty()) {
-                EmptyNote("no layers in this drawing")
+                EmptyNote(R.string.panel_empty_layers)
             } else {
                 for (layer in layers) {
                     LayerRow(
@@ -88,9 +92,9 @@ public fun RightPanel(
             }
         }
 
-        Section("Material Selector") {
+        Section(R.string.panel_materials) {
             if (materials.isEmpty()) {
-                EmptyNote("no materials loaded")
+                EmptyNote(R.string.panel_empty_materials)
             } else {
                 for (material in materials) {
                     MaterialRow(material) { onMaterialSelected(material.id) }
@@ -98,13 +102,13 @@ public fun RightPanel(
             }
         }
 
-        Section("Properties") {
+        Section(R.string.panel_properties) {
             if (properties.isEmpty()) {
-                EmptyNote("nothing selected")
+                EmptyNote(R.string.panel_empty_properties)
             } else {
                 selectionTitle?.let {
                     Text(
-                        text = it,
+                        text = stringResource(it),
                         style = HarmenType.Body,
                         color = HarmenColours.Text,
                         modifier = Modifier.padding(bottom = 6.dp),
@@ -116,7 +120,7 @@ public fun RightPanel(
             }
         }
 
-        Section("Annotation Tools") {
+        Section(R.string.panel_annotations) {
             for (kind in ANNOTATION_TOOLS) {
                 AnnotationToolRow(
                     kind = kind,
@@ -130,10 +134,12 @@ public fun RightPanel(
 
 /** A bracketed panel section. */
 @Composable
-private fun Section(title: String, content: @Composable () -> Unit) {
+private fun Section(@StringRes title: Int, content: @Composable () -> Unit) {
     Column(Modifier.fillMaxWidth().padding(bottom = metrics.gutter)) {
         Text(
-            text = "[$title]",
+            // The bracketed heading is the drawing-sheet convention the design
+            // asks for; only the word inside is translated.
+            text = "[${stringResource(title)}]",
             style = HarmenType.SectionTitle,
             color = HarmenColours.TextMuted,
             modifier = Modifier.padding(horizontal = metrics.gutter, vertical = 7.dp),
@@ -143,9 +149,9 @@ private fun Section(title: String, content: @Composable () -> Unit) {
 }
 
 @Composable
-private fun EmptyNote(text: String) {
+private fun EmptyNote(@StringRes text: Int) {
     Text(
-        text = text,
+        text = stringResource(text),
         style = HarmenType.PropertyKey,
         color = HarmenColours.TextFaint,
         modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
@@ -185,7 +191,7 @@ private fun LayerRow(
         )
         Spacer(Modifier.width(6.dp))
         Text(
-            text = "${layer.opacityPercent}%",
+            text = stringResource(R.string.layer_opacity_percent, layer.opacityPercent),
             style = HarmenType.Numeric,
             color = if (layer.visible) HarmenColours.TextMuted else HarmenColours.TextFaint,
         )
@@ -290,7 +296,7 @@ private fun MaterialRow(material: MaterialSwatch, onClick: () -> Unit) {
         )
         Spacer(Modifier.width(8.dp))
         Text(
-            text = material.name,
+            text = stringResource(material.name),
             style = HarmenType.Body,
             color = if (material.selected) HarmenColours.Accent else HarmenColours.Text,
             maxLines = 1,
@@ -307,7 +313,7 @@ private fun PropertyTableRow(row: PropertyRow) {
         modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 3.dp),
     ) {
         Text(
-            text = row.key,
+            text = stringResource(row.key),
             style = HarmenType.PropertyKey,
             color = HarmenColours.TextMuted,
             modifier = Modifier.weight(1f),
@@ -326,6 +332,7 @@ private fun PropertyTableRow(row: PropertyRow) {
 @Composable
 private fun AnnotationToolRow(kind: AnnotationKind, selected: Boolean, onClick: () -> Unit) {
     val tint = if (selected) HarmenColours.Accent else HarmenColours.TextMuted
+    val label = kind.adi()
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
@@ -337,12 +344,12 @@ private fun AnnotationToolRow(kind: AnnotationKind, selected: Boolean, onClick: 
     ) {
         Icon(
             imageVector = kind.icon(),
-            contentDescription = kind.label(),
+            contentDescription = label,
             tint = tint,
             modifier = Modifier.size(15.dp),
         )
         Spacer(Modifier.width(8.dp))
-        Text(text = kind.label(), style = HarmenType.Body, color = tint)
+        Text(text = label, style = HarmenType.Body, color = tint)
     }
 }
 
@@ -356,16 +363,6 @@ private val ANNOTATION_TOOLS = listOf(
     AnnotationKind.PIN,
     AnnotationKind.DIMENSION,
 )
-
-private fun AnnotationKind.label(): String = when (this) {
-    AnnotationKind.TEXT -> "Text"
-    AnnotationKind.ARROW -> "Arrow"
-    AnnotationKind.PIN -> "Pin"
-    AnnotationKind.DIMENSION -> "Dimension"
-    AnnotationKind.CALLOUT -> "Callout"
-    AnnotationKind.STAMP -> "Stamp"
-    AnnotationKind.COMMENT -> "Comment"
-}
 
 private fun AnnotationKind.icon(): ImageVector = when (this) {
     AnnotationKind.TEXT -> Icons.Outlined.TextFields

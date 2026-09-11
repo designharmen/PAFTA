@@ -272,16 +272,18 @@ private fun PaftaProject.toEditorState(doc: DrawingDocument): EditorState = Edit
 private fun drawingProperties(doc: DrawingDocument): List<PropertyRow> {
     val size = doc.bounds.size
     return buildList {
-        add(PropertyRow("Entities", doc.entityCount.toString()))
-        add(PropertyRow("Layers", doc.layers.size.toString()))
+        add(PropertyRow(R.string.property_entities, doc.entityCount.toString()))
+        add(PropertyRow(R.string.property_layer_count, doc.layers.size.toString()))
         if (!doc.bounds.isEmpty) {
-            add(PropertyRow("Width", formatLength(size.x)))
-            add(PropertyRow("Height", formatLength(size.y)))
+            add(PropertyRow(R.string.property_width, formatLength(size.x)))
+            add(PropertyRow(R.string.property_height, formatLength(size.y)))
         }
         if (doc.unsupportedEntityTypes.isNotEmpty()) {
+            // The values are entity names out of the user's own file: data, not
+            // interface text.
             add(
                 PropertyRow(
-                    "Not shown",
+                    R.string.property_not_shown,
                     doc.unsupportedEntityTypes.sorted().joinToString(", "),
                     numeric = false,
                 ),

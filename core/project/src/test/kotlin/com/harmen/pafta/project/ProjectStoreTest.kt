@@ -98,7 +98,6 @@ class ProjectStoreTest {
         val f = assertIs<StoreResult.Failure>(store.import("notes.docx", byteArrayOf(1, 2, 3)))
         val failure = assertIs<StoreFailure.UnknownFormat>(f.failure)
         assertEquals("docx", failure.extension)
-        assertTrue(failure.message.contains(".docx"))
         assertEquals(emptyList(), store.list())
     }
 
@@ -130,6 +129,7 @@ class ProjectStoreTest {
         )
         val failure = assertIs<StoreFailure.Unreadable>(f.failure)
         assertEquals(FileFormat.DXF, failure.format)
+        assertEquals(UnreadableReason.MALFORMED, failure.reason)
         assertEquals(emptyList(), store.list(), "nothing should be left behind")
     }
 
@@ -137,7 +137,7 @@ class ProjectStoreTest {
     fun `a dxf with no drawable entities is refused`() {
         val f = assertIs<StoreResult.Failure>(store.import("blank.dxf", "0\nEOF\n".toByteArray()))
         val failure = assertIs<StoreFailure.Unreadable>(f.failure)
-        assertTrue(failure.message.contains("no drawable entities"), failure.message)
+        assertEquals(UnreadableReason.NO_DRAWABLE_CONTENT, failure.reason)
     }
 
     @Test
@@ -247,7 +247,7 @@ class ProjectStoreTest {
     fun `opening something that is not a project fails with an explanation`() {
         val stray = File(root, "stray.pafta").apply { writeText("nope") }
         val f = assertIs<StoreResult.Failure>(store.open(stray))
-        assertIs<StoreFailure.Io>(f.failure)
+        assertEquals(IoCause.NOT_A_PROJECT, assertIs<StoreFailure.Io>(f.failure).cause)
     }
 
     @Test
@@ -283,6 +283,40 @@ class ProjectStoreTest {
         val s = ProjectStore(nested, clock = { now })
         assertTrue(nested.isDirectory)
         assertEquals(emptyList(), s.list())
+    }
+}
+
+class StoreFailureTest {
+
+    @Test
+    fun `failures carry data rather than a message, so wording stays in Turkish resources`() {
+        // A regression guard for the Turkish-only rule: if someone reintroduces a
+        // `message` on a failure type, it will be English prose on a Turkish
+        // screen. The structured fields below are all the UI needs.
+        val unknown = StoreFailure.UnknownFormat("docx")
+        assertEquals("docx", unknown.extension)
+
+        val tooLarge = StoreFailure.TooLarge(2048, 1024)
+        assertEquals(2048L, tooLarge.sizeBytes)
+        assertEquals(1024L, tooLarge.limitBytes)
+
+        val unreadable = StoreFailure.Unreadable(FileFormat.DWG, UnreadableReason.NO_VIEWER_YET)
+        assertEquals(FileFormat.DWG, unreadable.format)
+        assertEquals(UnreadableReason.NO_VIEWER_YET, unreadable.reason)
+
+        // The platform's own message is kept for logs only, never for the screen.
+        val io = StoreFailure.Io(IoCause.PERMISSION_DENIED, diagnostic = "EACCES")
+        assertEquals(IoCause.PERMISSION_DENIED, io.cause)
+        assertEquals("EACCES", io.diagnostic)
+        assertNull(StoreFailure.Io(IoCause.NAME_REQUIRED).diagnostic)
+    }
+
+    @Test
+    fun `every io cause and unreadable reason is distinct so the ui can map each one`() {
+        assertEquals(IoCause.entries.size, IoCause.entries.toSet().size)
+        assertEquals(UnreadableReason.entries.size, UnreadableReason.entries.toSet().size)
+        assertEquals(6, IoCause.entries.size)
+        assertEquals(3, UnreadableReason.entries.size)
     }
 }
 

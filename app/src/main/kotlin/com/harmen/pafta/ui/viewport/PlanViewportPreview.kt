@@ -3,7 +3,9 @@ package com.harmen.pafta.ui.viewport
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
+import com.harmen.pafta.R
 import com.harmen.pafta.measure.MeasurementDisplay
 import com.harmen.pafta.ui.theme.PaftaTheme
 
@@ -20,11 +22,11 @@ private fun PlanViewportPreview() {
     PaftaTheme {
         PlanViewport(
             drawing = SamplePlan.drawing,
-            layers = SamplePlan.layers,
+            layers = sampleLayers(),
             measurements = SamplePlan.measurements,
-            roomLabels = SamplePlan.roomLabels,
+            roomLabels = sampleRoomLabels(),
             display = MeasurementDisplay(),
-            unitLabel = "Unit 101 – Lvl 2",
+            unitLabel = stringResource(R.string.sample_unit_label),
             gridVisible = true,
             gridSpacingMm = 1_000.0,
             modifier = Modifier.fillMaxSize(),
@@ -38,11 +40,11 @@ private fun PlanViewportPhonePreview() {
     PaftaTheme {
         PlanViewport(
             drawing = SamplePlan.drawing,
-            layers = SamplePlan.layers,
+            layers = sampleLayers(),
             measurements = SamplePlan.measurements,
-            roomLabels = SamplePlan.roomLabels,
+            roomLabels = sampleRoomLabels(),
             display = MeasurementDisplay(),
-            unitLabel = "Unit 101 – Lvl 2",
+            unitLabel = stringResource(R.string.sample_unit_label),
             gridVisible = true,
             gridSpacingMm = 1_000.0,
             modifier = Modifier.fillMaxSize(),

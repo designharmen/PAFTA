@@ -7,6 +7,7 @@ import com.harmen.pafta.dxf.DxfLayer
 import com.harmen.pafta.geometry.Vec2
 import com.harmen.pafta.geometry.Vec3
 import com.harmen.pafta.measure.Measurement
+import com.harmen.pafta.R
 import com.harmen.pafta.project.LayerState
 import com.harmen.pafta.ui.state.MaterialSwatch
 import com.harmen.pafta.ui.state.PropertyRow
@@ -26,44 +27,44 @@ public object SamplePlan {
     /** Outer shell, internal partitions, door swings and window openings. */
     public val drawing: DxfDrawing = DxfDrawing(
         layers = listOf(
-            DxfLayer("WALLS", colour = 7),
-            DxfLayer("PARTITIONS", colour = 8),
-            DxfLayer("OPENINGS", colour = 4),
-            DxfLayer("FURNITURE", colour = 3),
-            DxfLayer("GRID", colour = 8),
+            DxfLayer("DUVAR", colour = 7),
+            DxfLayer("BOLME", colour = 8),
+            DxfLayer("ACIKLIK", colour = 4),
+            DxfLayer("MOBILYA", colour = 3),
+            DxfLayer("IZGARA", colour = 8),
         ),
         insUnits = DxfInsUnits.MILLIMETRES,
         entities = buildList {
             // --- Outer shell, 200mm thick, drawn as two offset rings ---------
-            addAll(rectangle("WALLS", 0.0, 0.0, W, H))
-            addAll(rectangle("WALLS", 200.0, 200.0, W - 200.0, H - 200.0))
+            addAll(rectangle("DUVAR", 0.0, 0.0, W, H))
+            addAll(rectangle("DUVAR", 200.0, 200.0, W - 200.0, H - 200.0))
 
             // --- Internal partitions, 120mm -----------------------------------
             // Kitchen / living divider.
-            add(wall("PARTITIONS", 3_400.0, 200.0, 3_400.0, 4_300.0))
+            add(wall("BOLME", 3_400.0, 200.0, 3_400.0, 4_300.0))
             // Corridor wall.
-            add(wall("PARTITIONS", 200.0, 4_300.0, 6_900.0, 4_300.0))
+            add(wall("BOLME", 200.0, 4_300.0, 6_900.0, 4_300.0))
             // Bath / bedroom divider.
-            add(wall("PARTITIONS", 6_900.0, 4_300.0, 6_900.0, H - 200.0))
-            add(wall("PARTITIONS", 3_400.0, 4_300.0, 3_400.0, H - 200.0))
+            add(wall("BOLME", 6_900.0, 4_300.0, 6_900.0, H - 200.0))
+            add(wall("BOLME", 3_400.0, 4_300.0, 3_400.0, H - 200.0))
             // Terrace threshold.
-            add(wall("PARTITIONS", 6_900.0, 200.0, 6_900.0, 4_300.0))
+            add(wall("BOLME", 6_900.0, 200.0, 6_900.0, 4_300.0))
 
             // --- Door swings ---------------------------------------------------
-            add(DxfEntity.Arc("OPENINGS", Vec3(3_400.0, 1_100.0, 0.0), 800.0, 0.0, 90.0))
-            add(DxfEntity.Arc("OPENINGS", Vec3(4_600.0, 4_300.0, 0.0), 800.0, 180.0, 270.0))
-            add(DxfEntity.Arc("OPENINGS", Vec3(6_900.0, 5_400.0, 0.0), 750.0, 90.0, 180.0))
+            add(DxfEntity.Arc("ACIKLIK", Vec3(3_400.0, 1_100.0, 0.0), 800.0, 0.0, 90.0))
+            add(DxfEntity.Arc("ACIKLIK", Vec3(4_600.0, 4_300.0, 0.0), 800.0, 180.0, 270.0))
+            add(DxfEntity.Arc("ACIKLIK", Vec3(6_900.0, 5_400.0, 0.0), 750.0, 90.0, 180.0))
 
             // --- Window openings: a double line in the wall thickness ---------
-            addAll(window("OPENINGS", 900.0, 0.0, 2_100.0, 0.0))
-            addAll(window("OPENINGS", 4_300.0, 0.0, 6_100.0, 0.0))
-            addAll(window("OPENINGS", W, 1_200.0, W, 3_100.0))
+            addAll(window("ACIKLIK", 900.0, 0.0, 2_100.0, 0.0))
+            addAll(window("ACIKLIK", 4_300.0, 0.0, 6_100.0, 0.0))
+            addAll(window("ACIKLIK", W, 1_200.0, W, 3_100.0))
 
             // --- A few furniture blocks, so the Furniture layer is not empty ---
-            addAll(rectangle("FURNITURE", 600.0, 600.0, 2_800.0, 1_400.0)) // counter
-            addAll(rectangle("FURNITURE", 4_000.0, 700.0, 6_200.0, 2_000.0)) // sofa
-            addAll(rectangle("FURNITURE", 4_000.0, 4_900.0, 6_100.0, 6_900.0)) // bed
-            add(DxfEntity.Circle("FURNITURE", Vec3(2_000.0, 5_600.0, 0.0), 450.0)) // basin
+            addAll(rectangle("MOBILYA", 600.0, 600.0, 2_800.0, 1_400.0)) // counter
+            addAll(rectangle("MOBILYA", 4_000.0, 700.0, 6_200.0, 2_000.0)) // sofa
+            addAll(rectangle("MOBILYA", 4_000.0, 4_900.0, 6_100.0, 6_900.0)) // bed
+            add(DxfEntity.Circle("MOBILYA", Vec3(2_000.0, 5_600.0, 0.0), 450.0)) // basin
         },
     )
 
@@ -76,44 +77,56 @@ public object SamplePlan {
         Measurement.Distance("d-kitchen", Vec3(200.0, 3_900.0, 0.0), Vec3(3_400.0, 3_900.0, 0.0)),
     )
 
-    /** Room names, positioned at the visual centre of each space. */
-    public val roomLabels: List<RoomLabel> = listOf(
-        RoomLabel("Living", Vec2(5_150.0, 2_300.0)),
-        RoomLabel("Kitchen", Vec2(1_800.0, 2_300.0)),
-        RoomLabel("Bath", Vec2(1_800.0, 5_800.0)),
-        RoomLabel("Master Bed", Vec2(5_150.0, 5_800.0)),
-        RoomLabel("Terrace", Vec2(8_250.0, 2_300.0)),
+    /**
+     * Room names, positioned at the visual centre of each space.
+     *
+     * Resolved from resources by the caller, so the fixture carries no Turkish
+     * text of its own and cannot drift out of step with `strings.xml`.
+     */
+    public val roomLabelIds: List<Pair<Int, Vec2>> = listOf(
+        R.string.sample_room_living to Vec2(5_150.0, 2_300.0),
+        R.string.sample_room_kitchen to Vec2(1_800.0, 2_300.0),
+        R.string.sample_room_bath to Vec2(1_800.0, 5_800.0),
+        R.string.sample_room_bedroom to Vec2(5_150.0, 5_800.0),
+        R.string.sample_room_terrace to Vec2(8_250.0, 2_300.0),
     )
 
     /** Layer palette entries matching the drawing's layers. */
-    public val layers: List<LayerState> = listOf(
-        LayerState("WALLS", "Walls", visible = true, opacity = 1.0),
-        LayerState("PARTITIONS", "Partitions", visible = true, opacity = 1.0),
-        LayerState("OPENINGS", "Openings", visible = true, opacity = 0.75, colour = "#C97D5D"),
-        LayerState("FURNITURE", "Furniture", visible = true, opacity = 0.5),
-        LayerState("GRID", "Grid", visible = false, opacity = 0.25),
+    /**
+     * Layer palette rows. The id is the DXF layer name, kept ASCII because DXF
+     * layer names travel through files written by other tools; the display name
+     * is Turkish and comes from resources.
+     */
+    public val layerIds: List<Pair<LayerState, Int>> = listOf(
+        LayerState("DUVAR", "DUVAR") to R.string.sample_layer_walls,
+        LayerState("BOLME", "BOLME") to R.string.sample_layer_partitions,
+        LayerState("ACIKLIK", "ACIKLIK", opacity = 0.75, colour = "#C97D5D")
+            to R.string.sample_layer_openings,
+        LayerState("MOBILYA", "MOBILYA", opacity = 0.5) to R.string.sample_layer_furniture,
+        LayerState("IZGARA", "IZGARA", visible = false, opacity = 0.25)
+            to R.string.sample_layer_grid,
     )
 
     public val materials: List<MaterialSwatch> = listOf(
-        MaterialSwatch("plaster", "Plaster", "#D8D2C8", roughness = 0.9, selected = true),
-        MaterialSwatch("oak", "Oak", "#9A7B4F", roughness = 0.55),
-        MaterialSwatch("concrete", "Concrete", "#7E7A76", roughness = 0.8),
-        MaterialSwatch("brass", "Brass", "#C97D5D", roughness = 0.25),
-        MaterialSwatch("slate", "Slate", "#3A3A3A", roughness = 0.7),
-        MaterialSwatch("glass", "Glass", "#AFC4CC", roughness = 0.05),
+        MaterialSwatch("plaster", R.string.material_plaster, "#D8D2C8", roughness = 0.9, selected = true),
+        MaterialSwatch("oak", R.string.material_oak, "#9A7B4F", roughness = 0.55),
+        MaterialSwatch("concrete", R.string.material_concrete, "#7E7A76", roughness = 0.8),
+        MaterialSwatch("brass", R.string.material_brass, "#C97D5D", roughness = 0.25),
+        MaterialSwatch("slate", R.string.material_slate, "#3A3A3A", roughness = 0.7),
+        MaterialSwatch("glass", R.string.material_glass, "#AFC4CC", roughness = 0.05),
     )
 
     /** The properties shown for the default selection. */
     public val properties: List<PropertyRow> = listOf(
-        PropertyRow("Wall", "120mm"),
-        PropertyRow("Length", "5500mm"),
-        PropertyRow("Height", "2900mm"),
-        PropertyRow("Area", "24.75m²"),
-        PropertyRow("Layer", "Partitions", numeric = false),
-        PropertyRow("Material", "Plaster", numeric = false),
+        PropertyRow(R.string.property_wall, "120mm"),
+        PropertyRow(R.string.property_length, "5500mm"),
+        PropertyRow(R.string.property_height, "2900mm"),
+        PropertyRow(R.string.property_area, "24.75m²"),
+        // The layer value is the DXF layer name out of the drawing, so it is data.
+        PropertyRow(R.string.property_layer, "BOLME", numeric = false),
     )
 
-    public const val SELECTION_TITLE: String = "Partition wall"
+    public const val SELECTION_TITLE: Int = R.string.sample_selection
 
     // --- helpers ----------------------------------------------------------
     private fun wall(layer: String, x1: Double, y1: Double, x2: Double, y2: Double) =

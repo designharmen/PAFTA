@@ -31,30 +31,29 @@ public enum class FileFormat(
     public val extension: String,
     public val viewer: ViewerKind,
     public val readable: Boolean,
-    public val displayName: String,
 ) {
-    DXF("dxf", ViewerKind.DRAWING, readable = true, displayName = "DXF drawing"),
-    DWG("dwg", ViewerKind.DRAWING, readable = false, displayName = "DWG drawing"),
+    DXF("dxf", ViewerKind.DRAWING, readable = true),
+    DWG("dwg", ViewerKind.DRAWING, readable = false),
 
-    GLB("glb", ViewerKind.MODEL, readable = false, displayName = "glTF binary"),
-    GLTF("gltf", ViewerKind.MODEL, readable = false, displayName = "glTF"),
-    OBJ("obj", ViewerKind.MODEL, readable = false, displayName = "OBJ mesh"),
-    STL("stl", ViewerKind.MODEL, readable = false, displayName = "STL mesh"),
-    PLY("ply", ViewerKind.MODEL, readable = false, displayName = "PLY mesh"),
-    DAE("dae", ViewerKind.MODEL, readable = false, displayName = "COLLADA"),
-    THREE_DS("3ds", ViewerKind.MODEL, readable = false, displayName = "3DS mesh"),
-    IFC("ifc", ViewerKind.MODEL, readable = false, displayName = "IFC model"),
-    SKP("skp", ViewerKind.MODEL, readable = false, displayName = "SketchUp"),
+    GLB("glb", ViewerKind.MODEL, readable = false),
+    GLTF("gltf", ViewerKind.MODEL, readable = false),
+    OBJ("obj", ViewerKind.MODEL, readable = false),
+    STL("stl", ViewerKind.MODEL, readable = false),
+    PLY("ply", ViewerKind.MODEL, readable = false),
+    DAE("dae", ViewerKind.MODEL, readable = false),
+    THREE_DS("3ds", ViewerKind.MODEL, readable = false),
+    IFC("ifc", ViewerKind.MODEL, readable = false),
+    SKP("skp", ViewerKind.MODEL, readable = false),
 
-    PDF("pdf", ViewerKind.DOCUMENT, readable = false, displayName = "PDF"),
+    PDF("pdf", ViewerKind.DOCUMENT, readable = false),
 
-    PNG("png", ViewerKind.IMAGE, readable = false, displayName = "PNG image"),
-    JPG("jpg", ViewerKind.IMAGE, readable = false, displayName = "JPEG image"),
-    JPEG("jpeg", ViewerKind.IMAGE, readable = false, displayName = "JPEG image"),
-    WEBP("webp", ViewerKind.IMAGE, readable = false, displayName = "WebP image"),
+    PNG("png", ViewerKind.IMAGE, readable = false),
+    JPG("jpg", ViewerKind.IMAGE, readable = false),
+    JPEG("jpeg", ViewerKind.IMAGE, readable = false),
+    WEBP("webp", ViewerKind.IMAGE, readable = false),
 
     /** A PAFTA project — opened directly rather than imported. */
-    PAFTA(PAFTA_EXTENSION, ViewerKind.UNSUPPORTED, readable = true, displayName = "PAFTA project"),
+    PAFTA(PAFTA_EXTENSION, ViewerKind.UNSUPPORTED, readable = true),
     ;
 
     public companion object {

@@ -28,10 +28,15 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.harmen.pafta.R
 import com.harmen.pafta.ui.state.EditMode
+import com.harmen.pafta.ui.state.TopMenu
 import com.harmen.pafta.ui.state.ViewTab
 import com.harmen.pafta.ui.theme.HarmenColours
 import com.harmen.pafta.ui.theme.HarmenType
@@ -52,7 +57,7 @@ public fun PaftaTopBar(
     onTabSelected: (ViewTab) -> Unit,
     onEditModeSelected: (EditMode) -> Unit,
     onShare: () -> Unit,
-    onMenu: (String) -> Unit,
+    onMenu: (TopMenu) -> Unit,
     modifier: Modifier = Modifier,
     onBack: (() -> Unit)? = null,
     canUndo: Boolean = false,
@@ -85,8 +90,9 @@ private fun IdentityRow(
     projectName: String,
     dirty: Boolean,
     onShare: () -> Unit,
-    onMenu: (String) -> Unit,
+    onMenu: (TopMenu) -> Unit,
 ) {
+    val unsavedDescription = stringResource(R.string.unsaved_changes)
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -96,9 +102,9 @@ private fun IdentityRow(
     ) {
         Monogram(letter = "P")
         Spacer(Modifier.width(metrics.gutter))
-        MenuLabel("FILE") { onMenu("FILE") }
+        MenuLabel(stringResource(R.string.menu_file)) { onMenu(TopMenu.FILE) }
         Spacer(Modifier.width(metrics.gutter))
-        MenuLabel("EDIT") { onMenu("EDIT") }
+        MenuLabel(stringResource(R.string.menu_edit)) { onMenu(TopMenu.EDIT) }
 
         // The title takes the centre by weight, so it stays centred whatever the
         // menus and the action on either side measure.
@@ -122,7 +128,10 @@ private fun IdentityRow(
                         Modifier
                             .size(5.dp)
                             .clip(CircleShape)
-                            .background(HarmenColours.Accent),
+                            .background(HarmenColours.Accent)
+                            .semantics {
+                                contentDescription = unsavedDescription
+                            },
                     )
                 }
             }
@@ -189,7 +198,7 @@ private fun ShareButton(onShare: () -> Unit) {
             .padding(horizontal = 12.dp, vertical = 7.dp),
     ) {
         Text(
-            text = "SHARE",
+            text = stringResource(R.string.action_share),
             style = HarmenType.MenuCaps,
             color = HarmenColours.Text,
         )
@@ -224,7 +233,7 @@ private fun TabRow(
 
         for (mode in EditMode.entries) {
             ModeLabel(
-                text = mode.label,
+                text = stringResource(mode.label),
                 selected = mode == editMode,
                 onClick = { onEditModeSelected(mode) },
             )
@@ -238,7 +247,7 @@ private fun TabRow(
             ) {
                 for (tab in ViewTab.entries) {
                     Tab(
-                        label = tab.label,
+                        label = stringResource(tab.label),
                         selected = tab == activeTab,
                         onClick = { onTabSelected(tab) },
                     )
@@ -246,8 +255,8 @@ private fun TabRow(
             }
         }
 
-        HistoryButton(Icons.Outlined.Undo, "Undo", canUndo, onUndo)
-        HistoryButton(Icons.Outlined.Redo, "Redo", canRedo, onRedo)
+        HistoryButton(Icons.Outlined.Undo, stringResource(R.string.action_undo), canUndo, onUndo)
+        HistoryButton(Icons.Outlined.Redo, stringResource(R.string.action_redo), canRedo, onRedo)
     }
 }
 
@@ -262,11 +271,15 @@ private fun BackToLibrary(onBack: () -> Unit) {
     ) {
         Icon(
             imageVector = Icons.Outlined.ChevronLeft,
-            contentDescription = "Back to projects",
+            contentDescription = stringResource(R.string.nav_back_to_projects),
             tint = HarmenColours.TextMuted,
             modifier = Modifier.size(16.dp),
         )
-        Text(text = "PROJECTS", style = HarmenType.MenuCaps, color = HarmenColours.TextMuted)
+        Text(
+            text = stringResource(R.string.nav_projects),
+            style = HarmenType.MenuCaps,
+            color = HarmenColours.TextMuted,
+        )
     }
 }
 
