@@ -1,35 +1,110 @@
 package com.harmen.pafta.ui.state
 
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.harmen.pafta.data.ProjectRepository
+import com.harmen.pafta.dxf.DxfDrawing
 import com.harmen.pafta.project.AnnotationKind
-import com.harmen.pafta.project.LayerState
+import com.harmen.pafta.project.AutoSavePolicy
+import com.harmen.pafta.project.DrawingDocument
+import com.harmen.pafta.project.PaftaProject
+import com.harmen.pafta.project.StoredMeasurement
+import com.harmen.pafta.project.StoreResult
+import com.harmen.pafta.project.UndoStack
+import com.harmen.pafta.units.formatLength
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
+import java.io.File
+
+/** What the editor screen needs beyond [EditorState]: the open document. */
+public data class EditorDocument(
+    val file: File,
+    val drawing: DxfDrawing,
+    val unsupportedEntityTypes: Set<String> = emptySet(),
+)
 
 /**
- * Holds the editor snapshot and the undo/redo stacks.
+ * Drives the editor: the open project, the undo history, and auto-save.
  *
- * Undo is snapshot-based rather than command-based: the states PAFTA holds are
- * small (layer flags, annotations, measurements — never the model payload), and
- * a snapshot stack cannot drift out of sync with the document the way an
- * inverse-command stack can.
+ * The undo stack and the save timing policy both come from `core:project`, where
+ * they are unit-tested; this class is the wiring between them, the UI state, and
+ * the repository.
  */
-public class EditorViewModel(initial: EditorState = EditorState()) : ViewModel() {
+public class EditorViewModel(
+    private val repository: ProjectRepository,
+    private val clock: () -> Long = System::currentTimeMillis,
+) : ViewModel() {
 
-    private val _state = MutableStateFlow(initial)
+    private val _state = MutableStateFlow(EditorState())
     public val state: StateFlow<EditorState> = _state.asStateFlow()
 
-    private val undoStack = ArrayDeque<EditorState>()
-    private val redoStack = ArrayDeque<EditorState>()
+    private val _document = MutableStateFlow<EditorDocument?>(null)
+    public val document: StateFlow<EditorDocument?> = _document.asStateFlow()
 
-    /** Deepest undo history kept; beyond this the oldest entry is dropped. */
-    private val historyLimit = 64
+    private val _error = MutableStateFlow<String?>(null)
+    public val error: StateFlow<String?> = _error.asStateFlow()
 
-    // --- Tool and tab selection (not undoable: they change no document state) -
+    private val history = UndoStack<EditorState>(limit = 64)
+    private val autoSave = AutoSavePolicy()
+
+    /** The project as last loaded or saved; the overlay is rebuilt from state. */
+    private var project: PaftaProject? = null
+    private var autoSaveJob: Job? = null
+
+    /** Loads a project and its drawing. */
+    public fun open(file: File) {
+        viewModelScope.launch {
+            when (val result = repository.openAsDrawing(file)) {
+                is StoreResult.Failure -> {
+                    _error.value = result.failure.message
+                    _document.value = null
+                }
+
+                is StoreResult.Success -> {
+                    val (loaded, doc) = result.value
+                    project = loaded
+                    history.clear()
+                    autoSave.onSaved()
+                    _error.value = null
+                    _document.value = EditorDocument(
+                        file = file,
+                        drawing = doc.drawing,
+                        unsupportedEntityTypes = doc.unsupportedEntityTypes,
+                    )
+                    _state.value = loaded.toEditorState(doc)
+                }
+            }
+        }
+    }
+
+    /** Closes the project, flushing any unsaved edits first. */
+    public fun close(onClosed: () -> Unit = {}) {
+        viewModelScope.launch {
+            flush()
+            project = null
+            history.clear()
+            _document.value = null
+            _state.value = EditorState()
+            onClosed()
+        }
+    }
+
+    // --- Selection: no document change, so nothing is recorded or saved ------
     public fun selectTool(tool: Tool) {
-        _state.update { it.copy(activeTool = tool, annotationTool = null) }
+        _state.update {
+            it.copy(
+                activeTool = tool,
+                annotationTool = null,
+                // Grid is a toggle, not a mode: tapping it has to change
+                // something visible or the icon is a lie.
+                gridVisible = if (tool == Tool.GRID) !it.gridVisible else it.gridVisible,
+            )
+        }
     }
 
     public fun selectTab(tab: ViewTab) {
@@ -52,7 +127,7 @@ public class EditorViewModel(initial: EditorState = EditorState()) : ViewModel()
         _state.update { it.copy(gridVisible = !it.gridVisible) }
     }
 
-    // --- Document edits (undoable) ------------------------------------------
+    // --- Document edits: recorded and auto-saved -----------------------------
     public fun setLayerVisible(layerId: String, visible: Boolean) {
         edit { s ->
             s.copy(layers = s.layers.map { if (it.id == layerId) it.copy(visible = visible) else it })
@@ -67,58 +142,159 @@ public class EditorViewModel(initial: EditorState = EditorState()) : ViewModel()
     }
 
     public fun selectMaterial(materialId: String) {
-        edit { s ->
-            s.copy(materials = s.materials.map { it.copy(selected = it.id == materialId) })
-        }
+        edit { s -> s.copy(materials = s.materials.map { it.copy(selected = it.id == materialId) }) }
     }
 
-    public fun replaceLayers(layers: List<LayerState>) {
-        edit { it.copy(layers = layers) }
-    }
-
-    /** Applies an undoable change and records the previous snapshot. */
     public fun edit(transform: (EditorState) -> EditorState) {
-        _state.update { current ->
-            val next = transform(current)
-            if (next == current) return@update current
-            undoStack.addLast(current)
-            if (undoStack.size > historyLimit) undoStack.removeFirst()
-            redoStack.clear()
-            next.copy(canUndo = true, canRedo = false, dirty = true)
-        }
+        val current = _state.value
+        val next = transform(current)
+        if (next == current) return
+
+        history.record(current)
+        _state.value = next.copy(canUndo = true, canRedo = false, dirty = true)
+        markEdited()
     }
 
     public fun undo() {
-        _state.update { current ->
-            val previous = undoStack.removeLastOrNull() ?: return@update current
-            redoStack.addLast(current)
-            previous.copy(
-                canUndo = undoStack.isNotEmpty(),
-                canRedo = true,
-                dirty = true,
-                // Transient selections belong to the live session, not to history.
-                activeTool = current.activeTool,
-                activeTab = current.activeTab,
-            )
-        }
+        val current = _state.value
+        val previous = history.undo(current) ?: return
+        _state.value = previous.copy(
+            canUndo = history.canUndo,
+            canRedo = history.canRedo,
+            dirty = true,
+            // Tool and tab belong to the live session, not to document history.
+            activeTool = current.activeTool,
+            activeTab = current.activeTab,
+            annotationTool = current.annotationTool,
+        )
+        markEdited()
     }
 
     public fun redo() {
-        _state.update { current ->
-            val next = redoStack.removeLastOrNull() ?: return@update current
-            undoStack.addLast(current)
-            next.copy(
-                canUndo = true,
-                canRedo = redoStack.isNotEmpty(),
-                dirty = true,
-                activeTool = current.activeTool,
-                activeTab = current.activeTab,
-            )
+        val current = _state.value
+        val next = history.redo(current) ?: return
+        _state.value = next.copy(
+            canUndo = history.canUndo,
+            canRedo = history.canRedo,
+            dirty = true,
+            activeTool = current.activeTool,
+            activeTab = current.activeTab,
+            annotationTool = current.annotationTool,
+        )
+        markEdited()
+    }
+
+    public fun dismissError() {
+        _error.value = null
+    }
+
+    /**
+     * Saves now if anything is pending. Called when the app is backgrounded and
+     * before the project is closed, so unsaved work never depends on a timer
+     * that the system may not let run.
+     */
+    public suspend fun flush() {
+        if (autoSave.shouldSaveOnExit()) saveNow()
+    }
+
+    /** [flush] for callers that are not coroutines, such as lifecycle callbacks. */
+    public fun requestFlush() {
+        viewModelScope.launch { flush() }
+    }
+
+    /** Records an edit and schedules the next auto-save. */
+    private fun markEdited() {
+        autoSave.onEdit(clock())
+        scheduleAutoSave()
+    }
+
+    /**
+     * Keeps exactly one pending save timer. Re-scheduling on each edit is what
+     * makes a drag of the opacity track write the container once, not forty
+     * times.
+     *
+     * The waiting is a loop rather than a re-scheduling call, so the job is only
+     * ever cancelled from outside itself: an edit that lands mid-wait simply
+     * moves the deadline, and the same job waits again.
+     */
+    private fun scheduleAutoSave() {
+        autoSaveJob?.cancel()
+        autoSaveJob = viewModelScope.launch {
+            while (true) {
+                val wait = autoSave.delayUntilSave(clock()) ?: return@launch
+                if (wait > 0) {
+                    delay(wait)
+                    continue
+                }
+                saveNow()
+                return@launch
+            }
         }
     }
 
-    /** Called after a successful save. */
-    public fun markSaved() {
-        _state.update { it.copy(dirty = false) }
+    private suspend fun saveNow() {
+        val current = project ?: return
+        val file = _document.value?.file ?: return
+
+        when (val result = repository.save(current.withOverlayFrom(_state.value), file)) {
+            is StoreResult.Success -> {
+                project = result.value
+                autoSave.onSaved()
+                _state.update { it.copy(dirty = false) }
+            }
+
+            is StoreResult.Failure -> {
+                // Stay dirty: a failed save must not look like a successful one.
+                _error.value = "could not save: ${result.failure.message}"
+            }
+        }
     }
 }
+
+/** Builds the editor snapshot for a freshly opened project. */
+private fun PaftaProject.toEditorState(doc: DrawingDocument): EditorState = EditorState(
+    projectName = manifest.projectName,
+    unitLabel = manifest.source.fileName,
+    layers = doc.layers,
+    materials = emptyList(),
+    properties = drawingProperties(doc),
+    selectionTitle = null,
+    measurements = measurements.mapNotNull { it.toMeasurement() },
+    dirty = false,
+    canUndo = false,
+    canRedo = false,
+)
+
+/**
+ * With nothing selected yet, the properties table shows the drawing's own facts
+ * — which is more useful than an empty panel and confirms the import worked.
+ */
+private fun drawingProperties(doc: DrawingDocument): List<PropertyRow> {
+    val size = doc.bounds.size
+    return buildList {
+        add(PropertyRow("Entities", doc.entityCount.toString()))
+        add(PropertyRow("Layers", doc.layers.size.toString()))
+        if (!doc.bounds.isEmpty) {
+            add(PropertyRow("Width", formatLength(size.x)))
+            add(PropertyRow("Height", formatLength(size.y)))
+        }
+        if (doc.unsupportedEntityTypes.isNotEmpty()) {
+            add(
+                PropertyRow(
+                    "Not shown",
+                    doc.unsupportedEntityTypes.sorted().joinToString(", "),
+                    numeric = false,
+                ),
+            )
+        }
+    }
+}
+
+/** Folds the editor's overlay back into the project for saving. */
+private fun PaftaProject.withOverlayFrom(state: EditorState): PaftaProject = copy(
+    manifest = manifest.copy(projectName = state.projectName),
+    layers = state.layers,
+    annotations = state.annotations,
+    measurements = state.measurements.map { StoredMeasurement.from(it) },
+    materials = state.materialOverrides,
+)

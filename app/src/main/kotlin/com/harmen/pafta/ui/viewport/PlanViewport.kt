@@ -33,6 +33,7 @@ import androidx.compose.material3.Text
 import androidx.compose.ui.unit.dp
 import com.harmen.pafta.dxf.DxfDrawing
 import com.harmen.pafta.dxf.DxfEntity
+import com.harmen.pafta.dxf.DxfTextAlign
 import com.harmen.pafta.geometry.Vec2
 import com.harmen.pafta.geometry.Viewport2D
 import com.harmen.pafta.measure.Measurement
@@ -129,6 +130,7 @@ public fun PlanViewport(
 
             if (gridVisible) drawGrid(v, gridSpacingMm, size)
             drawDrawing(drawing, layers, v)
+            drawDrawingText(drawing, layers, v, measurer)
             measurements.forEach { drawMeasurement(it, v, display, measurer) }
             roomLabels.forEach { drawRoomLabel(it, v, measurer) }
         }
@@ -212,7 +214,9 @@ private fun DrawScope.drawEntity(entity: DxfEntity, v: Viewport2D, colour: Color
             drawCircle(colour, radius = 1.5f, center = Offset(p.x.toFloat(), p.y.toFloat()))
         }
 
-        is DxfEntity.Text -> Unit // Text is drawn by the annotation pass.
+        // Text is handled in its own pass: it needs a TextMeasurer, which the
+        // geometry pass does not carry.
+        is DxfEntity.Text -> Unit
 
         is DxfEntity.Insert -> {
             // A block reference with no expanded geometry is marked with a tick
@@ -245,6 +249,54 @@ private fun DrawScope.drawEntity(entity: DxfEntity, v: Viewport2D, colour: Color
             }
             drawPath(path, colour, style = Stroke(width = 1.2f, cap = StrokeCap.Round))
         }
+    }
+}
+
+/**
+ * Draws the drawing's own TEXT and MTEXT entities.
+ *
+ * The size comes from the entity's model height, so labels scale with the
+ * drawing exactly as they do in a CAD viewport. Text that would render below
+ * 6px is skipped: at that size it is illegible noise over the linework, and
+ * measuring it for every entity costs more than it shows.
+ */
+private fun DrawScope.drawDrawingText(
+    drawing: DxfDrawing,
+    layers: List<LayerState>,
+    v: Viewport2D,
+    measurer: TextMeasurer,
+) {
+    val byName = layers.associateBy { it.name }
+
+    for (entity in drawing.entities) {
+        if (entity !is DxfEntity.Text) continue
+        val state = byName[entity.layer]
+        if (state != null && !state.visible) continue
+
+        val alpha = (state?.opacity ?: 1.0).toFloat()
+        if (alpha <= 0.01f) continue
+
+        val heightPx = v.lengthToScreen(entity.height)
+        if (heightPx < 6.0) continue
+
+        val colour = (state?.colour?.let { parseHex(it) } ?: HarmenColours.Linework)
+            .let { it.copy(alpha = it.alpha * alpha) }
+
+        val style = HarmenType.RoomLabel.copy(
+            color = colour,
+            fontSize = heightPx.toFloat().toSp(),
+            letterSpacing = androidx.compose.ui.unit.TextUnit.Unspecified,
+        )
+        val layout = measurer.measure(entity.value, style)
+        val at = v.toScreen(entity.position.toVec2())
+
+        // DXF anchors text by its baseline; Compose draws from the top-left.
+        val x = when (entity.align) {
+            DxfTextAlign.LEFT -> at.x.toFloat()
+            DxfTextAlign.CENTRE -> at.x.toFloat() - layout.size.width / 2f
+            DxfTextAlign.RIGHT -> at.x.toFloat() - layout.size.width
+        }
+        drawText(layout, topLeft = Offset(x, at.y.toFloat() - layout.size.height))
     }
 }
 

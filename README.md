@@ -12,9 +12,12 @@ pafta/
 │   ├── units/             mm/cm/m/inch/foot conversion, parsing, display formatting
 │   ├── measure/           distance / polyline / angle / area engine, snapping
 │   ├── dxf/               DXF R12 reader and writer (PAFTA's own engine)
-│   └── project/           the `.pafta` ZIP container
+│   └── project/           the `.pafta` container, project store, undo, auto-save
 └── app/                   Android application, Jetpack Compose UI
 ```
+
+Two screens: the **project library** (import, open, delete) and the **editor**
+(tool rail, drawing viewport, inspector).
 
 The split is deliberate: everything that can be tested without a device lives in
 `core/`, so the parts most likely to be wrong — unit arithmetic, DXF parsing,

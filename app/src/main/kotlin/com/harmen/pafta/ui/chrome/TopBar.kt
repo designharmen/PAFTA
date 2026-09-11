@@ -12,7 +12,13 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.ChevronLeft
+import androidx.compose.material.icons.outlined.Redo
+import androidx.compose.material.icons.outlined.Undo
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -48,11 +54,28 @@ public fun PaftaTopBar(
     onShare: () -> Unit,
     onMenu: (String) -> Unit,
     modifier: Modifier = Modifier,
+    onBack: (() -> Unit)? = null,
+    canUndo: Boolean = false,
+    canRedo: Boolean = false,
+    onUndo: () -> Unit = {},
+    onRedo: () -> Unit = {},
+    /** Shows the unsaved-work dot next to the project name. */
+    dirty: Boolean = false,
 ) {
     Column(modifier.fillMaxWidth().background(HarmenColours.Panel)) {
-        IdentityRow(projectName, onShare, onMenu)
+        IdentityRow(projectName, dirty, onShare, onMenu)
         HairlineDivider()
-        TabRow(activeTab, editMode, onTabSelected, onEditModeSelected)
+        TabRow(
+            activeTab = activeTab,
+            editMode = editMode,
+            onTabSelected = onTabSelected,
+            onEditModeSelected = onEditModeSelected,
+            onBack = onBack,
+            canUndo = canUndo,
+            canRedo = canRedo,
+            onUndo = onUndo,
+            onRedo = onRedo,
+        )
         HairlineDivider()
     }
 }
@@ -60,6 +83,7 @@ public fun PaftaTopBar(
 @Composable
 private fun IdentityRow(
     projectName: String,
+    dirty: Boolean,
     onShare: () -> Unit,
     onMenu: (String) -> Unit,
 ) {
@@ -79,14 +103,29 @@ private fun IdentityRow(
         // The title takes the centre by weight, so it stays centred whatever the
         // menus and the action on either side measure.
         Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
-            Text(
-                text = projectName,
-                style = HarmenType.ProjectTitle,
-                color = HarmenColours.Text,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.padding(horizontal = metrics.gutter),
-            )
+            ) {
+                Text(
+                    text = projectName,
+                    style = HarmenType.ProjectTitle,
+                    color = HarmenColours.Text,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                // Unsaved work is a single accent dot: the palette allows no
+                // second colour, and a word here would compete with the title.
+                if (dirty) {
+                    Spacer(Modifier.width(7.dp))
+                    Box(
+                        Modifier
+                            .size(5.dp)
+                            .clip(CircleShape)
+                            .background(HarmenColours.Accent),
+                    )
+                }
+            }
         }
 
         ShareButton(onShare)
@@ -163,6 +202,11 @@ private fun TabRow(
     editMode: EditMode,
     onTabSelected: (ViewTab) -> Unit,
     onEditModeSelected: (EditMode) -> Unit,
+    onBack: (() -> Unit)?,
+    canUndo: Boolean,
+    canRedo: Boolean,
+    onUndo: () -> Unit,
+    onRedo: () -> Unit,
 ) {
     Row(
         modifier = Modifier
@@ -171,6 +215,13 @@ private fun TabRow(
             .padding(horizontal = metrics.gutter),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        // The route back to the library sits in the second row so the first row
+        // keeps its specified composition.
+        if (onBack != null) {
+            BackToLibrary(onBack)
+            Spacer(Modifier.width(metrics.gutterTight))
+        }
+
         for (mode in EditMode.entries) {
             ModeLabel(
                 text = mode.label,
@@ -195,9 +246,48 @@ private fun TabRow(
             }
         }
 
-        // Balances the mode labels so the tab group reads as centred.
-        Spacer(Modifier.width(40.dp))
+        HistoryButton(Icons.Outlined.Undo, "Undo", canUndo, onUndo)
+        HistoryButton(Icons.Outlined.Redo, "Redo", canRedo, onRedo)
     }
+}
+
+@Composable
+private fun BackToLibrary(onBack: () -> Unit) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .clip(RoundedCornerShape(metrics.cornerRadius))
+            .clickable(role = Role.Button, onClick = onBack)
+            .padding(end = 6.dp, top = 6.dp, bottom = 6.dp),
+    ) {
+        Icon(
+            imageVector = Icons.Outlined.ChevronLeft,
+            contentDescription = "Back to projects",
+            tint = HarmenColours.TextMuted,
+            modifier = Modifier.size(16.dp),
+        )
+        Text(text = "PROJECTS", style = HarmenType.MenuCaps, color = HarmenColours.TextMuted)
+    }
+}
+
+/** Undo and redo. Disabled goes faint rather than disappearing. */
+@Composable
+private fun HistoryButton(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    description: String,
+    enabled: Boolean,
+    onClick: () -> Unit,
+) {
+    Icon(
+        imageVector = icon,
+        contentDescription = description,
+        tint = if (enabled) HarmenColours.Text else HarmenColours.TextFaint,
+        modifier = Modifier
+            .size(30.dp)
+            .clip(RoundedCornerShape(metrics.cornerRadius))
+            .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
+            .padding(6.dp),
+    )
 }
 
 @Composable

@@ -37,7 +37,8 @@ public fun PaftaScreen(
     state: EditorState,
     viewModel: EditorViewModel,
     drawing: DxfDrawing,
-    roomLabels: List<RoomLabel>,
+    roomLabels: List<RoomLabel> = emptyList(),
+    onBack: (() -> Unit)? = null,
     onShare: () -> Unit = {},
     onMenu: (String) -> Unit = {},
     modifier: Modifier = Modifier,
@@ -56,6 +57,12 @@ public fun PaftaScreen(
                     onEditModeSelected = viewModel::selectEditMode,
                     onShare = onShare,
                     onMenu = onMenu,
+                    onBack = onBack,
+                    canUndo = state.canUndo,
+                    canRedo = state.canRedo,
+                    onUndo = viewModel::undo,
+                    onRedo = viewModel::redo,
+                    dirty = state.dirty,
                 )
 
                 Row(Modifier.fillMaxWidth().weight(1f)) {

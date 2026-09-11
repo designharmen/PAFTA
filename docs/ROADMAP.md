@@ -44,13 +44,71 @@ Recorded because the process matters more than the clean result:
 | `core:project` compile | missing `kotlinx.serialization.encodeToString` import made the overload resolve wrongly | added the import |
 | two of my own test expectations | bad arithmetic (`14500` for a 15500mm polyline) and bad reasoning about which axis binds in `fit` | corrected the tests, with the reasoning written into the comment |
 
-## Phase 1 — file manager and real import
+## Phase 1 — file manager and real import ✅
 
-- Document-picker import via `ACTION_OPEN_DOCUMENT`; copy into a `.pafta`.
-- Project list backed by Room, built from `PaftaContainer.readManifest`.
-- Wire the DXF viewer to an imported file instead of `SamplePlan`.
-- Auto-save and undo/redo through `EditorViewModel`.
-- **Exit criterion:** import a real DXF on a device and see it drawn.
+Import through the system document picker, a project library, the viewer wired
+to imported drawings, auto-save, and undo/redo.
+
+**Verified in the development container** — `./gradlew -PpaftaCoreOnly=true test`,
+**167 tests, 0 failures** (was 109 after Phase 0). The new logic went into
+`core:project` precisely so it could be tested here rather than eyeballed:
+
+- **`ProjectStore`** (24 tests) — import, list, open, save, rename, delete, all
+  over `java.io.File` so the same code and tests cover Android and the JVM:
+  name collisions get `-2` / `-3` suffixes instead of overwriting; an unknown
+  extension, an empty file, an oversized file and an unparseable DXF are each
+  refused with a message naming the actual problem; one corrupt project does not
+  make the library unlistable; a project name containing `../` cannot escape the
+  library directory.
+- **`FileFormat`** (5 tests) — extension routing for 17 formats, with `readable`
+  stating honestly which ones have a viewer today. A format PAFTA cannot draw yet
+  still imports, so the user's file is safely inside a container rather than
+  rejected.
+- **`UndoStack`** (8 tests) — bounded snapshot history: the oldest step drops at
+  the limit, and editing after an undo discards the abandoned redo branch.
+- **`AutoSavePolicy`** (9 tests) — coalescing save timing: wait for a 2s quiet
+  period, but never let 30s pass with unsaved work, and always save on exit.
+  Sustained editing hits the ceiling; a drag of the opacity track writes the
+  container once rather than forty times.
+- **`DrawingDocument` + `mergeLayers`** (12 tests) — opening a payload as a
+  drawing, and reconciling the file's layers with the user's saved visibility and
+  opacity: the file decides which layers exist, the project decides how they
+  look. Layers referenced only by entities (common in files from other tools)
+  still appear; saved state for a layer no longer in the file is dropped.
+
+**Not verified** — still no Android SDK in this container, so `:app` remains
+uncompiled. The Android side of Phase 1 is: `ProjectRepository` (SAF content URI
+→ bytes, `Context` → library directory), `LibraryScreen`, `LibraryViewModel`, the
+rewritten `EditorViewModel`, navigation in `MainActivity`, and undo/redo plus a
+dirty indicator in the top bar.
+
+### Phase 1 decisions
+
+- **No Room yet.** The roadmap called for a Room-backed project list; the files
+  on disk are the source of truth and `readManifest` already supplies the
+  metadata, so a database here would only be a cache that can disagree with the
+  filesystem — and when it does, the user loses work or sees projects that are
+  not there. Room arrives when there is data that *cannot* be derived from the
+  files: recent-open order, per-project UI state, a search index.
+- **Projects live in `filesDir/projects`**, not shared storage: no runtime
+  permission, no scoped-storage special cases, and the library cannot become
+  half-readable because a URI grant lapsed.
+- **The picker accepts `*/*`.** CAD formats largely have no registered MIME type,
+  so filtering by MIME would hide the user's own drawings; the extension decides
+  whether the import is allowed, and a refusal says why.
+- **DXF `TEXT` entities are now drawn**, sized from their model height, so an
+  imported drawing shows its own annotation instead of silently dropping it.
+
+### Phase 1 defects found while writing it
+
+| Defect | Fix |
+| --- | --- |
+| `scheduleAutoSave` cancelled the coroutine job it was itself running inside, then relaunched — correct only by accident | the wait is a loop, so the job is only ever cancelled from outside itself |
+| the `Grid` tool selected itself and changed nothing | selecting it toggles grid visibility |
+| `DxfEntity.Text` was parsed but never rendered | a dedicated text pass, scaled from the entity's model height |
+
+**Exit criterion, still open:** import a real DXF on a device and see it drawn.
+That needs the first `assembleDebug`.
 
 ## Phase 2 — 3D viewer
 

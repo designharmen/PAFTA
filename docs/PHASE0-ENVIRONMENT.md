@@ -43,20 +43,19 @@ wrapper, in this container:
 ```
 $ ./gradlew -PpaftaCoreOnly=true test
 BUILD SUCCESSFUL
-109 tests, 0 failed
+167 tests, 0 failed
 ```
 
 | Module | Tests |
 | --- | --- |
+| `core:project` | 75 |
 | `core:geometry` | 37 |
 | `core:dxf` | 19 |
 | `core:units` | 18 |
 | `core:measure` | 18 |
-| `core:project` | 17 |
 
-Four of those tests failed on first run and are recorded in
-[ROADMAP.md](ROADMAP.md#phase-0-defects-found-and-fixed) along with the three
-production bugs they caught.
+Counts above are current as of Phase 1. Defects the tests caught along the way
+are recorded in [ROADMAP.md](ROADMAP.md) per phase.
 
 ## First build on a real machine
 
