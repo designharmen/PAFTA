@@ -107,8 +107,13 @@ dirty indicator in the top bar.
 | the `Grid` tool selected itself and changed nothing | selecting it toggles grid visibility |
 | `DxfEntity.Text` was parsed but never rendered | a dedicated text pass, scaled from the entity's model height |
 
-**Exit criterion, still open:** import a real DXF on a device and see it drawn.
-That needs the first `assembleDebug`.
+**`assembleDebug` now succeeds** and produces an installable APK — see
+*Getting to a real build* below.
+
+**Exit criterion, still open:** import a real DXF *on a device* and see it drawn.
+The APK exists and the app compiles; whether it runs, and whether the chrome
+matches the design, is unverified until someone installs it. Nothing in a
+successful build says an app does not crash on launch.
 
 ## Turkish interface retrofit ✅
 
@@ -157,6 +162,19 @@ closed in a way that cannot recur silently:
 | 3 | `compileDebugKotlin`, 2m8s | unknown — `--stacktrace` put 200 lines of Gradle internals between the error and the end of the log | dropped `--stacktrace`; the workflow now prints only compiler errors, failed tasks and "What went wrong", at the end of the log and in the job summary |
 | 4 | `compileDebugKotlin`, 4m20s | `Unresolved reference 'R'` (a missing import an earlier edit had not actually applied) and `const val X = R.string.y`, which Kotlin rejects because R fields come from generated Java | both fixed, and both classes added to `check-strings.py` |
 | 5 | `compileDebugKotlin`, 2m7s | `StoreFailure.message` still referenced twice, `_error` still typed `String?`, and `Modifier.padding(horizontal =, top =, bottom =)` — an overload that does not exist | fixed, and all three classes added to `check-strings.py` |
+| 6 | same as 5 | the docs-only commit was built against the unfixed code | n/a |
+| **7** | **nothing — succeeded** | — | — |
+
+**Attempt 7 produced an APK.** `assembleDebug` completed in 2m18s and the
+artifact uploaded: `PAFTA-apk`, 17,146,210 bytes, from commit `2da2e18`.
+
+Worth recording why the end came quickly once the diagnostics were right:
+attempt 5's error list named only three files. Kotlin analyses the whole module
+and reports every error it finds, so the other sixteen app sources — the tool
+rail, the inspector, the library screen, the viewport with its text measuring and
+dozens of Material icon names — had already been validated by the compiler. That
+turned "how much of this 19-file module is wrong?" into a list of four known
+faults.
 
 ### The recurring mistake, and its actual cause
 
