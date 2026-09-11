@@ -24,7 +24,15 @@ The split is deliberate: everything that can be tested without a device lives in
 file round-trips, pan/zoom maths — are covered by real tests rather than by
 looking at the screen.
 
-## Building
+## Getting an installable APK without a development setup
+
+A GitHub Actions workflow (`.github/workflows/pafta-apk.yml`) builds the APK on
+GitHub's runners, which have the Android SDK preinstalled, and uploads it as a
+downloadable artifact. Step-by-step instructions for downloading and installing
+it — written for someone who has never done it — are in
+[docs/APK-NASIL-KURULUR.md](docs/APK-NASIL-KURULUR.md) (Turkish).
+
+## Building locally
 
 Requires the **Android SDK** (API 35 platform + build-tools) and network access
 to Google's Maven repository, which is where AGP, AndroidX and Compose are
