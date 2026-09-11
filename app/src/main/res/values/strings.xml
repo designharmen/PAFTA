@@ -127,7 +127,8 @@
     <string name="format_unknown">bilinmeyen dosya türü</string>
 
     <!-- ===== Örnek çizim (ilk açılışta gösterilen plan) ===== -->
-    <string name="sample_unit_label">101 No'lu Daire – 2. Kat</string>
+    <!-- Kesme işareti Android metin dosyalarında \' olarak yazılmak zorunda. -->
+    <string name="sample_unit_label">101 No\'lu Daire – 2. Kat</string>
     <string name="sample_selection">Bölme duvarı</string>
     <string name="sample_room_living">Salon</string>
     <string name="sample_room_kitchen">Mutfak</string>
