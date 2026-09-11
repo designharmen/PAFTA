@@ -35,6 +35,7 @@ public fun FileFormat?.adi(): String = stringResource(
         FileFormat.THREE_DS -> R.string.format_3ds
         FileFormat.IFC -> R.string.format_ifc
         FileFormat.SKP -> R.string.format_skp
+        FileFormat.RVT -> R.string.format_rvt
         FileFormat.PDF -> R.string.format_pdf
         FileFormat.PNG -> R.string.format_png
         FileFormat.JPG, FileFormat.JPEG -> R.string.format_jpg
@@ -88,7 +89,15 @@ public fun StoreFailure.mesaj(): String = when (this) {
         when (reason) {
             UnreadableReason.MALFORMED -> stringResource(R.string.error_malformed, tur)
             UnreadableReason.NO_DRAWABLE_CONTENT -> stringResource(R.string.error_no_drawable, tur)
-            UnreadableReason.NO_VIEWER_YET -> stringResource(R.string.error_no_viewer, tur)
+            UnreadableReason.NO_VIEWER_YET -> {
+                // "Henüz açamıyorum" tek başına çıkmaz sokaktır. Bugün işe
+                // yarayan bir yol varsa onu da söyle.
+                val temel = stringResource(R.string.error_no_viewer, tur)
+                when (val ipucu = format.ipucu()) {
+                    null -> temel
+                    else -> stringResource(R.string.error_no_viewer_with_hint, temel, ipucu)
+                }
+            }
         }
     }
 
@@ -110,4 +119,21 @@ public fun StoreFailure.mesaj(): String = when (this) {
 public fun UiError.mesaj(): String = when (this) {
     is UiError.Store -> failure.mesaj()
     is UiError.SaveFailed -> stringResource(R.string.error_save_failed, failure.mesaj())
+}
+
+/**
+ * What the user can do today about a format PAFTA cannot yet open.
+ *
+ * Every one of these is a real export path out of the tool the file came from,
+ * into DXF — the one drawing format PAFTA reads. Saying only "not supported yet"
+ * would leave an architect holding a file and no way forward.
+ */
+@Composable
+@ReadOnlyComposable
+private fun FileFormat.ipucu(): String? = when (this) {
+    FileFormat.DWG -> stringResource(R.string.hint_dwg)
+    FileFormat.RVT -> stringResource(R.string.hint_rvt)
+    FileFormat.SKP -> stringResource(R.string.hint_skp)
+    FileFormat.IFC -> stringResource(R.string.hint_ifc)
+    else -> null
 }

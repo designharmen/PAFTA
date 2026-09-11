@@ -99,6 +99,12 @@
     <string name="error_malformed">Bu %1$s bozuk görünüyor, okunamadı</string>
     <string name="error_no_drawable">Bu %1$s açıldı ama içinde çizilecek bir şey yok</string>
     <string name="error_no_viewer">PAFTA %1$s dosyalarını henüz gösteremiyor. Dosya projenin içine güvenle kaydedildi, sonraki sürümde açılabilecek</string>
+    <!-- Görüntüleyicisi olmayan biçimler için, bugün işe yarayan yol. -->
+    <string name="error_no_viewer_with_hint">%1$s %2$s</string>
+    <string name="hint_dwg">Şimdilik çizimi AutoCAD\'de \"Farklı Kaydet\" ile DXF olarak kaydedip onu aktarabilirsiniz — PAFTA DXF çizimlerini açıyor.</string>
+    <string name="hint_rvt">Revit dosyalarını okuyabilen açık kaynak bir kütüphane yok. Revit\'te \"Dışa Aktar → CAD Biçimleri → DXF\" ile kaydedip onu aktarabilirsiniz. (IFC desteği sonraki aşamada geliyor.)</string>
+    <string name="hint_skp">SketchUp\'ta \"Dışa Aktar → 3B Model\" ile DXF olarak kaydedip onu aktarabilirsiniz.</string>
+    <string name="hint_ifc">IFC desteği sonraki aşamada geliyor. Şimdilik modeli DXF olarak dışa aktarabilirsiniz.</string>
     <string name="error_cannot_read">Dosya okunamadı</string>
     <string name="error_cannot_write">Proje kaydedilemedi. Cihazda boş yer kalmamış olabilir</string>
     <string name="error_permission">PAFTA bu dosyayı okuma izni alamadı</string>
@@ -119,6 +125,7 @@
     <string name="format_3ds">3DS modeli</string>
     <string name="format_ifc">IFC yapı modeli</string>
     <string name="format_skp">SketchUp modeli</string>
+    <string name="format_rvt">Revit modeli</string>
     <string name="format_pdf">PDF belgesi</string>
     <string name="format_png">PNG görseli</string>
     <string name="format_jpg">JPEG görseli</string>

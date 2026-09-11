@@ -110,6 +110,17 @@ dirty indicator in the top bar.
 **`assembleDebug` now succeeds** and produces an installable APK — see
 *Getting to a real build* below.
 
+**The app installs, launches and works.** Confirmed on a device: the library
+screen renders as designed — monogram, tracked caps, copper accent, format chip,
+Turkish date — and importing a real 2.2MB DWG worked, storing it in a project.
+
+The first device session also produced the first real product finding: the files
+an architect actually has are DWG and RVT, and neither has a viewer yet. The app
+said so, but unhelpfully — `.rvt` was not even a recognised extension, so it was
+refused outright rather than kept. Both now import, and the message names the
+export route that works today (DXF) instead of ending at "not supported yet".
+See *Phase ordering* below — this changes what should be built next.
+
 **Exit criterion, still open:** import a real DXF *on a device* and see it drawn.
 The APK exists and the app compiles; whether it runs, and whether the chrome
 matches the design, is unverified until someone installs it. Nothing in a
@@ -230,6 +241,30 @@ change caused it, so it waits for its own change. The likely fix is declaring
 plugin versions in `settings.gradle.kts` under `pluginManagement` and requesting
 them without versions in the modules, which would also remove the per-module
 duplication the root build currently documents.
+
+## Phase ordering, after the first device test
+
+The plan had Phase 2 as the 3D viewer. The first real use suggests otherwise.
+
+The user's own files are DWG (AutoCAD) and RVT (Revit). DXF — the one format
+PAFTA reads — is what both of those export to, so the app is usable today only
+by asking the user to convert every file before importing it. A 3D viewer does
+not change that; **DWG reading does.**
+
+The case for moving DWG earlier:
+
+- it is the format the user actually has, in volume
+- the DXF engine, measurement, annotation, layer palette and `.pafta` container
+  are already built and tested; DWG reading feeds all of them
+- LibreDWG is a C library, so it is the first phase needing the NDK — which the
+  3D viewer also needs. Doing it first derisks both.
+
+The case against, which is real: LibreDWG is **GPL-3.0**, and linking it sets the
+licence of the whole application. That is a decision to take deliberately, not
+in passing. It is allowed under the project's licence constraint as written, but
+it should be confirmed before the work starts, not after.
+
+Recorded as an open question rather than a decision.
 
 ## Phase 2 — 3D viewer
 

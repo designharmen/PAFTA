@@ -45,6 +45,12 @@ public enum class FileFormat(
     IFC("ifc", ViewerKind.MODEL, readable = false),
     SKP("skp", ViewerKind.MODEL, readable = false),
 
+    // Revit's own format. No free library reads it, and none is planned: the
+    // route in is Revit's own IFC or DXF export. It is still recognised so the
+    // file is taken into a project and the user gets that advice, rather than
+    // being told PAFTA has never heard of the extension.
+    RVT("rvt", ViewerKind.MODEL, readable = false),
+
     PDF("pdf", ViewerKind.DOCUMENT, readable = false),
 
     PNG("png", ViewerKind.IMAGE, readable = false),

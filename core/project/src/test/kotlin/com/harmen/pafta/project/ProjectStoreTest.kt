@@ -348,6 +348,34 @@ class FileFormatTest {
     }
 
     @Test
+    fun `a revit file is recognised so it can be kept rather than refused`() {
+        // No free library reads .rvt and none is planned — the route in is
+        // Revit's own export. Recognising it is what lets the app take the file
+        // into a project and say so, instead of claiming the extension is
+        // unknown.
+        assertEquals(FileFormat.RVT, FileFormat.of("proje.rvt"))
+        assertEquals(FileFormat.RVT, FileFormat.of("PROJE.RVT"))
+        assertFalse(FileFormat.RVT.readable)
+        assertEquals(ViewerKind.MODEL, FileFormat.RVT.viewer)
+    }
+
+    @Test
+    fun `formats without a viewer still import so the file is never lost`() {
+        val dir = createTempDirectory("pafta-fmt").toFile()
+        try {
+            val s = ProjectStore(dir, clock = { 1_700_000_000_000 })
+            for (name in listOf("plan.dwg", "bina.rvt", "model.ifc", "ev.skp")) {
+                val entry = s.import(name, byteArrayOf(1, 2, 3, 4)).valueOrNull()
+                assertNotNull(entry, "$name içe aktarılamadı")
+                assertFalse(entry.format!!.readable)
+            }
+            assertEquals(4, s.list().size)
+        } finally {
+            dir.deleteRecursively()
+        }
+    }
+
+    @Test
     fun `the picker offers every format except pafta itself`() {
         val offered = FileFormat.importableExtensions
         assertTrue("dxf" in offered)
