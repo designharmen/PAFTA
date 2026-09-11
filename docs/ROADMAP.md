@@ -156,14 +156,38 @@ closed in a way that cannot recur silently:
 | 2 | `mergeDebugResources` | `101 No'lu Daire` — an unescaped apostrophe makes a string resource invalid | escaped, and `tools/check-strings.py` now rejects it in about a second |
 | 3 | `compileDebugKotlin`, 2m8s | unknown — `--stacktrace` put 200 lines of Gradle internals between the error and the end of the log | dropped `--stacktrace`; the workflow now prints only compiler errors, failed tasks and "What went wrong", at the end of the log and in the job summary |
 | 4 | `compileDebugKotlin`, 4m20s | `Unresolved reference 'R'` (a missing import an earlier edit had not actually applied) and `const val X = R.string.y`, which Kotlin rejects because R fields come from generated Java | both fixed, and both classes added to `check-strings.py` |
+| 5 | `compileDebugKotlin`, 2m7s | `StoreFailure.message` still referenced twice, `_error` still typed `String?`, and `Modifier.padding(horizontal =, top =, bottom =)` — an overload that does not exist | fixed, and all three classes added to `check-strings.py` |
 
-### The recurring mistake worth naming
+### The recurring mistake, and its actual cause
 
-Three times on this branch an edit I believed I had made was not in the file —
-English property keys twice, and the missing `R` import once. Each was caught by
-re-reading the source afterwards rather than by trusting the edit. The lesson
-applied: after any batch of edits, grep for what should now be true, and for what
-should now be absent.
+Five times on this branch an edit I believed I had made was not in the file:
+English property keys twice, a missing `R` import, and then three separate
+changes to `EditorViewModel`. Each was caught by re-reading the source rather
+than by trusting the edit.
+
+Attempt 5 finally exposed the cause rather than the symptom. A script that
+patched several files in sequence did this:
+
+```python
+p = ".../EditorViewModel.kt"
+s = open(p).read()
+s = s.replace(...)          # three edits computed
+
+p = ".../LibraryViewModel.kt"   # p and s reassigned
+s = open(p).read()
+s = s.replace(...)
+open(p, "w").write(s)           # only this file is written
+```
+
+Every EditorViewModel edit was computed into `s` and then discarded when `s` was
+reassigned, because the write before moving to the next file was missing. That
+one omission accounts for all three of attempt 5's errors, and for the missing
+`R` import in attempt 4.
+
+Two practices follow, and both are now habit: write each file before moving to
+the next, and after any batch of edits grep for what should now be true *and* for
+what should now be absent. The second is what actually catches it — the first can
+be forgotten again.
 
 ### Checks that run before a build
 
@@ -172,9 +196,12 @@ development container, and several error classes are decidable by reading the
 source. It rejects unescaped apostrophes and quotes in string resources, values
 starting with `@` or `?`, multi-argument format strings without positional
 markers, `R.string` ids that are used but not defined, files using `R.string`
-without importing `R`, and `const val` initialised from an R field. Each check
-was verified by deliberately introducing the mistake and confirming it names the
-right file and line.
+without importing `R`, `const val` initialised from an R field,
+`Modifier.padding` mixing `horizontal`/`vertical` with per-side arguments, and
+any surviving reference to the removed `StoreFailure.message`. Each check was
+verified by deliberately introducing the mistake and confirming it names the
+right file and line — for the padding rule, the same line number the Kotlin
+compiler had reported.
 
 ### Known warning, deliberately not yet addressed
 

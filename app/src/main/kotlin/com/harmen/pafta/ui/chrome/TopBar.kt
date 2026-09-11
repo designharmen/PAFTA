@@ -341,7 +341,7 @@ private fun Tab(label: String, selected: Boolean, onClick: () -> Unit) {
                     size = androidx.compose.ui.geometry.Size(size.width, thickness),
                 )
             }
-            .padding(horizontal = 10.dp, top = 7.dp, bottom = 9.dp),
+            .padding(start = 10.dp, end = 10.dp, top = 7.dp, bottom = 9.dp),
     ) {
         Text(
             text = label,

@@ -15,6 +15,10 @@ it does so four minutes into a CI run. This catches them in a second:
   * a file that uses R.string without importing R — the app module cannot be
     compiled in the development container, so this is caught statically
   * `const val` initialised from an R field, which Kotlin rejects
+  * Modifier.padding mixing `horizontal`/`vertical` with per-side arguments,
+    which has no such overload
+  * a reference to StoreFailure.message, a property that was deliberately
+    removed so that no English prose can reach a Turkish screen
 
 Exits non-zero and prints the file and line on the first real problem found.
 """
@@ -137,6 +141,27 @@ def check_kotlin_usage() -> list[str]:
                         f"{where}:{line}: R.string kullanılıyor ama "
                         f"'import {r_package}.R' yok."
                     )
+
+            # Modifier.padding has (horizontal, vertical) and
+            # (start, top, end, bottom) overloads, but none that mixes them.
+            for match in re.finditer(
+                r"padding\(\s*(?:horizontal|vertical)\s*=[^)]*?\b(?:start|top|end|bottom)\s*=",
+                text,
+            ):
+                line = text.count("\n", 0, match.start()) + 1
+                problems.append(
+                    f"{where}:{line}: padding() içinde horizontal/vertical ile "
+                    f"start/top/end/bottom karıştırılmış; böyle bir aşırı yükleme yok."
+                )
+
+            # StoreFailure carries structured data only; a `.message` would be
+            # English prose one step from a Turkish screen.
+            for match in re.finditer(r"\bfailure\.message\b", text):
+                line = text.count("\n", 0, match.start()) + 1
+                problems.append(
+                    f"{where}:{line}: StoreFailure.message kaldırıldı; "
+                    f"UiError.Store/SaveFailed kullanın."
+                )
 
             # R fields come from generated Java, so Kotlin does not treat them as
             # compile-time constants: `const val X = R.string.y` does not compile.

@@ -47,8 +47,8 @@ public class EditorViewModel(
     private val _document = MutableStateFlow<EditorDocument?>(null)
     public val document: StateFlow<EditorDocument?> = _document.asStateFlow()
 
-    private val _error = MutableStateFlow<String?>(null)
-    public val error: StateFlow<String?> = _error.asStateFlow()
+    private val _error = MutableStateFlow<UiError?>(null)
+    public val error: StateFlow<UiError?> = _error.asStateFlow()
 
     private val history = UndoStack<EditorState>(limit = 64)
     private val autoSave = AutoSavePolicy()
@@ -62,7 +62,7 @@ public class EditorViewModel(
         viewModelScope.launch {
             when (val result = repository.openAsDrawing(file)) {
                 is StoreResult.Failure -> {
-                    _error.value = result.failure.message
+                    _error.value = UiError.Store(result.failure)
                     _document.value = null
                 }
 
@@ -246,7 +246,7 @@ public class EditorViewModel(
 
             is StoreResult.Failure -> {
                 // Stay dirty: a failed save must not look like a successful one.
-                _error.value = "could not save: ${result.failure.message}"
+                _error.value = UiError.SaveFailed(result.failure)
             }
         }
     }
