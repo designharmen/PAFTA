@@ -139,6 +139,53 @@ Two of these edits silently failed to apply on the first pass and left English
 property keys (`"Wall"`, `"Entities"`) in place. They were caught by re-scanning
 the sources afterwards rather than by trusting the edit, and fixed.
 
+## Getting to a real build
+
+The development container has no Android SDK and cannot install one
+(`dl.google.com` is blocked by network policy), so `assembleDebug` had never run
+through two phases of work. `.github/workflows/pafta-apk.yml` builds on GitHub's
+runners instead, which have the SDK preinstalled — and produces a downloadable
+APK without the project owner installing any development tools.
+
+What the attempts found, in order. Every failure was real, and each one is now
+closed in a way that cannot recur silently:
+
+| # | Stopped at | Cause | Closed by |
+| --- | --- | --- | --- |
+| 1 | configuration, 1s | root declared `kotlin("jvm") apply false`, putting the Kotlin plugin on the inherited classpath; `:app` then requested `kotlin("android")` — same artifact — with a version, which Gradle refused to verify | root declares no plugins; each module declares its own, which also keeps `-PpaftaCoreOnly=true` free of AGP |
+| 2 | `mergeDebugResources` | `101 No'lu Daire` — an unescaped apostrophe makes a string resource invalid | escaped, and `tools/check-strings.py` now rejects it in about a second |
+| 3 | `compileDebugKotlin`, 2m8s | unknown — `--stacktrace` put 200 lines of Gradle internals between the error and the end of the log | dropped `--stacktrace`; the workflow now prints only compiler errors, failed tasks and "What went wrong", at the end of the log and in the job summary |
+| 4 | `compileDebugKotlin`, 4m20s | `Unresolved reference 'R'` (a missing import an earlier edit had not actually applied) and `const val X = R.string.y`, which Kotlin rejects because R fields come from generated Java | both fixed, and both classes added to `check-strings.py` |
+
+### The recurring mistake worth naming
+
+Three times on this branch an edit I believed I had made was not in the file —
+English property keys twice, and the missing `R` import once. Each was caught by
+re-reading the source afterwards rather than by trusting the edit. The lesson
+applied: after any batch of edits, grep for what should now be true, and for what
+should now be absent.
+
+### Checks that run before a build
+
+`tools/check-strings.py` exists because the app module cannot be compiled in the
+development container, and several error classes are decidable by reading the
+source. It rejects unescaped apostrophes and quotes in string resources, values
+starting with `@` or `?`, multi-argument format strings without positional
+markers, `R.string` ids that are used but not defined, files using `R.string`
+without importing `R`, and `const val` initialised from an R field. Each check
+was verified by deliberately introducing the mistake and confirming it names the
+right file and line.
+
+### Known warning, deliberately not yet addressed
+
+The Kotlin Gradle plugin is loaded in three subprojects, which it reports as
+unsupported. The build proceeds past it and compiles every module. Fixing it at
+the same time as a real error would make the next failure ambiguous about which
+change caused it, so it waits for its own change. The likely fix is declaring
+plugin versions in `settings.gradle.kts` under `pluginManagement` and requesting
+them without versions in the modules, which would also remove the per-module
+duplication the root build currently documents.
+
 ## Phase 2 — 3D viewer
 
 - Filament `SurfaceView`, orbit/pan/zoom, wireframe and solid modes.
