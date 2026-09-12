@@ -111,6 +111,10 @@ Hata mesajları kod numarası değil, ne olduğunu anlatan cümleler:
 - "Dosya 312 MB. En fazla 256 MB kabul ediliyor"
 - "Bu DXF çizimi bozuk görünüyor, okunamadı"
 - "Bu DXF çizimi açıldı ama içinde çizilecek bir şey yok"
+- "Bu DXF çizimi açıldı ama içinde çizilecek bir şey yok. İçinde şunlar var:
+  HATCH (1240), SPLINE (12)" — sondaki liste çizimin kendi kayıt adlarıdır;
+  çevrilmez, çünkü o adlar dosyanın içindeki gerçek adlardır ve sorunu bulmayı
+  sağlayan şey tam olarak onları olduğu gibi göstermektir
 - "PAFTA DWG çizimi dosyalarını henüz gösteremiyor. Dosya projenin içine güvenle
   kaydedildi, sonraki sürümde açılabilecek"
 - "Proje kaydedilemedi. Cihazda boş yer kalmamış olabilir"

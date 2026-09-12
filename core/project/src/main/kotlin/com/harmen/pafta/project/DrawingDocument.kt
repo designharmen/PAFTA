@@ -49,6 +49,20 @@ public fun PaftaProject.openAsDrawing(): StoreResult<DrawingDocument> {
         )
     }
 
+    // Parsed, but with nothing this reader can draw. The failure carries the
+    // file's own inventory, so the screen can name what is in there instead of
+    // leaving the user in front of an empty canvas — or, worse, with the import
+    // refused and the file gone.
+    if (drawing.entities.isEmpty()) {
+        return StoreResult.Failure(
+            StoreFailure.Unreadable(
+                FileFormat.DXF,
+                UnreadableReason.NO_DRAWABLE_CONTENT,
+                found = drawing.entityTypeCounts,
+            ),
+        )
+    }
+
     return StoreResult.Success(
         DrawingDocument(
             drawing = drawing,

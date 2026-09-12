@@ -88,7 +88,17 @@ public fun StoreFailure.mesaj(): String = when (this) {
         val tur = format.adi()
         when (reason) {
             UnreadableReason.MALFORMED -> stringResource(R.string.error_malformed, tur)
-            UnreadableReason.NO_DRAWABLE_CONTENT -> stringResource(R.string.error_no_drawable, tur)
+            UnreadableReason.NO_DRAWABLE_CONTENT -> {
+                // "İçinde çizilecek bir şey yok" tek başına çıkmaz sokaktır:
+                // dosyanın neyden ibaret olduğunu da söyle, yoksa ne kullanıcı
+                // ne de biz bir sonraki adımı bilebiliriz.
+                val temel = stringResource(R.string.error_no_drawable, tur)
+                if (found.isEmpty()) {
+                    temel
+                } else {
+                    stringResource(R.string.error_no_drawable_with_types, temel, found.dokum())
+                }
+            }
             UnreadableReason.NO_VIEWER_YET -> {
                 // "Henüz açamıyorum" tek başına çıkmaz sokaktır. Bugün işe
                 // yarayan bir yol varsa onu da söyle.
@@ -112,6 +122,17 @@ public fun StoreFailure.mesaj(): String = when (this) {
         },
     )
 }
+
+/**
+ * `HATCH (1240), SPLINE (12)` — the record names out of the user's own file,
+ * commonest first. These are data, not interface text, which is why they are not
+ * translated: they are what the file calls its own contents, and repeating them
+ * exactly is what lets the drawing be diagnosed.
+ */
+private fun Map<String, Int>.dokum(): String = entries
+    .sortedByDescending { it.value }
+    .take(6)
+    .joinToString(", ") { "${it.key} (${it.value})" }
 
 /** The Turkish sentence for anything the screen has to report. */
 @Composable

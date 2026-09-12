@@ -134,10 +134,38 @@ class ProjectStoreTest {
     }
 
     @Test
-    fun `a dxf with no drawable entities is refused`() {
-        val f = assertIs<StoreResult.Failure>(store.import("blank.dxf", "0\nEOF\n".toByteArray()))
-        val failure = assertIs<StoreFailure.Unreadable>(f.failure)
+    fun `a dxf with no drawable entities is kept, and explained when it is opened`() {
+        // Refusing it used to lose the user their file and tell them nothing.
+        val entry = store.import("blank.dxf", "0\nEOF\n".toByteArray()).valueOrNull()
+        assertNotNull(entry)
+        assertEquals(1, store.list().size)
+
+        val project = assertIs<StoreResult.Success<PaftaProject>>(store.open(entry.file)).value
+        val failure = assertIs<StoreFailure.Unreadable>(
+            assertIs<StoreResult.Failure>(project.openAsDrawing()).failure,
+        )
         assertEquals(UnreadableReason.NO_DRAWABLE_CONTENT, failure.reason)
+    }
+
+    @Test
+    fun `a dxf holding only entity types PAFTA cannot draw says what it holds`() {
+        val hatchOnly = listOf(
+            "0", "SECTION", "2", "ENTITIES",
+            "0", "HATCH", "8", "0", "10", "0.0", "20", "0.0",
+            "0", "HATCH", "8", "0", "10", "1.0", "20", "0.0",
+            "0", "SPLINE", "8", "0", "10", "0.0", "20", "0.0",
+            "0", "ENDSEC", "0", "EOF",
+        ).joinToString("\n", postfix = "\n")
+
+        val entry = store.import("hatch.dxf", hatchOnly.toByteArray()).valueOrNull()
+        assertNotNull(entry)
+
+        val project = assertIs<StoreResult.Success<PaftaProject>>(store.open(entry.file)).value
+        val failure = assertIs<StoreFailure.Unreadable>(
+            assertIs<StoreResult.Failure>(project.openAsDrawing()).failure,
+        )
+        // The inventory is what turns a blank screen into an answerable question.
+        assertEquals(mapOf("HATCH" to 2, "SPLINE" to 1), failure.found)
     }
 
     @Test

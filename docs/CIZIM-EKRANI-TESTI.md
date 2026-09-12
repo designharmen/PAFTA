@@ -102,19 +102,30 @@ yeterli.
 
 ---
 
-## Bilinen eksik: bloklar
+## Kapanan eksik: hazır parçalar (bloklar)
 
 CAD çizimlerinde kapı, pencere, mobilya, antet gibi tekrar eden parçalar
-genellikle **blok** denen hazır parçalar olarak yerleştirilir: çizimde bir kez
-tanımlanır, sonra defalarca çağrılır.
+genellikle **hazır parça** olarak yerleştirilir: çizimde bir kez tanımlanır,
+sonra defalarca çağrılır.
 
-PAFTA bugün bu çağrıları görüyor ama **içeriklerini açmıyor** — her blok, yerinde
-küçük bir artı işareti olarak çiziliyor. Duvarlar ve çizgiler normal göründüğü
-halde kapıların ve mobilyaların yerinde artı işaretleri olması bu yüzdendir.
+İlk denemede PAFTA bu çağrıları görüyor ama içlerini açmıyordu — her biri
+yerinde küçük bir artı işareti olarak çiziliyordu. **Bu artık düzeltildi:**
+hazır parçaların içindeki çizgiler, döndürülmüş ve ölçeklenmiş halleriyle
+gerçekten çiziliyor. Aynalanmış parçalar (ters yöne açılan kapılar) da doğru
+yöne bakıyor.
 
-Bu bilerek bırakılmış bir eksik, hata değil. Düzeltmesi çizim motorunun içinde,
-cihaz gerektirmeden yazılıp test edilebilen bir iş. Testte bunu görürsen söyle,
-sıradaki iş bu olur.
+Yine de artı işareti görürsen, o parçanın tanımı dosyanın içinde yok demektir —
+bu, dosyanın kendi eksiğidir. Gördüğün yeri söyle, beraber bakarız.
 
-Çizimin tamamının artı işaretinden ibaret olması da mümkündür — bazı çizimlerde
-her şey tek bir bloğun içindedir. O zaman da aynı iş, sadece daha aciliyetli.
+## Dosya geri çevrilirse
+
+PAFTA artık okuyabildiği hiçbir DXF dosyasını geri çevirmiyor; çizemese bile
+dosyayı projenin içine kaydediyor. Çizilecek bir şey bulamazsa şöyle bir mesaj
+veriyor:
+
+> Bu DXF çizimi açıldı ama içinde çizilecek bir şey yok. İçinde şunlar var:
+> HATCH (1240), SPLINE (12)
+
+Sondaki listeyi **olduğu gibi bana yaz**. Dosyanın içinde tam olarak neyin
+bulunduğunu söyleyen kısım orasıdır ve sıradaki işi o belirler. Liste hiç
+çıkmazsa, o da ayrı bir bilgi: dosyanın çizim bölümü tamamen boş demektir.

@@ -141,6 +141,78 @@ inside one block, the whole plan reduces to crosses. Expanding blocks is pure
 `core:dxf` work — writable and testable without a device — and it is the obvious
 next task if the device test shows it.
 
+## The first device test of the drawing screen — and what it found
+
+The owner installed the APK and tried to import a drawing. The screen came back
+with `Bu DXF çizimi açıldı ama içinde çizilecek bir şey yok` and the library
+still holding only the DWG from the previous session.
+
+That message can come from exactly one place, which is what made it worth
+acting on: `ProjectStore.import` parsed a `.dxf`, found zero entities it models,
+and **refused the import**. Two defects sat behind it.
+
+### Defect 1 — a refused import loses the user's file *and* the evidence
+
+Refusing meant the drawing was never stored, and the message said only that
+there was nothing to draw. A plan made entirely of `HATCH` records and a file
+whose `ENTITIES` section is genuinely empty produce the same sentence and need
+opposite answers — and neither the user nor the next session could tell them
+apart. It is the `.rvt` lesson again: keep the file, and say something the
+person can act on.
+
+Fixed in three parts:
+
+- `ProjectStore` now refuses a DXF only when it cannot be *parsed*. A DXF that
+  parses but holds nothing drawable is imported and kept, exactly like the
+  formats that have no viewer yet.
+- `DxfDrawing` carries `entityTypeCounts` — every record type in the file's
+  `ENTITIES` section with how many of each — and `blockEntityCounts`.
+- `StoreFailure.Unreadable` gained `found: Map<String, Int>`, carried from the
+  parse to `ui/UiText.kt`, which composes the Turkish sentence around it:
+  `Bu DXF çizimi açıldı ama içinde çizilecek bir şey yok. İçinde şunlar var:
+  HATCH (1240), SPLINE (12)`. The record names are the file's own, so they are
+  data and stay untranslated — the same rule that already lets the properties
+  table print `Gösterilmeyen`.
+
+The bare sentence, with no list after it, now means something precise: the
+`ENTITIES` section is empty.
+
+### Defect 2 — blocks were never expanded
+
+Reading the drawing path before the test had already flagged this as a
+limitation; the test made it a priority. `DxfReader` skipped the `BLOCKS`
+section entirely and drew every `INSERT` as a small cross. In a drawing from any
+real CAD tool that is the doors, the windows, the furniture, the fixtures and
+the title block — and in a file where the plan is placed as one reference, it is
+the entire drawing.
+
+`DxfReader` now reads `BLOCKS` into definitions and replaces each reference with
+the block's own geometry, placed through a single `BlockTransform` (base point,
+scale, rotation, position). The details that matter in practice:
+
+- **Nested blocks** expand too — a block placed inside a block is two
+  applications of the same transform.
+- **Mirrored references** re-derive an arc from its transformed end points
+  rather than adding the rotation to the stored angles. Adding is what puts a
+  mirrored door in the wrong quadrant, opening through the wall.
+- **Layer and colour inheritance**: geometry on layer `0` inside a block takes
+  the layer of the reference, and colour `BYBLOCK` takes its colour, so the
+  layer palette still matches what is on screen.
+- **Three bounds** stop a bad file taking the app down: a depth limit, a guard
+  against a block that references itself, and a 200,000-entity budget. Anything
+  they stop is left as a visible marker, and `expansionTruncated` records that
+  the drawing shows less than the file holds.
+
+**Verified:** `./gradlew -PpaftaCoreOnly=true test --no-build-cache
+--rerun-tasks`, **182 tests, 0 failures** (was 171). Eleven are new: ten in
+`DxfBlockTest` covering placement, scale and rotation, layer inheritance, the
+mirrored arc, nesting, a self-referencing block, an undefined block, repeated
+placement and the inventory counts; one in `ProjectStoreTest` for a DXF that is
+now kept and explained rather than refused.
+
+**Not verified:** whether the owner's own drawing now draws. That still needs
+the device.
+
 ## Turkish interface retrofit ✅
 
 Applied across Phases 0 and 1 after the brief added a Turkish-only requirement.

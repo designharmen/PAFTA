@@ -98,6 +98,8 @@
     <string name="error_too_large">Dosya %1$d MB. En fazla %2$d MB kabul ediliyor</string>
     <string name="error_malformed">Bu %1$s bozuk görünüyor, okunamadı</string>
     <string name="error_no_drawable">Bu %1$s açıldı ama içinde çizilecek bir şey yok</string>
+    <!-- İkinci bölüm dosyanın kendi kayıt adlarıdır: veri, arayüz metni değil. -->
+    <string name="error_no_drawable_with_types">%1$s. İçinde şunlar var: %2$s</string>
     <string name="error_no_viewer">PAFTA %1$s dosyalarını henüz gösteremiyor. Dosya projenin içine güvenle kaydedildi, sonraki sürümde açılabilecek</string>
     <!-- Görüntüleyicisi olmayan biçimler için, bugün işe yarayan yol. -->
     <string name="error_no_viewer_with_hint">%1$s %2$s</string>

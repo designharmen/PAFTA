@@ -110,7 +110,12 @@ public sealed interface DxfEntity {
         override fun outline(arcSegments: Int): List<Vec2> = listOf(position.toVec2())
     }
 
-    /** A block reference. The referenced block's contents are not expanded. */
+    /**
+     * A block reference that could not be expanded — the file declares no block
+     * by that name, or expansion hit its depth or size limit. A reference whose
+     * block *is* present never reaches here: the reader replaces it with the
+     * block's own geometry.
+     */
     public data class Insert(
         override val layer: String,
         val blockName: String,
@@ -141,6 +146,22 @@ public data class DxfDrawing(
     val insUnits: DxfInsUnits = DxfInsUnits.UNITLESS,
     /** Entity types seen in the file that this reader does not model yet. */
     val unsupportedEntityTypes: Set<String> = emptySet(),
+    /**
+     * Every record type found in the file's `ENTITIES` section, with how many
+     * of each. This is the file's own account of itself, and it is what makes
+     * "nothing was drawn" answerable: a plan that is 4000 `HATCH` records and a
+     * plan whose `ENTITIES` section is genuinely empty look identical on screen
+     * and need completely different answers.
+     */
+    val entityTypeCounts: Map<String, Int> = emptyMap(),
+    /** Block definitions the file declares, by name, with how many entities each holds. */
+    val blockEntityCounts: Map<String, Int> = emptyMap(),
+    /**
+     * True when a block reference was left unexpanded — the expansion budget,
+     * the depth limit, or a block that refers to itself. The drawing then shows
+     * less than the file holds, and saying so is better than looking complete.
+     */
+    val expansionTruncated: Boolean = false,
 ) {
     /** Layer lookup, falling back to a synthetic default for unknown names. */
     public fun layer(name: String): DxfLayer =

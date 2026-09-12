@@ -57,9 +57,15 @@ public object DxfReader {
 
     private fun parse(groups: List<Group>): DxfDrawing {
         val layers = mutableListOf<DxfLayer>()
-        val entities = mutableListOf<DxfEntity>()
         val unsupported = mutableSetOf<String>()
+        val counts = mutableMapOf<String, Int>()
         var insUnits = DxfInsUnits.UNITLESS
+        var blocks: Map<String, BlockDefinition> = emptyMap()
+
+        // The ENTITIES section is parsed last, whatever order the file puts its
+        // sections in: a reference can only be expanded once the block it names
+        // has been read.
+        var entitiesBody: List<Group>? = null
 
         var i = 0
         while (i < groups.size) {
@@ -72,8 +78,9 @@ public object DxfReader {
                 when (nameGroup.value) {
                     "HEADER" -> insUnits = readHeaderUnits(body)
                     "TABLES" -> layers += readLayers(body)
-                    "ENTITIES" -> readEntities(body, entities, unsupported)
-                    else -> Unit // BLOCKS / CLASSES / OBJECTS are not needed for viewing.
+                    "BLOCKS" -> blocks = readBlocks(body, unsupported)
+                    "ENTITIES" -> entitiesBody = body
+                    else -> Unit // CLASSES / OBJECTS carry nothing to draw.
                 }
                 i = end
             } else {
@@ -81,12 +88,67 @@ public object DxfReader {
             }
         }
 
+        val referenced = mutableListOf<DxfEntity>()
+        entitiesBody?.let { readEntities(it, referenced, unsupported, counts) }
+
+        val expansion = BlockExpansion(blocks)
+        expansion.place(referenced, transform = null, layerOverride = null, colourOverride = null, depth = 0)
+
         return DxfDrawing(
             layers = layers,
-            entities = entities,
+            entities = expansion.out,
             insUnits = insUnits,
             unsupportedEntityTypes = unsupported,
+            entityTypeCounts = counts,
+            blockEntityCounts = blocks.mapValues { (_, block) -> block.entities.size },
+            expansionTruncated = expansion.truncated,
         )
+    }
+
+    /**
+     * Reads the `BLOCKS` section into definitions the `ENTITIES` section can
+     * refer to.
+     *
+     * Skipping this section was the reader's largest gap: in a drawing from any
+     * real CAD tool, doors, windows, furniture, fixtures and the title block are
+     * all block references, so a viewer that ignores block definitions draws an
+     * empty shell — and a drawing where the whole plan is one reference draws
+     * nothing at all.
+     */
+    private fun readBlocks(
+        body: List<Group>,
+        unsupported: MutableSet<String>,
+    ): Map<String, BlockDefinition> {
+        val out = LinkedHashMap<String, BlockDefinition>()
+        var i = 0
+        while (i < body.size) {
+            val g = body[i]
+            if (g.code != 0 || g.value != "BLOCK") {
+                i++
+                continue
+            }
+
+            // The BLOCK record's own fields, up to the first entity in it.
+            var afterHeader = i + 1
+            while (afterHeader < body.size && body[afterHeader].code != 0) afterHeader++
+            val header = body.subList(i + 1, afterHeader)
+
+            // Block definitions do not nest, so the next ENDBLK closes this one.
+            var end = afterHeader
+            while (end < body.size && !(body[end].code == 0 && body[end].value == "ENDBLK")) end++
+
+            val name = header.firstOrNull { it.code == 2 }?.value
+            if (name != null && name !in out) {
+                val contents = mutableListOf<DxfEntity>()
+                readEntities(body.subList(afterHeader, end), contents, unsupported, counts = null)
+                out[name] = BlockDefinition(
+                    base = Vec2(scalar(header, 10), scalar(header, 20)),
+                    entities = contents,
+                )
+            }
+            i = if (end < body.size) end + 1 else body.size
+        }
+        return out
     }
 
     private fun findSectionEnd(groups: List<Group>, from: Int): Int {
@@ -146,10 +208,17 @@ public object DxfReader {
         return layers
     }
 
+    /**
+     * @param counts when given, every record type met is tallied — the file's
+     *   own account of itself, which is what turns "nothing was drawn" from a
+     *   dead end into a diagnosis. Block contents pass `null`, because the tally
+     *   describes the drawing's own entities.
+     */
     private fun readEntities(
         body: List<Group>,
         out: MutableList<DxfEntity>,
         unsupported: MutableSet<String>,
+        counts: MutableMap<String, Int>?,
     ) {
         var i = 0
         while (i < body.size) {
@@ -159,6 +228,9 @@ public object DxfReader {
                 continue
             }
             val type = g.value
+            if (counts != null && type != "ENDSEC" && type != "EOF") {
+                counts[type] = (counts[type] ?: 0) + 1
+            }
             val start = i + 1
             var end = start
             while (end < body.size && body[end].code != 0) end++

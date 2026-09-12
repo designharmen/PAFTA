@@ -20,10 +20,20 @@ public sealed interface StoreFailure {
     /** The file is larger than the import limit. */
     public data class TooLarge(val sizeBytes: Long, val limitBytes: Long) : StoreFailure
 
-    /** The payload could not be used as the format its extension claims. */
+    /**
+     * The payload could not be used as the format its extension claims.
+     *
+     * [found] is the file's own account of what it holds — record type to how
+     * many of them — and it is data, not prose: the names come out of the user's
+     * file, and the sentence around them is composed in Turkish at the UI
+     * boundary. Without it, "there is nothing to draw in this drawing" is a dead
+     * end for everyone: a plan made entirely of hatching and a plan that is
+     * genuinely empty produce the same blank screen and need opposite answers.
+     */
     public data class Unreadable(
         val format: FileFormat,
         val reason: UnreadableReason,
+        val found: Map<String, Int> = emptyMap(),
     ) : StoreFailure
 
     /**

@@ -73,11 +73,13 @@ public class ProjectStore(
             )
         }
 
-        // Validate now, while we can still refuse: importing a DXF that turns
-        // out to be unparseable would otherwise leave a project that opens onto
-        // an empty canvas with no explanation.
+        // A DXF that will not parse at all is refused here, while we still can.
+        // A DXF that parses but holds nothing this reader can draw is NOT: the
+        // file is kept, and the explanation comes when it is opened. Refusing it
+        // cost the user the file and told them nothing — the same mistake .rvt
+        // taught once already.
         if (format == FileFormat.DXF) {
-            val failure = validateDxf(payload)
+            val failure = parseFailure(payload)
             if (failure != null) return StoreResult.Failure(failure)
         }
 
@@ -202,13 +204,10 @@ public class ProjectStore(
         return candidate
     }
 
-    private fun validateDxf(payload: ByteArray): StoreFailure? = try {
-        val drawing = com.harmen.pafta.dxf.DxfReader.read(payload.inputStream())
-        if (drawing.entities.isEmpty()) {
-            StoreFailure.Unreadable(FileFormat.DXF, UnreadableReason.NO_DRAWABLE_CONTENT)
-        } else {
-            null
-        }
+    /** Null when the payload is DXF this reader can parse, whatever it contains. */
+    private fun parseFailure(payload: ByteArray): StoreFailure? = try {
+        com.harmen.pafta.dxf.DxfReader.read(payload.inputStream())
+        null
     } catch (e: Exception) {
         StoreFailure.Unreadable(FileFormat.DXF, UnreadableReason.MALFORMED)
     }
