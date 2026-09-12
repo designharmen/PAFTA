@@ -97,7 +97,7 @@ public class UpdateService(
             UpdateCheck.UpToDate
         } else {
             UpdateCheck.Available(
-                AvailableUpdate(published, asset.downloadUrl, asset.sizeBytes),
+                AvailableUpdate(published, asset.downloadUrl, asset.size),
             )
         }
     }
