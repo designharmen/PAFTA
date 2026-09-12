@@ -45,6 +45,35 @@ jobs:
         with:
           packages: "platforms;android-35 build-tools;35.0.0"
 
+      # Bütün derlemelerin aynı anahtarla imzalanması için, depodaki şifreli
+      # anahtar burada çözülüyor. Şifre GitHub'ın gizli değerinde duruyor;
+      # ne depoda, ne kayıtta, ne de kurulum dosyasının içinde geçiyor.
+      #
+      # Şifre eklenmemişse derleme yine de sürüyor, ama sürüm YAYINLANMIYOR:
+      # farklı anahtarla imzalanmış bir dosya kurulurken "uygulama yüklenmedi"
+      # der, ve sessizce öyle bir dosya yayınlamak hatayı geri getirmek olur.
+      - name: İmza anahtarını çöz
+        id: imza
+        env:
+          PAFTA_IMZA_SIFRESI: ${{ secrets.PAFTA_IMZA_SIFRESI }}
+        run: |
+          if [ -z "${PAFTA_IMZA_SIFRESI:-}" ]; then
+            echo "imzali=hayir" >> "$GITHUB_OUTPUT"
+            echo "::warning::PAFTA_IMZA_SIFRESI gizli değeri eklenmemiş. APK imzasız üretilecek ve sürüm yayınlanmayacak."
+            {
+              echo "## İmza anahtarı yok"
+              echo
+              echo "Depo ayarlarında **PAFTA_IMZA_SIFRESI** gizli değeri tanımlı değil."
+              echo "Kurulum dosyası üretildi ama sürüm olarak yayınlanmadı."
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 240000 \
+            -in imza/pafta-imza.p12.enc \
+            -out "${RUNNER_TEMP}/pafta-imza.p12" \
+            -pass env:PAFTA_IMZA_SIFRESI
+          echo "imzali=evet" >> "$GITHUB_OUTPUT"
+
       # Türkçe metin dosyasının denetimi. Saniyeler sürer ve Android'in kaynak
       # derleyicisinin dört dakika sonra bulacağı hataları hemen yakalar.
       - name: Türkçe metinleri denetle
@@ -65,9 +94,15 @@ jobs:
       # üstünde görünüyor, böylece "hangi sürümü kurdum?" sorusu tahmine
       # kalmıyor. Bu sayfadaki liste numarasıyla birebir aynı.
       - name: APK derle
+        env:
+          PAFTA_IMZA_SIFRESI: ${{ secrets.PAFTA_IMZA_SIFRESI }}
         run: |
           set -o pipefail
-          ./gradlew assembleDebug -PpaftaBuild="${GITHUB_RUN_NUMBER}" --console=plain 2>&1 \
+          imza=""
+          if [ "${{ steps.imza.outputs.imzali }}" = "evet" ]; then
+            imza="-PpaftaKeystore=${RUNNER_TEMP}/pafta-imza.p12"
+          fi
+          ./gradlew assembleDebug -PpaftaBuild="${GITHUB_RUN_NUMBER}" $imza --console=plain 2>&1 \
             | tee "${RUNNER_TEMP}/build.log"
 
       # Hata özeti: günlüğün sonunda, sadece işe yarayan satırlar.
@@ -110,7 +145,7 @@ jobs:
       # Etiket yapım numarasıyla aynı (yapim-12): uygulama kendi damgasıyla
       # karşılaştırıp yeni sürüm olup olmadığını böyle anlıyor.
       - name: Sürüm olarak yayınla
-        if: success()
+        if: success() && steps.imza.outputs.imzali == 'evet'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |

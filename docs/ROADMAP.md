@@ -416,8 +416,40 @@ the same mistake could not be hiding.
 | the asset download URL | `200`, 17,598,066 bytes, `application/vnd.android.package-archive` |
 
 What that does not prove is the app's own path — button, download, installer —
-which needs a device. The build carrying the button is the one that has to be
-installed by hand; every build after it is a tap.
+which needs a device.
+
+### The device test of the button, and the defect it found
+
+It worked up to the last step: the button found build 16, downloaded it, and
+opened Android's installer — which then refused with *"uygulama yüklenmedi"*.
+
+The cause was mine and it was in the build, not the button. Every run signed the
+APK with a **freshly generated debug key**, because a GitHub runner starts
+without one. Android refuses to replace an installed app with a build signed by
+a different key — that check is what stops anyone from pushing a counterfeit
+update over a real app — so builds 15 and 16 could never install over each
+other, no matter how well the button worked. `versionCode` was also pinned at
+`1` for every build, which is not an update in Android's terms either.
+
+Both are fixed: `versionCode` is now the build number, and every build is signed
+with one stable key.
+
+**Where the key lives, and why.** The repository is public for now, so a
+keystore committed in the clear would let anyone sign a package Android would
+accept as an update to the owner's PAFTA. It is therefore committed **encrypted**
+(`imza/pafta-imza.p12.enc`, AES-256, PBKDF2, 240k iterations), with the
+passphrase held only in the `PAFTA_IMZA_SIFRESI` repository secret. The workflow
+decrypts it into the runner's temporary directory, and the passphrase is passed
+to Gradle through the environment rather than the command line, so it never
+reaches a process listing or a log.
+
+If the secret is missing, the build still produces an APK but **no release is
+published** — quietly publishing a differently-signed build would simply
+recreate the defect on the next update.
+
+The cost, once: the currently installed build was signed by a runner's throwaway
+key, so it cannot be updated in place. PAFTA has to be uninstalled and the first
+stably-signed build installed by hand. Every build after that is one tap.
 
 ## Getting to a real build
 

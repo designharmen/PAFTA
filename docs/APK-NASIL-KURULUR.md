@@ -36,6 +36,18 @@ Düğmeye tekrar dokun, açılan ayar sayfasında **PAFTA**'nın yanındaki anah
 aç, geri dön ve **GÜNCELLE**'ye bir kez daha dokun. Bu izni ömründe bir kez
 veriyorsun.
 
+### Bir kerelik: eski PAFTA'yı kaldırmak
+
+İlk sabit imzalı sürüme geçerken **bir kez** PAFTA'yı kaldırıp yeniden kurman
+gerekiyor. Sebebi şu: daha önceki kurulum dosyaları her seferinde farklı bir
+imzayla üretiliyordu, Android ise kurulu bir uygulamanın üzerine farklı imzalı
+bir sürümü yazdırmıyor — bu, birinin sahte "güncelleme" yüklemesini engelleyen
+kural. Bu turdan sonra imza sabit, dolayısıyla bir daha gerekmeyecek.
+
+Projelerin kaybolmaz mı? Kaldırma işlemi uygulamanın kendi klasörünü siler, yani
+**içe aktardığın projeler de silinir**. Elindeki çizim dosyaları duruyor, yeniden
+içe aktarırsın.
+
 ### Neden tamamen otomatik değil
 
 Android hiçbir uygulamanın, sen onaylamadan başka bir uygulama kurmasına izin

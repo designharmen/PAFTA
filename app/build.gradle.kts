@@ -5,6 +5,14 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
 }
 
+// Yapım numarası: hem uygulamanın içindeki damga, hem Android'in sürüm sayacı.
+val paftaYapim = (project.findProperty("paftaBuild") as String?)?.trim()?.toIntOrNull()
+
+// İmza anahtarı. Akış onu şifreli hâlinden çözüp yolunu buraya geçiriyor;
+// şifre yalnızca ortam değişkeninde, hiçbir zaman komut satırında değil.
+val paftaImzaDosyasi = (project.findProperty("paftaKeystore") as String?)?.let { file(it) }
+val paftaImzaSifresi: String? = System.getenv("PAFTA_IMZA_SIFRESI")
+
 android {
     namespace = "com.harmen.pafta"
     compileSdk = 35
@@ -15,7 +23,9 @@ android {
         // Filament renderer we add in the 3D phase.
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
+        // Android bir uygulamayı ancak sürüm sayacı artıyorsa günceller. Sayaç
+        // yapım numarasının kendisi: akış her derlemede bir artırıyor.
+        versionCode = paftaYapim ?: 1
         // The build label is what makes a device report unambiguous. Without it,
         // "I installed the new one and still see the old message" cannot be
         // told apart from "I tested the previous APK" — and a slow device round
@@ -30,9 +40,31 @@ android {
         vectorDrawables.useSupportLibrary = true
     }
 
+    /**
+     * Bütün derlemeler aynı anahtarla imzalanır.
+     *
+     * Aksi hâlde her derleme kendi geçici anahtarını üretir ve Android, kurulu
+     * uygulamanın üzerine farklı anahtarlı bir sürümü kurmayı reddeder —
+     * güncelleme tuşu indirir, kurulum ekranı açılır ve "uygulama yüklenmedi"
+     * denir. Hatanın kendisi buydu.
+     */
+    signingConfigs {
+        if (paftaImzaDosyasi != null && paftaImzaDosyasi.isFile && !paftaImzaSifresi.isNullOrEmpty()) {
+            create("pafta") {
+                storeFile = paftaImzaDosyasi
+                storePassword = paftaImzaSifresi
+                keyAlias = "pafta"
+                keyPassword = paftaImzaSifresi
+            }
+        }
+    }
+
     buildTypes {
         debug {
             isMinifyEnabled = false
+            // Anahtar verilmemişse (geliştirme ortamı) eski davranış sürüyor;
+            // böyle bir derleme yayınlanmıyor, akış onu atlıyor.
+            signingConfig = signingConfigs.findByName("pafta") ?: signingConfigs.getByName("debug")
         }
         release {
             isMinifyEnabled = true
