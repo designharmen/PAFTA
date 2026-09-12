@@ -126,6 +126,21 @@ The APK exists and the app compiles; whether it runs, and whether the chrome
 matches the design, is unverified until someone installs it. Nothing in a
 successful build says an app does not crash on launch.
 
+The owner chose to close this before deciding the DWG/3D question (see *Phase
+ordering* below), so the test is now written out step by step, in Turkish, in
+[CIZIM-EKRANI-TESTI.md](CIZIM-EKRANI-TESTI.md) — DXF export from AutoCAD or
+Revit, installing the current APK, what the screen should look like, and a table
+mapping each possible outcome to what to report back.
+
+Reading the drawing path end to end before that test found no blocker, and one
+limitation worth stating in advance: `DxfReader` skips the `BLOCKS` section, so
+an `INSERT` is drawn as a small cross at its insertion point rather than as its
+block's geometry. Walls and linework drawn directly still appear; doors,
+windows, furniture and title blocks will not. In a drawing where everything sits
+inside one block, the whole plan reduces to crosses. Expanding blocks is pure
+`core:dxf` work — writable and testable without a device — and it is the obvious
+next task if the device test shows it.
+
 ## Turkish interface retrofit ✅
 
 Applied across Phases 0 and 1 after the brief added a Turkish-only requirement.
