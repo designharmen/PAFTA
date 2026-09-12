@@ -212,8 +212,35 @@ whoever exported the file. Both the UTF-8 form (as it arrives when the stream is
 decoded as Latin-1) and a decoded `U+FEFF` are now skipped, with a test for each
 and one proving a file without a mark is untouched.
 
+### The second device report, and the two things it changed
+
+The same message came back, this time with **no inventory after it** and with
+the library **empty** — no project row at all. Both facts are informative.
+
+An empty list is the tell. Under the change above an importable DXF is *kept*,
+so a device running this build would show the project row and the message
+together. A build where the import is refused shows the message and nothing
+else. But the screenshot cannot say which build produced it, and that ambiguity
+costs a whole device round — export, transfer, uninstall, install, test.
+
+So the build stamps itself. `app/build.gradle.kts` takes a `paftaBuild`
+property, the APK workflow passes GitHub's run number, and the library bar
+prints it faintly at the right: `yapım 9`. A report from the device now names
+the build it came from, and a build made by hand says `yerel`.
+
+The second change is what the message can say when there is no inventory.
+`StoreFailure.Unreadable.found` became a `FileInventory` — record types, layer
+count, block count — because those three separate three different problems that
+look identical on screen:
+
+| What the file holds | What it means | What the screen says |
+| --- | --- | --- |
+| records the reader cannot draw | a real drawing, unsupported entity types | `İçinde şunlar var: HATCH (1240)…` |
+| no records, but layers and blocks | an export that wrote definitions and no geometry | `Dosyada 312 katman ve 208 hazır parça tanımı var, ama çizim bölümü boş` |
+| nothing at all | an empty file, or the wrong view exported | `Dosyanın çizim bölümü tamamen boş` |
+
 **Verified:** `./gradlew -PpaftaCoreOnly=true test --no-build-cache
---rerun-tasks`, **185 tests, 0 failures** (was 171). Fourteen are new: ten in
+--rerun-tasks`, **186 tests, 0 failures** (was 171). Fourteen are new: ten in
 `DxfBlockTest` covering placement, scale and rotation, layer inheritance, the
 mirrored arc, nesting, a self-referencing block, an undefined block, repeated
 placement and the inventory counts; three in `DxfByteOrderMarkTest`; one in

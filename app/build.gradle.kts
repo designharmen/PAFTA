@@ -16,7 +16,17 @@ android {
         minSdk = 26
         targetSdk = 35
         versionCode = 1
+        // The build label is what makes a device report unambiguous. Without it,
+        // "I installed the new one and still see the old message" cannot be
+        // told apart from "I tested the previous APK" — and a slow device round
+        // gets spent on the wrong question. The APK workflow passes GitHub's run
+        // number; a build made by hand says so.
         versionName = "0.1.0"
+        buildConfigField(
+            "String",
+            "BUILD_LABEL",
+            "\"${project.findProperty("paftaBuild") ?: "yerel"}\"",
+        )
         vectorDrawables.useSupportLibrary = true
     }
 
@@ -45,6 +55,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
     sourceSets["main"].java.srcDirs("src/main/kotlin")

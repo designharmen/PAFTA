@@ -145,6 +145,40 @@ class ProjectStoreTest {
             assertIs<StoreResult.Failure>(project.openAsDrawing()).failure,
         )
         assertEquals(UnreadableReason.NO_DRAWABLE_CONTENT, failure.reason)
+        // Nothing at all in the file: the three counts being zero is itself the
+        // diagnosis, and the screen says so in those words.
+        assertEquals(true, failure.found?.isEmpty)
+    }
+
+    @Test
+    fun `a dxf that declares layers and blocks but draws nothing says exactly that`() {
+        val structureOnly = listOf(
+            "0", "SECTION", "2", "TABLES",
+            "0", "TABLE", "2", "LAYER", "70", "2",
+            "0", "LAYER", "2", "DUVAR", "70", "0", "62", "7", "6", "CONTINUOUS",
+            "0", "LAYER", "2", "KAPI", "70", "0", "62", "3", "6", "CONTINUOUS",
+            "0", "ENDTAB", "0", "ENDSEC",
+            "0", "SECTION", "2", "BLOCKS",
+            "0", "BLOCK", "2", "KAPI-90", "10", "0.0", "20", "0.0",
+            "0", "LINE", "8", "0", "10", "0.0", "20", "0.0", "11", "900.0", "21", "0.0",
+            "0", "ENDBLK",
+            "0", "ENDSEC",
+            "0", "SECTION", "2", "ENTITIES", "0", "ENDSEC",
+            "0", "EOF",
+        ).joinToString("\n", postfix = "\n")
+
+        val entry = store.import("structure.dxf", structureOnly.toByteArray()).valueOrNull()
+        assertNotNull(entry)
+
+        val project = assertIs<StoreResult.Success<PaftaProject>>(store.open(entry.file)).value
+        val failure = assertIs<StoreFailure.Unreadable>(
+            assertIs<StoreResult.Failure>(project.openAsDrawing()).failure,
+        )
+        // An export that wrote definitions and no geometry — a different problem
+        // from an empty file, and a different thing to tell the user.
+        assertEquals(emptyMap(), failure.found?.recordTypes)
+        assertEquals(2, failure.found?.layerCount)
+        assertEquals(1, failure.found?.blockCount)
     }
 
     @Test
@@ -165,7 +199,7 @@ class ProjectStoreTest {
             assertIs<StoreResult.Failure>(project.openAsDrawing()).failure,
         )
         // The inventory is what turns a blank screen into an answerable question.
-        assertEquals(mapOf("HATCH" to 2, "SPLINE" to 1), failure.found)
+        assertEquals(mapOf("HATCH" to 2, "SPLINE" to 1), failure.found?.recordTypes)
     }
 
     @Test

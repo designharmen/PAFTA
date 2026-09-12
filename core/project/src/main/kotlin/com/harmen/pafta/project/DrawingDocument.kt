@@ -58,7 +58,11 @@ public fun PaftaProject.openAsDrawing(): StoreResult<DrawingDocument> {
             StoreFailure.Unreadable(
                 FileFormat.DXF,
                 UnreadableReason.NO_DRAWABLE_CONTENT,
-                found = drawing.entityTypeCounts,
+                found = FileInventory(
+                    recordTypes = drawing.entityTypeCounts,
+                    layerCount = drawing.layers.size,
+                    blockCount = drawing.blockEntityCounts.size,
+                ),
             ),
         )
     }

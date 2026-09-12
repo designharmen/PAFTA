@@ -23,17 +23,17 @@ public sealed interface StoreFailure {
     /**
      * The payload could not be used as the format its extension claims.
      *
-     * [found] is the file's own account of what it holds — record type to how
-     * many of them — and it is data, not prose: the names come out of the user's
-     * file, and the sentence around them is composed in Turkish at the UI
-     * boundary. Without it, "there is nothing to draw in this drawing" is a dead
-     * end for everyone: a plan made entirely of hatching and a plan that is
-     * genuinely empty produce the same blank screen and need opposite answers.
+     * [found] is the file's own account of what it holds, and it is data, not
+     * prose: the record names come out of the user's file, and the sentence
+     * around them is composed in Turkish at the UI boundary. Without it, "there
+     * is nothing to draw in this drawing" is a dead end for everyone — a plan
+     * made entirely of hatching and a file whose drawing section is empty give
+     * the same blank screen and need opposite answers.
      */
     public data class Unreadable(
         val format: FileFormat,
         val reason: UnreadableReason,
-        val found: Map<String, Int> = emptyMap(),
+        val found: FileInventory? = null,
     ) : StoreFailure
 
     /**
@@ -80,4 +80,23 @@ public enum class IoCause {
 
     /** The name of the picked file could not be determined. */
     FILE_NAME_UNKNOWN,
+}
+
+/**
+ * What a file turned out to contain.
+ *
+ * Three facts, because they separate three different problems that look
+ * identical on screen: records the reader cannot draw yet ([recordTypes] names
+ * them), a file that declares structure but draws nothing (no records, but
+ * [layerCount] and [blockCount] are not zero — an export that wrote definitions
+ * and no geometry), and a file that is empty end to end (all three zero).
+ */
+public data class FileInventory(
+    /** Record type to how many of them, in the file's own vocabulary. */
+    val recordTypes: Map<String, Int> = emptyMap(),
+    val layerCount: Int = 0,
+    val blockCount: Int = 0,
+) {
+    public val isEmpty: Boolean
+        get() = recordTypes.isEmpty() && layerCount == 0 && blockCount == 0
 }

@@ -59,10 +59,14 @@ jobs:
       # hata satırlarını, günlüğün en sonunda, okunabilir biçimde yazdırıyor.
       # (`--stacktrace` bilerek yok: yüzlerce satır teknik iz, hatanın kendisini
       # görünmez yapıyordu.)
+      # Yapım numarası uygulamanın içine gömülüyor: kütüphane ekranının sağ
+      # üstünde görünüyor, böylece "hangi sürümü kurdum?" sorusu tahmine
+      # kalmıyor. Bu sayfadaki liste numarasıyla birebir aynı.
       - name: APK derle
         run: |
           set -o pipefail
-          ./gradlew assembleDebug --console=plain 2>&1 | tee "${RUNNER_TEMP}/build.log"
+          ./gradlew assembleDebug -PpaftaBuild="${GITHUB_RUN_NUMBER}" --console=plain 2>&1 \
+            | tee "${RUNNER_TEMP}/build.log"
 
       # Hata özeti: günlüğün sonunda, sadece işe yarayan satırlar.
       - name: Derleme hatalarını özetle

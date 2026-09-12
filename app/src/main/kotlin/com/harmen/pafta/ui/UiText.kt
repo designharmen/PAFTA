@@ -93,10 +93,25 @@ public fun StoreFailure.mesaj(): String = when (this) {
                 // dosyanın neyden ibaret olduğunu da söyle, yoksa ne kullanıcı
                 // ne de biz bir sonraki adımı bilebiliriz.
                 val temel = stringResource(R.string.error_no_drawable, tur)
-                if (found.isEmpty()) {
-                    temel
-                } else {
-                    stringResource(R.string.error_no_drawable_with_types, temel, found.dokum())
+                val envanter = found
+                when {
+                    envanter == null || envanter.isEmpty ->
+                        stringResource(R.string.error_no_drawable_empty, temel)
+
+                    envanter.recordTypes.isNotEmpty() -> stringResource(
+                        R.string.error_no_drawable_with_types,
+                        temel,
+                        envanter.recordTypes.dokum(),
+                    )
+
+                    // Katman ve hazır parça tanımı var ama çizilecek kayıt yok:
+                    // dışa aktarma tanımları yazmış, geometriyi yazmamış.
+                    else -> stringResource(
+                        R.string.error_no_drawable_structure_only,
+                        temel,
+                        envanter.layerCount,
+                        envanter.blockCount,
+                    )
                 }
             }
             UnreadableReason.NO_VIEWER_YET -> {

@@ -35,6 +35,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.annotation.StringRes
+import com.harmen.pafta.BuildConfig
 import com.harmen.pafta.R
 import com.harmen.pafta.project.FileFormat
 import com.harmen.pafta.project.ProjectEntry
@@ -127,6 +128,14 @@ private fun LibraryBar(onImport: () -> Unit, importing: Boolean) {
             color = HarmenColours.TextMuted,
         )
         Spacer(Modifier.weight(1f))
+        // Which build is actually on the device. Quiet enough to ignore, and
+        // the one thing that makes a report from the device unambiguous.
+        Text(
+            text = stringResource(R.string.library_build, BuildConfig.BUILD_LABEL),
+            style = HarmenType.Status,
+            color = HarmenColours.TextFaint,
+        )
+        Spacer(Modifier.width(metrics.gutter))
         if (importing) {
             Spinner(size = 14.dp)
             Spacer(Modifier.width(metrics.gutterTight))

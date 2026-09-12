@@ -78,6 +78,7 @@
 
     <!-- ===== Proje kütüphanesi ===== -->
     <string name="library_title">PROJELER</string>
+    <string name="library_build">yapım %1$s</string>
     <string name="library_import">İÇE AKTAR</string>
     <string name="library_unreadable">Okunamayan</string>
     <string name="library_empty_title">henüz proje yok</string>
@@ -100,6 +101,8 @@
     <string name="error_no_drawable">Bu %1$s açıldı ama içinde çizilecek bir şey yok</string>
     <!-- İkinci bölüm dosyanın kendi kayıt adlarıdır: veri, arayüz metni değil. -->
     <string name="error_no_drawable_with_types">%1$s. İçinde şunlar var: %2$s</string>
+    <string name="error_no_drawable_empty">%1$s. Dosyanın çizim bölümü tamamen boş</string>
+    <string name="error_no_drawable_structure_only">%1$s. Dosyada %2$d katman ve %3$d hazır parça tanımı var, ama çizim bölümü boş</string>
     <string name="error_no_viewer">PAFTA %1$s dosyalarını henüz gösteremiyor. Dosya projenin içine güvenle kaydedildi, sonraki sürümde açılabilecek</string>
     <!-- Görüntüleyicisi olmayan biçimler için, bugün işe yarayan yol. -->
     <string name="error_no_viewer_with_hint">%1$s %2$s</string>
