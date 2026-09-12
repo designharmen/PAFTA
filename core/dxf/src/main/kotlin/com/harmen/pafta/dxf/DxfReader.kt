@@ -164,11 +164,21 @@ public object DxfReader {
         return out
     }
 
+    /**
+     * Where a section stops.
+     *
+     * A section that never closes used to swallow everything after it — so one
+     * missing `ENDSEC` early in a file could hide the whole `ENTITIES` section
+     * and the drawing would read as empty, with nothing in the file's inventory
+     * to explain why. The next `SECTION` therefore ends the previous one too:
+     * a well-formed file is unaffected, and a damaged one loses only the
+     * section that is actually broken.
+     */
     private fun findSectionEnd(groups: List<Group>, from: Int): Int {
         var i = from
         while (i < groups.size) {
             val g = groups[i]
-            if (g.code == 0 && g.value == "ENDSEC") return i
+            if (g.code == 0 && (g.value == "ENDSEC" || g.value == "SECTION")) return i
             i++
         }
         return groups.size

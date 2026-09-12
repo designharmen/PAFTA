@@ -239,8 +239,16 @@ look identical on screen:
 | no records, but layers and blocks | an export that wrote definitions and no geometry | `Dosyada 312 katman ve 208 hazır parça tanımı var, ama çizim bölümü boş` |
 | nothing at all | an empty file, or the wrong view exported | `Dosyanın çizim bölümü tamamen boş` |
 
+A third change came out of asking what could produce exactly this symptom — an
+empty drawing whose inventory is *also* empty, meaning no `ENTITIES` section was
+parsed at all. A section that never closes used to run to the end of the file,
+so one missing `ENDSEC` early on could hide every section after it, `ENTITIES`
+included. The next `SECTION` now ends the previous one as well: a well-formed
+file is unaffected, and a damaged one loses only the section that is broken.
+Both cases are tested.
+
 **Verified:** `./gradlew -PpaftaCoreOnly=true test --no-build-cache
---rerun-tasks`, **186 tests, 0 failures** (was 171). Fourteen are new: ten in
+--rerun-tasks`, **188 tests, 0 failures** (was 171). Fourteen are new: ten in
 `DxfBlockTest` covering placement, scale and rotation, layer inheritance, the
 mirrored arc, nesting, a self-referencing block, an undefined block, repeated
 placement and the inventory counts; three in `DxfByteOrderMarkTest`; one in

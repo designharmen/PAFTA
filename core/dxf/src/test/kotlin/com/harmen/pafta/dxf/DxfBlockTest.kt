@@ -245,3 +245,53 @@ class DxfByteOrderMarkTest {
         assertEquals(1, DxfReader.read(body).entities.size)
     }
 }
+
+/**
+ * A damaged section must cost only itself.
+ *
+ * A section that never closes used to run to the end of the file, hiding every
+ * section after it. The drawing then reads as empty with nothing in its
+ * inventory to explain why — the hardest kind of failure to diagnose from a
+ * photograph of a screen.
+ */
+class DxfUnclosedSectionTest {
+
+    @Test
+    fun `a section that never closes does not hide the entities after it`() {
+        val text = listOf(
+            "0", "SECTION",
+            "2", "TABLES",
+            "0", "TABLE", "2", "LAYER", "70", "1",
+            "0", "LAYER", "2", "DUVAR", "70", "0", "62", "7", "6", "CONTINUOUS",
+            // No ENDSEC here: this is the damage.
+            "0", "SECTION",
+            "2", "ENTITIES",
+            "0", "LINE", "8", "DUVAR", "10", "0.0", "20", "0.0", "11", "100.0", "21", "0.0",
+            "0", "ENDSEC",
+            "0", "EOF",
+        ).joinToString("\n", postfix = "\n")
+
+        val drawing = DxfReader.read(text)
+        assertEquals(1, drawing.entities.size)
+        assertEquals(mapOf("LINE" to 1), drawing.entityTypeCounts)
+        // The layer declared before the damage is still read.
+        assertEquals(listOf("DUVAR"), drawing.layers.map { it.name })
+    }
+
+    @Test
+    fun `a well-formed file is unaffected by the same rule`() {
+        val text = listOf(
+            "0", "SECTION", "2", "TABLES",
+            "0", "TABLE", "2", "LAYER", "70", "1",
+            "0", "LAYER", "2", "DUVAR", "70", "0", "62", "7", "6", "CONTINUOUS",
+            "0", "ENDTAB", "0", "ENDSEC",
+            "0", "SECTION", "2", "ENTITIES",
+            "0", "LINE", "8", "DUVAR", "10", "0.0", "20", "0.0", "11", "100.0", "21", "0.0",
+            "0", "ENDSEC", "0", "EOF",
+        ).joinToString("\n", postfix = "\n")
+
+        val drawing = DxfReader.read(text)
+        assertEquals(1, drawing.entities.size)
+        assertEquals(listOf("DUVAR"), drawing.layers.map { it.name })
+    }
+}
