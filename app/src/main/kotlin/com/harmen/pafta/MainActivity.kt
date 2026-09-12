@@ -24,10 +24,13 @@ import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.harmen.pafta.data.ProjectRepository
+import com.harmen.pafta.data.UpdateService
 import com.harmen.pafta.ui.PaftaScreen
 import com.harmen.pafta.ui.library.LibraryScreen
 import com.harmen.pafta.ui.state.EditorViewModel
 import com.harmen.pafta.ui.state.LibraryViewModel
+import com.harmen.pafta.ui.state.UpdateState
+import com.harmen.pafta.ui.state.UpdateViewModel
 import com.harmen.pafta.ui.theme.PaftaTheme
 import java.io.File
 
@@ -63,6 +66,8 @@ private fun PaftaApp(modifier: Modifier = Modifier) {
 
     val libraryViewModel: LibraryViewModel = viewModel { LibraryViewModel(repository) }
     val editorViewModel: EditorViewModel = viewModel { EditorViewModel(repository) }
+    val updateService = remember { UpdateService(context) }
+    val updateViewModel: UpdateViewModel = viewModel { UpdateViewModel(updateService) }
 
     var openPath by rememberSaveable { mutableStateOf<String?>(null) }
 
@@ -70,6 +75,22 @@ private fun PaftaApp(modifier: Modifier = Modifier) {
     val editorState by editorViewModel.state.collectAsStateWithLifecycle()
     val document by editorViewModel.document.collectAsStateWithLifecycle()
     val editorError by editorViewModel.error.collectAsStateWithLifecycle()
+    val updateState by updateViewModel.state.collectAsStateWithLifecycle()
+
+    // The two moments the update has to leave the app: the installer, and the
+    // one-time settings screen that lets PAFTA reach it. Both are launched here
+    // rather than from the view model, which has no business holding a Context.
+    LaunchedEffect(updateState) {
+        when (val current = updateState) {
+            is UpdateState.Ready -> {
+                runCatching { context.startActivity(updateService.installIntent(current.file)) }
+                updateViewModel.consumeReady()
+            }
+
+            UpdateState.NeedsPermission -> Unit
+            else -> Unit
+        }
+    }
 
     // CAD formats largely have no registered MIME type, so the picker must accept
     // everything; the extension is what decides whether the import is allowed.
@@ -108,6 +129,17 @@ private fun PaftaApp(modifier: Modifier = Modifier) {
                 editorViewModel.dismissError()
             },
             modifier = modifier,
+            updateState = updateState,
+            onUpdate = {
+                if (updateState == UpdateState.NeedsPermission) {
+                    // The banner told the user what to do; this takes them there.
+                    runCatching { context.startActivity(updateService.permissionIntent()) }
+                    updateViewModel.consumePermissionRequest()
+                } else {
+                    updateViewModel.start()
+                }
+            },
+            onDismissUpdate = { updateViewModel.dismiss() },
         )
         // A failed open must not leave the app stuck pointing at a dead project.
         LaunchedEffect(editorError) {

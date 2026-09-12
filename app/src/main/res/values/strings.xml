@@ -79,6 +79,16 @@
     <!-- ===== Proje kütüphanesi ===== -->
     <string name="library_title">PROJELER</string>
     <string name="library_build">yapım %1$s</string>
+    <string name="library_update">GÜNCELLE</string>
+    <string name="update_checking">yeni sürüm var mı diye bakılıyor</string>
+    <string name="update_up_to_date">En güncel sürüm zaten kurulu</string>
+    <string name="update_downloading">yapım %1$d indiriliyor · %2$d%%</string>
+    <string name="update_ready">yapım %1$d indi, kurulum ekranı açılıyor</string>
+    <string name="update_needs_permission">Kurulum için bir kez izin vermen gerekiyor. Açılan ayarda PAFTA\'ya izin ver, sonra GÜNCELLE\'ye tekrar dokun</string>
+    <string name="update_failed_network">İnternete bağlanılamadı. Bağlantını kontrol edip tekrar dene</string>
+    <string name="update_failed_no_release">Henüz yayınlanmış bir güncelleme yok</string>
+    <string name="update_failed_server">Güncelleme sunucusuna ulaşılamadı. Biraz sonra tekrar dene</string>
+    <string name="update_failed_save">Güncelleme kaydedilemedi. Cihazda boş yer kalmamış olabilir</string>
     <string name="library_import">İÇE AKTAR</string>
     <string name="library_unreadable">Okunamayan</string>
     <string name="library_empty_title">henüz proje yok</string>

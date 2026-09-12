@@ -7,6 +7,7 @@ import com.harmen.pafta.R
 import com.harmen.pafta.project.AnnotationKind
 import com.harmen.pafta.project.FileFormat
 import com.harmen.pafta.project.IoCause
+import com.harmen.pafta.data.UpdateFailure
 import com.harmen.pafta.project.StoreFailure
 import com.harmen.pafta.project.UnreadableReason
 import com.harmen.pafta.ui.state.UiError
@@ -148,6 +149,23 @@ private fun Map<String, Int>.dokum(): String = entries
     .sortedByDescending { it.value }
     .take(6)
     .joinToString(", ") { "${it.key} (${it.value})" }
+
+/**
+ * The Turkish sentence for a failed update.
+ *
+ * Same rule as every other failure in PAFTA: the data layer carries a reason,
+ * never a sentence, and the sentence is composed here.
+ */
+@Composable
+@ReadOnlyComposable
+public fun UpdateFailure.mesaj(): String = stringResource(
+    when (this) {
+        UpdateFailure.NO_NETWORK -> R.string.update_failed_network
+        UpdateFailure.NO_RELEASE -> R.string.update_failed_no_release
+        UpdateFailure.SERVER -> R.string.update_failed_server
+        UpdateFailure.CANNOT_SAVE -> R.string.update_failed_save
+    },
+)
 
 /** The Turkish sentence for anything the screen has to report. */
 @Composable

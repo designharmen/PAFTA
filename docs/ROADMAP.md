@@ -366,6 +366,40 @@ family outside the three appears in `res/font`, or if Kotlin references a font
 file that is not there. Both checks were verified by deliberately introducing
 the mistake and confirming the message names the right file and line.
 
+## Updating from inside the app
+
+Four device rounds in, the install chore was costing more than the bugs: open a
+browser, find the run, download a zip, extract it, move the file to the tablet,
+uninstall the old app, install the new one. The owner asked for a button.
+
+Android will not let one app install another silently — and should not — so the
+honest ceiling is one tap plus one confirmation. That is what `GÜNCELLE` in the
+library bar now does: check, download with visible progress, hand the file to
+Android's installer. A one-time "allow this app to install apps" permission is
+requested before the download rather than after it, so a missing permission
+never wastes 17 MB of someone's data.
+
+**Why releases rather than artifacts.** GitHub's build artifacts require an
+authenticated request; release assets do not. Publishing the APK as a release
+is what lets the app fetch its own update with **no credential inside the
+APK** — the alternative was embedding a token in a binary the owner carries
+around, which is a credential leak waiting for a lost tablet. The workflow tags
+each build `yapim-<run number>`, the same number the app stamps into its own
+library bar, so comparing "what is published" with "what is running" needs no
+version parsing at all.
+
+This requires the repository to be public while it is in use. The owner's
+decision, recorded: public during development, private again once every phase
+works.
+
+The failure modes are data, not prose, exactly like `StoreFailure`:
+`NO_NETWORK`, `NO_RELEASE`, `SERVER`, `CANNOT_SAVE`, turned into Turkish in
+`ui/UiText.kt`. The download writes to a second file name and renames only when
+it is whole, so Android's installer can never be handed a half-downloaded APK.
+
+Nothing was added to the build for it: `HttpURLConnection` is in the platform
+and `kotlinx.serialization` was already a dependency.
+
 ## Getting to a real build
 
 The development container has no Android SDK and cannot install one

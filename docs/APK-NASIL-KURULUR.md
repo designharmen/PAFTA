@@ -7,6 +7,43 @@ Aşağıdaki adımları ilk kez yapacak biri gibi, tek tek yazdım.
 
 ---
 
+## 0. Bölüm — İkinci kurulumdan sonra: uygulamanın kendi GÜNCELLE tuşu
+
+**Bu bölümü bir kez okuduktan sonra 1. ve 2. bölümlere bir daha ihtiyacın
+olmayacak.** Aşağıdaki uzun yol yalnızca *ilk* kurulum için.
+
+PAFTA'nın kütüphane ekranında, sağ üstte **GÜNCELLE** yazan bir düğme var.
+Dokununca sırayla şunlar olur:
+
+1. Yeni bir sürüm var mı diye bakar. Yoksa **"En güncel sürüm zaten kurulu"**
+   yazar, başka bir şey yapmaz.
+2. Varsa indirmeye başlar. Alttaki çizgide **"yapım 14 indiriliyor · %37"** gibi
+   ilerlemeyi görürsün.
+3. İnince Android'in kendi **kurulum ekranı** açılır. **Yükle**'ye dokunursun,
+   birkaç saniye sonra biter.
+
+Eski sürümü silmene gerek yok, dosya indirip çıkarmana da.
+
+### İlk seferde bir kez izin
+
+Android, bir uygulamanın başka bir uygulamayı kurmasına kendiliğinden izin
+vermez. İlk GÜNCELLE denemende şunu göreceksin:
+
+> *Kurulum için bir kez izin vermen gerekiyor. Açılan ayarda PAFTA'ya izin ver,
+> sonra GÜNCELLE'ye tekrar dokun*
+
+Düğmeye tekrar dokun, açılan ayar sayfasında **PAFTA**'nın yanındaki anahtarı
+aç, geri dön ve **GÜNCELLE**'ye bir kez daha dokun. Bu izni ömründe bir kez
+veriyorsun.
+
+### Neden tamamen otomatik değil
+
+Android hiçbir uygulamanın, sen onaylamadan başka bir uygulama kurmasına izin
+vermiyor — bu bir eksiklik değil, telefonunu koruyan bir kural. Yapabildiğimiz
+en iyisi, yedi adımlık işi **tek dokunuş + tek onay**'a indirmek. O da yapıldı.
+
+---
+
 ## 1. Bölüm — Uygulama dosyasını indirme
 
 Bu adımları **bilgisayardan** yapmak daha kolay, ama tabletten de yapılabilir.

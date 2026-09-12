@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Paylaşılan tek yer: uygulamanın kendi önbelleğindeki güncelleme klasörü.
+    Kurulum dosyası oraya iniyor ve yalnızca Android'in kurulum ekranı okuyor.
+
+    The only shared location is the app's own cache directory for downloaded
+    updates; nothing else is exposed through the provider.
+-->
+<paths>
+    <cache-path name="guncelleme" path="guncelleme/" />
+</paths>

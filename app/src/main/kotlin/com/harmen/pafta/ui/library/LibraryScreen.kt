@@ -39,6 +39,7 @@ import com.harmen.pafta.BuildConfig
 import com.harmen.pafta.R
 import com.harmen.pafta.project.FileFormat
 import com.harmen.pafta.project.ProjectEntry
+import com.harmen.pafta.ui.state.UpdateState
 import com.harmen.pafta.ui.chrome.HairlineDivider
 import com.harmen.pafta.ui.chrome.Monogram
 import com.harmen.pafta.ui.mesaj
@@ -66,10 +67,22 @@ public fun LibraryScreen(
     onDelete: (ProjectEntry) -> Unit,
     onDismissError: () -> Unit,
     modifier: Modifier = Modifier,
+    updateState: UpdateState = UpdateState.Idle,
+    onUpdate: () -> Unit = {},
+    onDismissUpdate: () -> Unit = {},
 ) {
     Column(modifier.fillMaxSize().background(HarmenColours.Ground)) {
-        LibraryBar(onImport = onImport, importing = state.importing)
+        LibraryBar(
+            onImport = onImport,
+            importing = state.importing,
+            updateState = updateState,
+            onUpdate = onUpdate,
+        )
         HairlineDivider()
+
+        if (updateState !is UpdateState.Idle) {
+            UpdateBanner(updateState, onDismissUpdate)
+        }
 
         state.error?.let { ErrorBanner(it.mesaj(), onDismissError) }
 
@@ -111,7 +124,12 @@ public fun LibraryScreen(
 }
 
 @Composable
-private fun LibraryBar(onImport: () -> Unit, importing: Boolean) {
+private fun LibraryBar(
+    onImport: () -> Unit,
+    importing: Boolean,
+    updateState: UpdateState,
+    onUpdate: () -> Unit,
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -136,6 +154,10 @@ private fun LibraryBar(onImport: () -> Unit, importing: Boolean) {
             color = HarmenColours.TextFaint,
         )
         Spacer(Modifier.width(metrics.gutter))
+        // One button for the whole update: look, fetch, hand to the installer.
+        val busy = updateState is UpdateState.Checking || updateState is UpdateState.Downloading
+        OutlinedAction(text = R.string.library_update, enabled = !busy, onClick = onUpdate)
+        Spacer(Modifier.width(metrics.gutterTight))
         if (importing) {
             Spinner(size = 14.dp)
             Spacer(Modifier.width(metrics.gutterTight))
@@ -308,6 +330,51 @@ private fun EmptyLibrary(onImport: () -> Unit) {
             OutlinedAction(text = R.string.library_import, enabled = true, onClick = onImport)
         }
     }
+}
+
+/**
+ * What the update button is doing, in one line.
+ *
+ * The sequence behind it has four steps; the person reading this has one
+ * question — is there a new version and is it coming — so the line answers that
+ * and nothing else.
+ */
+@Composable
+private fun UpdateBanner(state: UpdateState, onDismiss: () -> Unit) {
+    val message = when (state) {
+        UpdateState.Idle -> return
+        UpdateState.Checking -> stringResource(R.string.update_checking)
+        UpdateState.UpToDate -> stringResource(R.string.update_up_to_date)
+        is UpdateState.Downloading -> stringResource(
+            R.string.update_downloading,
+            state.build,
+            (state.progress.coerceAtLeast(0f) * 100).toInt(),
+        )
+        is UpdateState.Ready -> stringResource(R.string.update_ready, state.build)
+        UpdateState.NeedsPermission -> stringResource(R.string.update_needs_permission)
+        is UpdateState.Failed -> state.cause.mesaj()
+    }
+
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(HarmenColours.PanelRaised)
+            .clickable(role = Role.Button, onClick = onDismiss)
+            .padding(horizontal = metrics.gutter, vertical = 10.dp),
+    ) {
+        if (state is UpdateState.Checking || state is UpdateState.Downloading) {
+            Spinner(size = 13.dp)
+            Spacer(Modifier.width(metrics.gutterTight))
+        }
+        Text(
+            text = message,
+            style = HarmenType.Body,
+            color = HarmenColours.Text,
+            modifier = Modifier.weight(1f),
+        )
+    }
+    HairlineDivider()
 }
 
 @Composable

@@ -18,7 +18,9 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  # Kurulum dosyasını "sürüm" olarak yayınlayabilmek için yazma izni gerekiyor;
+  # uygulamanın içindeki GÜNCELLE tuşu tam olarak oradan indiriyor.
+  contents: write
 
 jobs:
   build:
@@ -99,6 +101,37 @@ jobs:
             cat "$summary" 2>/dev/null || echo "(yok)"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
+
+      # Uygulamanın kendini güncelleyebilmesi için kurulum dosyası bir "sürüm"
+      # olarak yayınlanıyor. GitHub'ın "artifact" dosyaları şifre istiyor,
+      # sürüm dosyaları istemiyor — uygulamanın içine hiçbir şifre gömmemenin
+      # tek yolu bu.
+      #
+      # Etiket yapım numarasıyla aynı (yapim-12): uygulama kendi damgasıyla
+      # karşılaştırıp yeni sürüm olup olmadığını böyle anlıyor.
+      - name: Sürüm olarak yayınla
+        if: success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag="yapim-${GITHUB_RUN_NUMBER}"
+          file="PAFTA-${tag}.apk"
+          cp app/build/outputs/apk/debug/app-debug.apk "$file"
+
+          konu="$(git log -1 --pretty=%s)"
+          notlar="$(printf '%s\n\n%s\n' \
+            "Bu dosyayı elle indirmene gerek yok: PAFTA'daki GÜNCELLE tuşu buradan alır." \
+            "Değişiklik: ${konu}")"
+
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release upload "$tag" "$file" --clobber
+          else
+            gh release create "$tag" "$file" \
+              --title "yapım ${GITHUB_RUN_NUMBER}" \
+              --notes "$notlar" \
+              --latest
+          fi
 
       - name: APK'yi yükle
         if: success()

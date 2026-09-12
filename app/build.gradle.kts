@@ -82,6 +82,8 @@ dependencies {
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.documentfile)
     implementation(libs.kotlinx.coroutines.android)
+    // Güncelleme denetimi GitHub'ın yanıtını okuyor; kütüphane zaten katalogda.
+    implementation(libs.kotlinx.serialization.json)
 
     implementation(platform(libs.compose.bom))
     implementation(libs.compose.ui)

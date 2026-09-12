@@ -2,6 +2,14 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <!-- Güncellemeyi indirmek için. Başka hiçbir yere bağlanılmıyor. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <!--
+        İndirilen güncellemeyi kurabilmek için. Android bu izinle bile kurulumu
+        sessizce yapmaz; kullanıcıya her seferinde onay ekranı gösterir.
+    -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+
     <application
         android:name=".PaftaApplication"
         android:allowBackup="true"
@@ -30,5 +38,20 @@
                 <data android:scheme="content" android:mimeType="*/*" />
             </intent-filter>
         </activity>
+
+        <!--
+            İndirilen kurulum dosyasını Android'in kurulum ekranına verebilmek
+            için. Yalnızca uygulamanın kendi önbelleğindeki "guncelleme"
+            klasörünü paylaşır, başka hiçbir dosyayı değil.
+        -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.dosyalar"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/provider_paths" />
+        </provider>
     </application>
 </manifest>
