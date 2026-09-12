@@ -28,6 +28,12 @@ private data class Group(val code: Int, val value: String) {
  */
 public object DxfReader {
 
+    /** `U+FEFF`, as it arrives when the stream is decoded as Latin-1. */
+    private const val UTF8_BOM_AS_LATIN1: String = "\u00EF\u00BB\u00BF"
+
+    /** The same mark, when the text was decoded as UTF-16 or passed in directly. */
+    private const val BOM: String = "\uFEFF"
+
     public fun read(text: String): DxfDrawing = read(text.reader().buffered())
 
     public fun read(stream: InputStream): DxfDrawing =
@@ -40,9 +46,16 @@ public object DxfReader {
 
     private fun tokenize(reader: BufferedReader): List<Group> {
         val out = ArrayList<Group>(1024)
+        var first = true
         while (true) {
             val codeLine = reader.readLine() ?: break
-            val codeText = codeLine.trim()
+            // A byte-order mark on the first line would otherwise make the very
+            // first group code unreadable and fail the whole file. Several tools
+            // write one; the bytes are invisible to whoever exported the file,
+            // so the error it caused would be unexplainable to them.
+            val cleaned = if (first) codeLine.removePrefix(UTF8_BOM_AS_LATIN1).removePrefix(BOM) else codeLine
+            first = false
+            val codeText = cleaned.trim()
             if (codeText.isEmpty()) continue
             val code = codeText.toIntOrNull()
                 ?: throw DxfParseException("expected a group code, got '$codeText'")

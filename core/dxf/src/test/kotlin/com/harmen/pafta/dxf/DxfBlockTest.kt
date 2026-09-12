@@ -215,3 +215,33 @@ class DxfBlockTest {
         assertEquals(mapOf("HATCH" to 2, "SPLINE" to 1), drawing.entityTypeCounts)
     }
 }
+
+/**
+ * Byte-order marks. Several tools write one at the head of an exported DXF; it
+ * is invisible in any editor, so a file rejected because of it would be a
+ * mystery to whoever exported it.
+ */
+class DxfByteOrderMarkTest {
+
+    private val body = listOf(
+        "0", "SECTION", "2", "ENTITIES",
+        "0", "LINE", "8", "0", "10", "0.0", "20", "0.0", "11", "100.0", "21", "0.0",
+        "0", "ENDSEC", "0", "EOF",
+    ).joinToString("\n", postfix = "\n")
+
+    @Test
+    fun `a utf-8 mark at the head of the file does not stop the read`() {
+        val withMark = "ï»¿$body"
+        assertEquals(1, DxfReader.read(withMark).entities.size)
+    }
+
+    @Test
+    fun `a decoded mark at the head of the file does not stop the read`() {
+        assertEquals(1, DxfReader.read("﻿$body").entities.size)
+    }
+
+    @Test
+    fun `a file without a mark still reads`() {
+        assertEquals(1, DxfReader.read(body).entities.size)
+    }
+}

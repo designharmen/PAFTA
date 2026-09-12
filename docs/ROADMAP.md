@@ -203,12 +203,22 @@ scale, rotation, position). The details that matter in practice:
   they stop is left as a visible marker, and `expansionTruncated` records that
   the drawing shows less than the file holds.
 
+### Hardening found while re-reading the parser
+
+A byte-order mark at the head of an exported DXF made the very first group code
+unreadable and failed the whole file. Several tools write one, and it is
+invisible in any editor — so the refusal would have been unexplainable to
+whoever exported the file. Both the UTF-8 form (as it arrives when the stream is
+decoded as Latin-1) and a decoded `U+FEFF` are now skipped, with a test for each
+and one proving a file without a mark is untouched.
+
 **Verified:** `./gradlew -PpaftaCoreOnly=true test --no-build-cache
---rerun-tasks`, **182 tests, 0 failures** (was 171). Eleven are new: ten in
+--rerun-tasks`, **185 tests, 0 failures** (was 171). Fourteen are new: ten in
 `DxfBlockTest` covering placement, scale and rotation, layer inheritance, the
 mirrored arc, nesting, a self-referencing block, an undefined block, repeated
-placement and the inventory counts; one in `ProjectStoreTest` for a DXF that is
-now kept and explained rather than refused.
+placement and the inventory counts; three in `DxfByteOrderMarkTest`; one in
+`ProjectStoreTest` for a DXF that is now kept and explained rather than
+refused.
 
 **Not verified:** whether the owner's own drawing now draws. That still needs
 the device.
