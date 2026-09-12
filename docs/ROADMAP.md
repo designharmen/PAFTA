@@ -121,7 +121,21 @@ refused outright rather than kept. Both now import, and the message names the
 export route that works today (DXF) instead of ending at "not supported yet".
 See *Phase ordering* below — this changes what should be built next.
 
-**Exit criterion, still open:** import a real DXF *on a device* and see it drawn.
+**Exit criterion, met.** The sample plan was imported on a tablet and **drew**:
+walls, windows, furniture, the room labels, the grid, the layer palette built
+from the file's own layers, the file name in the status corner, and the compass.
+Pinch-zoom and one-finger pan were tried and work. Four rounds of device testing
+to get here, three of them inconclusive because of the file rather than the app.
+
+The screenshot also carries a discrepancy worth more than the good news: the
+properties table read **36 entities where the file holds 40**, and the doors
+appeared as small crosses rather than as opening arcs. 36 is exactly what this
+plan yields with block references *unexpanded* (4 references instead of the 8
+entities they expand to), so the build on the device predates the `BLOCKS`
+work — which is what the build stamp exists to make visible, and it was added
+after that APK. Asked to confirm from the library screen.
+
+**Original criterion:** import a real DXF *on a device* and see it drawn.
 The APK exists and the app compiles; whether it runs, and whether the chrome
 matches the design, is unverified until someone installs it. Nothing in a
 successful build says an app does not crash on launch.
