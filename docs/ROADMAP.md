@@ -451,6 +451,22 @@ The cost, once: the currently installed build was signed by a runner's throwaway
 key, so it cannot be updated in place. PAFTA has to be uninstalled and the first
 stably-signed build installed by hand. Every build after that is one tap.
 
+**Measured on the published file**, by downloading build 18 from the release URL
+the app itself uses and reading it:
+
+| Check | Result |
+| --- | --- |
+| signing certificate (SHA-256) | `E2:C1:01:B0:…:3D:CB` — the project key, not a runner's |
+| `versionCode` | `18` — the build number, where every earlier build said `1` |
+| declared permissions | `INTERNET`, `REQUEST_INSTALL_PACKAGES`, and nothing else |
+
+### Block expansion, confirmed on the device
+
+The same round closed the question the `BLOCKS` work opened. On build 15 the
+sample plan reports **40 entities** where the previous build reported 36, and
+the doors draw as opening arcs rather than as crosses. The reader's expansion is
+therefore doing on a tablet exactly what `DxfBlockTest` asserts on the JVM.
+
 ## Getting to a real build
 
 The development container has no Android SDK and cannot install one
