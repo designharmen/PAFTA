@@ -19,6 +19,10 @@ it does so four minutes into a CI run. This catches them in a second:
     which has no such overload
   * a reference to StoreFailure.message, a property that was deliberately
     removed so that no English prose can reach a Turkish screen
+  * a typeface outside the Harmen Design system, or a font file referenced from
+    Kotlin that is not actually in res/font — the brand guideline names Inter,
+    Roboto, Montserrat and Poppins as forbidden, and a missing font file is a
+    build error the development container cannot otherwise catch
 
 Exits non-zero and prints the file and line on the first real problem found.
 """
@@ -34,6 +38,12 @@ ROOT = Path(__file__).resolve().parent.parent
 STRINGS = ROOT / "app/src/main/res/values/strings.xml"
 KOTLIN_DIRS = [ROOT / "app/src/main/kotlin"]
 XML_DIRS = [ROOT / "app/src/main"]
+FONT_DIR = ROOT / "app/src/main/res/font"
+
+# Harmen Design marka rehberi, 12 — DO / DON'T: "Sistem dışı font eklemeyin;
+# Inter, Roboto, Montserrat, Poppins yasak."
+FORBIDDEN_TYPEFACES = ("inter", "roboto", "montserrat", "poppins", "jetbrains")
+ALLOWED_TYPEFACES = ("archivo", "plex_sans", "plex_mono")
 
 
 def fail(message: str) -> None:
@@ -175,6 +185,46 @@ def check_kotlin_usage() -> list[str]:
     return problems
 
 
+def check_fonts() -> list[str]:
+    """Marka dışı yazı tipi ve eksik font dosyası denetimi."""
+    problems: list[str] = []
+
+    if not FONT_DIR.is_dir():
+        return [f"{FONT_DIR} yok: marka yazı tipleri eksik"]
+
+    present = {path.stem for path in FONT_DIR.glob("*.ttf")}
+
+    for name in sorted(present):
+        if any(name.startswith(bad) for bad in FORBIDDEN_TYPEFACES):
+            problems.append(
+                f"{FONT_DIR.name}/{name}.ttf — marka rehberi bu yazı tipini "
+                f"yasaklıyor; izin verilenler: {', '.join(ALLOWED_TYPEFACES)}"
+            )
+        elif not any(name.startswith(ok) for ok in ALLOWED_TYPEFACES):
+            problems.append(
+                f"{FONT_DIR.name}/{name}.ttf — sistem dışı yazı tipi; marka "
+                f"rehberi en fazla üç aileye izin veriyor"
+            )
+
+    for directory in KOTLIN_DIRS:
+        for path in directory.rglob("*.kt"):
+            for number, line in enumerate(path.read_text().splitlines(), start=1):
+                for used in re.findall(r"R\.font\.([A-Za-z0-9_]+)", line):
+                    if used not in present:
+                        problems.append(
+                            f"{path.relative_to(ROOT)}:{number} — R.font.{used} "
+                            f"kullanılıyor ama {FONT_DIR.name}/{used}.ttf yok"
+                        )
+                for bad in FORBIDDEN_TYPEFACES:
+                    if re.search(rf"R\.font\.{bad}", line):
+                        problems.append(
+                            f"{path.relative_to(ROOT)}:{number} — marka rehberinin "
+                            f"yasakladığı bir yazı tipi kullanılıyor"
+                        )
+
+    return problems
+
+
 def main() -> int:
     if not STRINGS.exists():
         fail(f"{STRINGS} bulunamadı")
@@ -194,7 +244,12 @@ def main() -> int:
         if element.get("name")
     }
 
-    problems = check_escaping(raw) + check_references(defined) + check_kotlin_usage()
+    problems = (
+        check_escaping(raw)
+        + check_references(defined)
+        + check_kotlin_usage()
+        + check_fonts()
+    )
 
     if problems:
         for problem in problems:
@@ -202,9 +257,10 @@ def main() -> int:
         return 1
 
     kotlin_files = sum(len(list(d.rglob("*.kt"))) for d in KOTLIN_DIRS)
+    fonts = len(list(FONT_DIR.glob("*.ttf"))) if FONT_DIR.is_dir() else 0
     print(
-        f"tamam: {len(defined)} Türkçe metin ve {kotlin_files} Kotlin dosyası "
-        f"denetlendi, sorun yok"
+        f"tamam: {len(defined)} Türkçe metin, {kotlin_files} Kotlin dosyası ve "
+        f"{fonts} yazı tipi denetlendi, sorun yok"
     )
     return 0
 

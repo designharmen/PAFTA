@@ -330,7 +330,10 @@ private fun Tab(label: String, selected: Boolean, onClick: () -> Unit) {
         contentAlignment = Alignment.Center,
         modifier = Modifier
             .clip(RoundedCornerShape(topStart = 2.dp, topEnd = 2.dp))
-            .background(if (selected) HarmenColours.AccentWash else Color.Transparent)
+            // Deep navy is the guideline's selected-state surface for an
+            // interface; bronze stays on the rule beneath it, where a line is
+            // what the guideline allows bronze to be.
+            .background(if (selected) HarmenColours.SelectedWash else Color.Transparent)
             .clickable(role = Role.Tab, onClick = onClick)
             .drawBehind {
                 if (!selected) return@drawBehind
@@ -346,7 +349,8 @@ private fun Tab(label: String, selected: Boolean, onClick: () -> Unit) {
         Text(
             text = label,
             style = HarmenType.Tab,
-            color = if (selected) HarmenColours.Accent else HarmenColours.TextMuted,
+            // Never bronze: the guideline forbids bronze text below 24px.
+            color = if (selected) HarmenColours.Text else HarmenColours.TextMuted,
         )
     }
 }

@@ -239,7 +239,10 @@ private fun FormatChip(format: FileFormat?) {
         Text(
             text = text,
             style = HarmenType.Status,
-            color = if (viewable) HarmenColours.Accent else HarmenColours.TextFaint,
+            // The chip's outline says in bronze whether PAFTA can draw this
+            // format; the three letters inside stay ivory, since bronze text
+            // this small is forbidden by the guideline.
+            color = if (viewable) HarmenColours.Text else HarmenColours.TextFaint,
             maxLines = 1,
         )
     }
@@ -334,7 +337,7 @@ private fun ErrorBanner(message: String, onDismiss: () -> Unit) {
         Text(
             text = stringResource(R.string.library_dismiss),
             style = HarmenType.MenuCaps,
-            color = HarmenColours.Accent,
+            color = HarmenColours.Text,
         )
     }
     HairlineDivider()

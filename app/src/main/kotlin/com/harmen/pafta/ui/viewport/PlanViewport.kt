@@ -313,7 +313,12 @@ private fun DrawScope.drawMeasurement(
     display: MeasurementDisplay,
     measurer: TextMeasurer,
 ) {
+    // Bronze draws the dimension line and its arrow heads; the value itself is
+    // set in ivory on a knocked-out ground. The guideline is explicit that
+    // bronze below 24px is a line colour, not a text colour — and a dimension
+    // string that cannot be read at a glance defeats the measurement.
     val accent = HarmenColours.Accent
+    val labelStyle = HarmenType.DimensionLabel.copy(color = HarmenColours.Text)
     when (m) {
         is Measurement.Distance -> {
             val a = v.toScreen(m.from.toVec2())
@@ -322,7 +327,7 @@ private fun DrawScope.drawMeasurement(
             drawLabel(
                 text = m.label(display),
                 at = Vec2((a.x + b.x) / 2, (a.y + b.y) / 2),
-                style = HarmenType.DimensionLabel.copy(color = accent),
+                style = labelStyle,
                 measurer = measurer,
                 centred = true,
                 background = HarmenColours.Canvas,
@@ -342,7 +347,7 @@ private fun DrawScope.drawMeasurement(
             drawLabel(
                 text = m.label(display),
                 at = pts[pts.size / 2],
-                style = HarmenType.DimensionLabel.copy(color = accent),
+                style = labelStyle,
                 measurer = measurer,
                 centred = true,
                 background = HarmenColours.Canvas,
@@ -363,7 +368,7 @@ private fun DrawScope.drawMeasurement(
             drawLabel(
                 text = m.label(display),
                 at = Vec2(vertex.x + 14, vertex.y - 14),
-                style = HarmenType.DimensionLabel.copy(color = accent),
+                style = labelStyle,
                 measurer = measurer,
                 centred = true,
                 background = HarmenColours.Canvas,
@@ -382,7 +387,7 @@ private fun DrawScope.drawMeasurement(
             drawLabel(
                 text = m.label(display),
                 at = v.toScreen(m.anchor.toVec2()),
-                style = HarmenType.DimensionLabel.copy(color = accent),
+                style = labelStyle,
                 measurer = measurer,
                 centred = true,
                 background = HarmenColours.Canvas,

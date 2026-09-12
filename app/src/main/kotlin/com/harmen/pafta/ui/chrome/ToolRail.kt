@@ -102,14 +102,18 @@ private fun ToolButton(
     compact: Boolean,
     onClick: () -> Unit,
 ) {
+    // Bronze is allowed on the icon — the guideline names icons alongside lines
+    // and rules — but never on the caption beneath it, which is far under the
+    // 24px floor for bronze text.
     val tint = if (selected) HarmenColours.Accent else HarmenColours.TextMuted
+    val labelColour = if (selected) HarmenColours.Text else HarmenColours.TextMuted
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 4.dp, vertical = 2.dp)
             .clip(RoundedCornerShape(metrics.cornerRadius))
-            .background(if (selected) HarmenColours.AccentWash else Color.Transparent)
+            .background(if (selected) HarmenColours.SelectedWash else Color.Transparent)
             .clickable(role = Role.Tab, onClick = onClick)
             .padding(vertical = 7.dp),
     ) {
@@ -125,7 +129,7 @@ private fun ToolButton(
             Text(
                 text = label,
                 style = HarmenType.ToolLabel,
-                color = tint,
+                color = labelColour,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 textAlign = TextAlign.Center,
@@ -154,7 +158,7 @@ private fun PresetList(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(metrics.cornerRadius))
-                    .background(if (isSelected) HarmenColours.AccentWash else HarmenColours.PanelRaised)
+                    .background(if (isSelected) HarmenColours.SelectedWash else HarmenColours.PanelRaised)
                     .drawBehind {
                         if (!isSelected) return@drawBehind
                         drawRect(
@@ -168,7 +172,7 @@ private fun PresetList(
                 Text(
                     text = formatLength(preset),
                     style = HarmenType.Numeric,
-                    color = if (isSelected) HarmenColours.Accent else HarmenColours.TextMuted,
+                    color = if (isSelected) HarmenColours.Text else HarmenColours.TextMuted,
                     maxLines = 1,
                 )
             }

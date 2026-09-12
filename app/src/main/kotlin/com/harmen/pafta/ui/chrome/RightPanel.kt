@@ -278,7 +278,7 @@ private fun MaterialRow(material: MaterialSwatch, onClick: () -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(metrics.cornerRadius))
-            .background(if (material.selected) HarmenColours.AccentWash else Color.Transparent)
+            .background(if (material.selected) HarmenColours.SelectedWash else Color.Transparent)
             .clickable(role = Role.RadioButton, onClick = onClick)
             .padding(horizontal = 4.dp, vertical = 5.dp),
     ) {
@@ -298,7 +298,9 @@ private fun MaterialRow(material: MaterialSwatch, onClick: () -> Unit) {
         Text(
             text = stringResource(material.name),
             style = HarmenType.Body,
-            color = if (material.selected) HarmenColours.Accent else HarmenColours.Text,
+            // The swatch outline carries the selection in bronze; the name
+            // stays ivory, because bronze text at this size is out of bounds.
+            color = HarmenColours.Text,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
@@ -338,7 +340,7 @@ private fun AnnotationToolRow(kind: AnnotationKind, selected: Boolean, onClick: 
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(metrics.cornerRadius))
-            .background(if (selected) HarmenColours.AccentWash else Color.Transparent)
+            .background(if (selected) HarmenColours.SelectedWash else Color.Transparent)
             .clickable(role = Role.Tab, onClick = onClick)
             .padding(horizontal = 4.dp, vertical = 6.dp),
     ) {

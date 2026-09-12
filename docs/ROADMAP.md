@@ -323,6 +323,49 @@ Two of these edits silently failed to apply on the first pass and left English
 property keys (`"Wall"`, `"Entities"`) in place. They were caught by re-scanning
 the sources afterwards rather than by trusting the edit, and fixed.
 
+## The brand system, applied for real
+
+The owner sent the actual brand guideline — *HARMEN DESIGN — Master Color +
+Typography System, V1.1* — and it settled a quiet inaccuracy: PAFTA's palette
+and type had been derived from a reference image and carried the brand's name
+without its values. Inter, the interface typeface through Phases 0 and 1, is
+named in the guideline's DON'T list.
+
+What the guideline fixes, and the app now follows: six colours whose HEX values
+do not change, with only controlled tint / shade / opacity derivations allowed;
+and three typefaces — Archivo, IBM Plex Sans, IBM Plex Mono — all SIL OFL, which
+the guideline chose partly so the system needs no paid font.
+
+Two of its rules changed the interface rather than just its colour values:
+
+- **Bronze draws, it does not label.** Bronze is capped at 3.4:1 on ivory and
+  forbidden as text below 24px. PAFTA had bronze on the active tab, the selected
+  tool caption, the material name, the format chip, the dismiss action and every
+  dimension value on the canvas. Bronze is now line, icon, outline, rule and
+  wash only.
+- **Navy is the selected state.** With bronze off the text, selection needed a
+  carrier and the guideline names one for interfaces exactly: deep navy as
+  accent surface and selected state, capped at 25% of the surface.
+
+The nine bundled font files are fixed instances cut from the upstream variable
+fonts at the weights the guideline names, so no weight outside 300–500 is
+reachable and Archivo 700+ — ruled out by name — is not in the build at all.
+`archivo_condensed_400` is cut at width 88, which is the guideline's
+drawing-sheet instruction and the reason the brand picked a family with a width
+axis; room names on the plan use it. Every file was checked for the guideline's
+own Turkish test (ı / İ / Ğ / Ş) before being added.
+
+Two deviations are stated rather than hidden, both in
+[DESIGN-SYSTEM.md](DESIGN-SYSTEM.md): the app stays dark where the guideline's
+drawing-sheet pairing asks for a light ground, and the tool rail's caption keeps
+the family and weight but reduces size and tracking, because `Katmanlar` does
+not fit a 64dp rail at 11px / 0.14em.
+
+`tools/check-strings.py` now fails the build if a forbidden typeface or any
+family outside the three appears in `res/font`, or if Kotlin references a font
+file that is not there. Both checks were verified by deliberately introducing
+the mistake and confirming the message names the right file and line.
+
 ## Getting to a real build
 
 The development container has no Android SDK and cannot install one

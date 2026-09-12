@@ -10,13 +10,25 @@ commercial SDK, no subscription, no account required to build or ship.
 | Kotlin stdlib, kotlinx.coroutines, kotlinx.serialization | Apache-2.0 | language and runtime |
 | AndroidX core / activity / lifecycle / documentfile | Apache-2.0 | platform integration |
 | Jetpack Compose (ui, foundation, material3, material-icons-extended) | Apache-2.0 | UI |
-| **Inter** | SIL OFL 1.1 | interface typeface (`app/src/main/res/font/inter_*.ttf`) |
-| **JetBrains Mono** | SIL OFL 1.1 | numeric typeface (`app/src/main/res/font/jetbrains_mono_*.ttf`) |
+| **Archivo** | SIL OFL 1.1 | display, headings, labels, navigation (`res/font/archivo_*.ttf`) |
+| **IBM Plex Sans** | SIL OFL 1.1 | body and interface text (`res/font/plex_sans_*.ttf`) |
+| **IBM Plex Mono** | SIL OFL 1.1 | technical information and numbers (`res/font/plex_mono_*.ttf`) |
 
-Both font families are bundled as TrueType, converted from the upstream Google
-Fonts web builds. SIL OFL 1.1 permits bundling and redistribution in an
-application; the reserved-font-name clause is respected by keeping the original
-names.
+These three are the Harmen Design brand typefaces, and the guideline chose them
+partly for this reason: it states plainly that the system needs no paid font and
+carries no licence burden. SIL OFL 1.1 permits bundling, embedding and
+redistribution in an application; the reserved-font-name clause is respected by
+keeping the original names.
+
+The bundled files are fixed instances cut from the upstream variable fonts
+(`google/fonts`) at the weights the guideline names — Archivo 300/400/500 plus a
+width-88 condensed cut, Plex Sans 300/400/500, Plex Mono 400/500. Instancing is
+a permitted modification under the OFL; the names are unchanged.
+
+**Removed:** Inter and JetBrains Mono, which the earlier palette used. Both are
+OFL and were perfectly legal to ship — they were dropped because the brand
+guideline names Inter among the forbidden typefaces, not for any licence
+reason.
 
 ## Declared in the catalogue, wired up in later phases
 
