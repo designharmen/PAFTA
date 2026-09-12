@@ -400,6 +400,25 @@ it is whole, so Android's installer can never be handed a half-downloaded APK.
 Nothing was added to the build for it: `HttpURLConnection` is in the platform
 and `kotlinx.serialization` was already a dependency.
 
+One compile error, and it was mine: the update check read the asset size as
+`asset.sizeBytes` where the field is `size` — the response's own name and the
+name we expose outwards differ, and I mixed them. Fixed, and the rest of the
+file was then checked mechanically: every data class's fields were extracted and
+every property access in the file compared against them, so a second instance of
+the same mistake could not be hiding.
+
+**Verified on the real endpoints**, not assumed:
+
+| Check | Result |
+| --- | --- |
+| repository visibility | `private: false`, `visibility: public` |
+| the exact URL the app queries | returns `yapim-15` with the APK asset |
+| the asset download URL | `200`, 17,598,066 bytes, `application/vnd.android.package-archive` |
+
+What that does not prove is the app's own path — button, download, installer —
+which needs a device. The build carrying the button is the one that has to be
+installed by hand; every build after it is a tap.
+
 ## Getting to a real build
 
 The development container has no Android SDK and cannot install one
