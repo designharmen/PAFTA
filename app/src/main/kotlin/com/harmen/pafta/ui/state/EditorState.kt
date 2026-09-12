@@ -2,8 +2,10 @@ package com.harmen.pafta.ui.state
 
 import androidx.annotation.StringRes
 import com.harmen.pafta.R
+import com.harmen.pafta.geometry.Vec2
 import com.harmen.pafta.measure.Measurement
 import com.harmen.pafta.measure.MeasurementDisplay
+import com.harmen.pafta.measure.MeasurementKind
 import com.harmen.pafta.project.Annotation
 import com.harmen.pafta.project.AnnotationKind
 import com.harmen.pafta.project.LayerState
@@ -108,6 +110,16 @@ public data class EditorState(
     val measurements: List<Measurement> = emptyList(),
     val materialOverrides: List<MaterialOverride> = emptyList(),
     val display: MeasurementDisplay = MeasurementDisplay(),
+    /** Which kind of measurement the Ölç tool is taking. */
+    val measureMode: MeasurementKind = MeasurementKind.DISTANCE,
+    /**
+     * Points picked for a measurement that is not finished yet.
+     *
+     * Session state, not document state: it is deliberately kept out of the
+     * undo history, because undoing a half-finished tap is not a step anyone
+     * means to take back.
+     */
+    val pendingPicks: List<Vec2> = emptyList(),
     /** Dimension presets offered under the dimensions tool, in millimetres. */
     val dimensionPresets: List<Double> = listOf(3100.0, 4500.0, 4800.0),
     val selectedPreset: Double? = null,

@@ -40,6 +40,12 @@
     <string name="tool_hatch">Tarama</string>
     <string name="tool_text">Metin</string>
     <string name="tool_grid">Izgara</string>
+    <string name="measure_distance">Mesafe</string>
+    <string name="measure_area">Alan</string>
+    <string name="measure_angle">Açı</string>
+    <string name="measure_finish">Bitir</string>
+    <string name="measure_undo_pick">Son nokta</string>
+    <string name="measure_cancel">Vazgeç</string>
     <string name="tool_measure">Ölç</string>
     <string name="tool_palette">Palet</string>
     <string name="tool_layers">Katmanlar</string>

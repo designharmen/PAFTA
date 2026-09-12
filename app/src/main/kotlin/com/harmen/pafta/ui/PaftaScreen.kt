@@ -75,6 +75,12 @@ public fun PaftaScreen(
                         onToolSelected = viewModel::selectTool,
                         onPresetSelected = { viewModel.selectDimensionPreset(it) },
                         compact = compact,
+                        measureMode = state.measureMode,
+                        pendingPickCount = state.pendingPicks.size,
+                        onMeasureModeSelected = viewModel::selectMeasureMode,
+                        onFinishMeasurement = viewModel::finishMeasurement,
+                        onUndoPick = viewModel::undoPick,
+                        onCancelMeasurement = viewModel::cancelMeasurement,
                     )
                     VerticalHairline(Modifier.fillMaxHeight())
 
@@ -88,6 +94,8 @@ public fun PaftaScreen(
                         gridVisible = state.gridVisible,
                         gridSpacingMm = state.gridSpacingMm,
                         modifier = Modifier.weight(1f).fillMaxHeight(),
+                        pendingPicks = state.pendingPicks,
+                        onPick = viewModel::onCanvasPick,
                     )
 
                     if (showInspector) {

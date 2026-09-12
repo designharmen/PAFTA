@@ -5,14 +5,23 @@ import androidx.lifecycle.viewModelScope
 import com.harmen.pafta.R
 import com.harmen.pafta.data.ProjectRepository
 import com.harmen.pafta.dxf.DxfDrawing
+import com.harmen.pafta.dxf.near
+import com.harmen.pafta.dxf.snapSegments
+import com.harmen.pafta.geometry.Segment2
+import com.harmen.pafta.geometry.Vec2
+import com.harmen.pafta.geometry.Vec3
+import com.harmen.pafta.measure.MeasurementEngine
+import com.harmen.pafta.measure.MeasurementKind
+import com.harmen.pafta.measure.snap
 import com.harmen.pafta.project.AnnotationKind
 import com.harmen.pafta.project.AutoSavePolicy
 import com.harmen.pafta.project.DrawingDocument
 import com.harmen.pafta.project.PaftaProject
-import com.harmen.pafta.project.StoredMeasurement
 import com.harmen.pafta.project.StoreResult
+import com.harmen.pafta.project.StoredMeasurement
 import com.harmen.pafta.project.UndoStack
 import com.harmen.pafta.units.formatLength
+import java.io.File
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -20,7 +29,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import java.io.File
 
 /** What the editor screen needs beyond [EditorState]: the open document. */
 public data class EditorDocument(
@@ -53,6 +61,16 @@ public class EditorViewModel(
     private val history = UndoStack<EditorState>(limit = 64)
     private val autoSave = AutoSavePolicy()
 
+    /** The pick state machine from `core:measure`, unit-tested there. */
+    private val engine = MeasurementEngine()
+
+    /**
+     * What a tap can snap to, rebuilt when the drawing opens and whenever a
+     * layer is hidden — a measurement must never lock onto a line the user
+     * cannot see.
+     */
+    private var snapCandidates: List<Segment2> = emptyList()
+
     /** The project as last loaded or saved; the overlay is rebuilt from state. */
     private var project: PaftaProject? = null
     private var autoSaveJob: Job? = null
@@ -78,6 +96,7 @@ public class EditorViewModel(
                         unsupportedEntityTypes = doc.unsupportedEntityTypes,
                     )
                     _state.value = loaded.toEditorState(doc)
+                    rebuildSnapCandidates()
                 }
             }
         }
@@ -97,6 +116,12 @@ public class EditorViewModel(
 
     // --- Selection: no document change, so nothing is recorded or saved ------
     public fun selectTool(tool: Tool) {
+        // Leaving the measuring tool abandons a half-taken measurement rather
+        // than leaving two stray points waiting on the drawing.
+        if (tool != Tool.MEASURE) {
+            engine.cancel()
+            _state.update { it.copy(pendingPicks = emptyList()) }
+        }
         _state.update {
             it.copy(
                 activeTool = tool,
@@ -133,6 +158,7 @@ public class EditorViewModel(
         edit { s ->
             s.copy(layers = s.layers.map { if (it.id == layerId) it.copy(visible = visible) else it })
         }
+        rebuildSnapCandidates()
     }
 
     public fun setLayerOpacity(layerId: String, opacity: Double) {
@@ -167,6 +193,9 @@ public class EditorViewModel(
             activeTool = current.activeTool,
             activeTab = current.activeTab,
             annotationTool = current.annotationTool,
+            // Session state, not document history.
+            measureMode = current.measureMode,
+            pendingPicks = current.pendingPicks,
         )
         markEdited()
     }
@@ -181,8 +210,86 @@ public class EditorViewModel(
             activeTool = current.activeTool,
             activeTab = current.activeTab,
             annotationTool = current.annotationTool,
+            measureMode = current.measureMode,
+            pendingPicks = current.pendingPicks,
         )
         markEdited()
+    }
+
+    // --- Measuring ----------------------------------------------------------
+
+    /** Switches what the Ölç tool takes: a distance, an area, or an angle. */
+    public fun selectMeasureMode(mode: MeasurementKind) {
+        // Setting the engine's mode discards any half-taken picks, which is
+        // right: three points meant for an angle are not the start of an area.
+        engine.mode = mode
+        _state.update {
+            it.copy(measureMode = mode, pendingPicks = emptyList(), activeTool = Tool.MEASURE)
+        }
+    }
+
+    /**
+     * A tap on the drawing.
+     *
+     * @param point where the finger landed, in drawing millimetres.
+     * @param toleranceMm how far from that point a snap may reach, also in
+     *   millimetres — the viewport converts a finger-sized distance on screen
+     *   into model units, so the tolerance stays the same size to the eye at
+     *   every zoom level.
+     */
+    public fun onCanvasPick(point: Vec2, toleranceMm: Double) {
+        if (_state.value.activeTool != Tool.MEASURE) return
+
+        val nearby = snapCandidates.near(point, toleranceMm)
+        val landed = snap(
+            pick = point,
+            segments = nearby,
+            tolerance = toleranceMm,
+            gridSpacing = if (_state.value.gridVisible) _state.value.gridSpacingMm else null,
+        )
+
+        val finished = engine.addPick(landed.point)
+        if (finished == null) {
+            _state.update { it.copy(pendingPicks = engine.pendingPoints.map(Vec3::toVec2)) }
+        } else {
+            _state.update { it.copy(pendingPicks = emptyList()) }
+            edit { s -> s.copy(measurements = s.measurements + finished) }
+        }
+    }
+
+    /** Closes an area or a polyline, which have no fixed number of points. */
+    public fun finishMeasurement() {
+        val finished = engine.finish()
+        _state.update { it.copy(pendingPicks = emptyList()) }
+        if (finished != null) edit { s -> s.copy(measurements = s.measurements + finished) }
+    }
+
+    /** Takes back the last tap of a measurement in progress. */
+    public fun undoPick() {
+        engine.undoPick()
+        _state.update { it.copy(pendingPicks = engine.pendingPoints.map(Vec3::toVec2)) }
+    }
+
+    /** Abandons the measurement in progress. */
+    public fun cancelMeasurement() {
+        engine.cancel()
+        _state.update { it.copy(pendingPicks = emptyList()) }
+    }
+
+    /** Removes every finished measurement. Recorded, so it can be undone. */
+    public fun clearMeasurements() {
+        cancelMeasurement()
+        edit { s -> s.copy(measurements = emptyList()) }
+    }
+
+    private fun rebuildSnapCandidates() {
+        val drawing = _document.value?.drawing
+        snapCandidates = if (drawing == null) {
+            emptyList()
+        } else {
+            val visible = _state.value.layers.filter { it.visible }.map { it.name }.toSet()
+            drawing.snapSegments(visibleLayers = visible.ifEmpty { null })
+        }
     }
 
     public fun dismissError() {

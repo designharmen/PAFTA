@@ -43,6 +43,8 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.harmen.pafta.R
+import com.harmen.pafta.measure.MeasurementKind
 import com.harmen.pafta.ui.state.Tool
 import com.harmen.pafta.ui.theme.HarmenColours
 import com.harmen.pafta.ui.theme.HarmenType
@@ -67,6 +69,13 @@ public fun ToolRail(
     onPresetSelected: (Double) -> Unit,
     compact: Boolean = false,
     modifier: Modifier = Modifier,
+    measureMode: MeasurementKind = MeasurementKind.DISTANCE,
+    /** How many points the measurement in progress already has. */
+    pendingPickCount: Int = 0,
+    onMeasureModeSelected: (MeasurementKind) -> Unit = {},
+    onFinishMeasurement: () -> Unit = {},
+    onUndoPick: () -> Unit = {},
+    onCancelMeasurement: () -> Unit = {},
 ) {
     Column(
         modifier = modifier
@@ -90,6 +99,16 @@ public fun ToolRail(
             }
             if (tool == Tool.TEXT && activeTool == Tool.TEXT && lastText.isNotBlank()) {
                 LastTextPreview(lastText)
+            }
+            if (tool == Tool.MEASURE && activeTool == Tool.MEASURE && !compact) {
+                MeasurePanel(
+                    mode = measureMode,
+                    pendingPickCount = pendingPickCount,
+                    onModeSelected = onMeasureModeSelected,
+                    onFinish = onFinishMeasurement,
+                    onUndoPick = onUndoPick,
+                    onCancel = onCancelMeasurement,
+                )
             }
         }
     }
@@ -135,6 +154,88 @@ private fun ToolButton(
                 textAlign = TextAlign.Center,
             )
         }
+    }
+}
+
+/**
+ * What the Ölç tool is taking, and how to close it.
+ *
+ * A distance finishes itself on the second tap; an area and an angle cannot —
+ * an area has no fixed number of corners — so those need a way to say "that is
+ * all", and every mode needs a way to take back a mis-tap without starting
+ * over. Putting all of it under the tool keeps the canvas free of chrome.
+ */
+@Composable
+private fun MeasurePanel(
+    mode: MeasurementKind,
+    pendingPickCount: Int,
+    onModeSelected: (MeasurementKind) -> Unit,
+    onFinish: () -> Unit,
+    onUndoPick: () -> Unit,
+    onCancel: () -> Unit,
+) {
+    val modes = listOf(
+        MeasurementKind.DISTANCE to R.string.measure_distance,
+        MeasurementKind.AREA to R.string.measure_area,
+        MeasurementKind.ANGLE to R.string.measure_angle,
+    )
+
+    Column(
+        verticalArrangement = Arrangement.spacedBy(3.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 5.dp, vertical = 4.dp),
+    ) {
+        for ((kind, label) in modes) {
+            RailChip(
+                text = stringResource(label),
+                selected = kind == mode,
+                onClick = { onModeSelected(kind) },
+            )
+        }
+
+        if (pendingPickCount > 0) {
+            Spacer(Modifier.height(3.dp))
+            // An area needs three corners before it is an area; an angle needs
+            // three points. Offering "finish" earlier would offer nothing.
+            val canFinish = when (mode) {
+                MeasurementKind.AREA -> pendingPickCount >= 3
+                MeasurementKind.POLYLINE -> pendingPickCount >= 2
+                else -> false
+            }
+            if (canFinish) {
+                RailChip(text = stringResource(R.string.measure_finish), selected = false, onClick = onFinish)
+            }
+            RailChip(text = stringResource(R.string.measure_undo_pick), selected = false, onClick = onUndoPick)
+            RailChip(text = stringResource(R.string.measure_cancel), selected = false, onClick = onCancel)
+        }
+    }
+}
+
+/** A small full-width button in the rail, matching the preset buttons. */
+@Composable
+private fun RailChip(text: String, selected: Boolean, onClick: () -> Unit) {
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(metrics.cornerRadius))
+            .background(if (selected) HarmenColours.SelectedWash else HarmenColours.PanelRaised)
+            .drawBehind {
+                if (!selected) return@drawBehind
+                drawRect(color = HarmenColours.Accent, style = Stroke(width = 1.dp.toPx()))
+            }
+            .clickable(role = Role.Button, onClick = onClick)
+            .padding(vertical = 5.dp, horizontal = 2.dp),
+    ) {
+        Text(
+            text = text,
+            style = HarmenType.ToolLabel,
+            color = if (selected) HarmenColours.Text else HarmenColours.TextMuted,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            textAlign = TextAlign.Center,
+        )
     }
 }
 

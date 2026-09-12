@@ -67,7 +67,16 @@ public fun PlanViewport(
     gridVisible: Boolean,
     gridSpacingMm: Double,
     modifier: Modifier = Modifier,
-    onPick: (Vec2) -> Unit = {},
+    /** Points of a measurement the user has started but not finished. */
+    pendingPicks: List<Vec2> = emptyList(),
+    /**
+     * A tap, as a model point plus the snap tolerance in model units.
+     *
+     * The tolerance is computed here rather than in the view model because only
+     * the viewport knows the current zoom: a finger covers a fixed distance on
+     * glass and a wildly different distance in the drawing depending on scale.
+     */
+    onPick: (Vec2, Double) -> Unit = { _, _ -> },
 ) {
     val measurer = rememberTextMeasurer()
     var surface by remember { mutableStateOf(IntSize.Zero) }
@@ -121,7 +130,10 @@ public fun PlanViewport(
             .pointerInput(drawing) {
                 detectTapGestures { tap ->
                     val current = viewport ?: fitted ?: return@detectTapGestures
-                    onPick(current.toModel(Vec2(tap.x.toDouble(), tap.y.toDouble())))
+                    onPick(
+                        current.toModel(Vec2(tap.x.toDouble(), tap.y.toDouble())),
+                        current.lengthToModel(snapRadiusPx),
+                    )
                 }
             },
     ) {
@@ -132,6 +144,7 @@ public fun PlanViewport(
             drawDrawing(drawing, layers, v)
             drawDrawingText(drawing, layers, v, measurer)
             measurements.forEach { drawMeasurement(it, v, display, measurer) }
+            if (pendingPicks.isNotEmpty()) drawPending(pendingPicks, v)
             roomLabels.forEach { drawRoomLabel(it, v, measurer) }
         }
 
@@ -393,6 +406,44 @@ private fun DrawScope.drawMeasurement(
                 background = HarmenColours.Canvas,
             )
         }
+    }
+}
+
+/**
+ * How far a snap may reach from a tap, in pixels.
+ *
+ * Roughly half a fingertip. Wider and a tap two walls away still grabs a
+ * corner; narrower and snapping stops helping on a zoomed-out plan.
+ */
+private const val snapRadiusPx: Double = 28.0
+
+/**
+ * The measurement in progress: the points taken so far, and the line they
+ * imply.
+ *
+ * Drawn differently from a finished measurement — hollow marks and a thin
+ * line — so that "still picking" never looks like a recorded dimension.
+ */
+private fun DrawScope.drawPending(points: List<Vec2>, v: Viewport2D) {
+    val accent = HarmenColours.Accent
+    val screen = points.map { v.toScreen(it) }
+
+    for (i in 0 until screen.size - 1) {
+        drawLine(
+            accent,
+            Offset(screen[i].x.toFloat(), screen[i].y.toFloat()),
+            Offset(screen[i + 1].x.toFloat(), screen[i + 1].y.toFloat()),
+            strokeWidth = 1f,
+        )
+    }
+
+    for (p in screen) {
+        val c = Offset(p.x.toFloat(), p.y.toFloat())
+        drawCircle(accent, radius = 4f, center = c, style = Stroke(width = 1.2f))
+        // A cross through the ring: on a busy drawing a small ring alone
+        // disappears into the linework.
+        drawLine(accent, Offset(c.x - 7f, c.y), Offset(c.x + 7f, c.y), strokeWidth = 1f)
+        drawLine(accent, Offset(c.x, c.y - 7f), Offset(c.x, c.y + 7f), strokeWidth = 1f)
     }
 }
 
