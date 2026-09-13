@@ -17,11 +17,11 @@ import com.harmen.pafta.project.AnnotationKind
 import com.harmen.pafta.project.AutoSavePolicy
 import com.harmen.pafta.project.DrawingDocument
 import com.harmen.pafta.project.DrawnShape
-import com.harmen.pafta.project.pick
 import com.harmen.pafta.project.PaftaProject
 import com.harmen.pafta.project.StoreResult
 import com.harmen.pafta.project.StoredMeasurement
 import com.harmen.pafta.project.UndoStack
+import com.harmen.pafta.project.pick
 import com.harmen.pafta.units.formatLength
 import java.io.File
 import kotlinx.coroutines.Job
@@ -121,8 +121,6 @@ public class EditorViewModel(
 
     // --- Selection: no document change, so nothing is recorded or saved ------
     public fun selectTool(tool: Tool) {
-        // Leaving the measuring tool abandons a half-taken measurement rather
-        // than leaving two stray points waiting on the drawing.
         // Leaving a tool abandons whatever it had half-finished, rather than
         // leaving stray points waiting on the drawing.
         if (tool != Tool.MEASURE) engine.cancel()
