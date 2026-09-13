@@ -53,6 +53,7 @@ import androidx.compose.ui.unit.dp
 import com.harmen.pafta.R
 import com.harmen.pafta.project.AnnotationKind
 import com.harmen.pafta.project.LayerState
+import com.harmen.pafta.project.ShapeDimension
 import com.harmen.pafta.ui.adi
 import com.harmen.pafta.ui.state.MaterialSwatch
 import com.harmen.pafta.ui.state.PropertyRow
@@ -80,10 +81,13 @@ public fun RightPanel(
     onMaterialSelected: (String) -> Unit,
     onAnnotationToolSelected: (AnnotationKind) -> Unit,
     modifier: Modifier = Modifier,
-    /** The selected shape, so its length can be corrected by typing. */
+    /** The selected shape, so its measurements can be corrected by typing. */
     selectedShapeId: String? = null,
-    selectedLengthMm: Double? = null,
-    onSelectedLengthChanged: (Double) -> Unit = {},
+    /** Which measurements it has, and what they currently are, in millimetres. */
+    selectedDimensions: Map<ShapeDimension, Double> = emptyMap(),
+    onSelectedDimensionChanged: (ShapeDimension, Double) -> Unit = { _, _ -> },
+    /** Makes a second component from the selected one, to be edited from there. */
+    onDuplicateSelected: () -> Unit = {},
 ) {
     Column(
         modifier = modifier
@@ -135,13 +139,17 @@ public fun RightPanel(
             }
         }
 
-        if (selectedShapeId != null && selectedLengthMm != null) {
+        if (selectedShapeId != null && selectedDimensions.isNotEmpty()) {
             Section(R.string.panel_selected) {
-                LengthField(
-                    key = selectedShapeId,
-                    lengthMm = selectedLengthMm,
-                    onLengthChanged = onSelectedLengthChanged,
-                )
+                for ((which, value) in selectedDimensions) {
+                    MeasurementField(
+                        key = selectedShapeId + which.name,
+                        label = which.label,
+                        millimetres = value,
+                        onChanged = { onSelectedDimensionChanged(which, it) },
+                    )
+                }
+                PanelButton(R.string.action_duplicate, onDuplicateSelected)
             }
         }
 
@@ -158,20 +166,25 @@ public fun RightPanel(
 }
 
 /**
- * The selected shape's length, as a number the user can retype.
+ * One of the selected shape's measurements, as a number the user can retype.
  *
  * This is what turns a rough drag into a measured plan: the wall is drawn by
- * hand, then told that it is 3600mm. The field shows plain millimetres with no
- * unit inside it, because a keyboard on a tablet makes `3600` easy and
- * `3600mm` a fight.
+ * hand, then told that it is 3600mm long, 100mm thick and 2800mm tall. The
+ * field shows plain millimetres with no unit inside it, because a keyboard on a
+ * tablet makes `3600` easy and `3600mm` a fight.
  */
 @Composable
-private fun LengthField(key: String, lengthMm: Double, onLengthChanged: (Double) -> Unit) {
-    // Re-seeded whenever the selection changes, so the field always shows the
-    // shape the user is actually looking at.
-    var text by remember(key, lengthMm) { mutableStateOf(Math.round(lengthMm).toString()) }
+private fun MeasurementField(
+    key: String,
+    @StringRes label: Int,
+    millimetres: Double,
+    onChanged: (Double) -> Unit,
+) {
+    // Re-seeded whenever the selection or the value changes, so the field always
+    // shows the shape the user is actually looking at.
+    var text by remember(key, millimetres) { mutableStateOf(Math.round(millimetres).toString()) }
     val commit = {
-        text.trim().replace(',', '.').toDoubleOrNull()?.let { if (it > 0) onLengthChanged(it) }
+        text.trim().replace(',', '.').toDoubleOrNull()?.let { if (it > 0) onChanged(it) }
     }
 
     Row(
@@ -179,7 +192,7 @@ private fun LengthField(key: String, lengthMm: Double, onLengthChanged: (Double)
         modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 4.dp),
     ) {
         Text(
-            text = stringResource(R.string.property_length),
+            text = stringResource(label),
             style = HarmenType.PropertyKey,
             color = HarmenColours.TextMuted,
             modifier = Modifier.weight(1f),
@@ -219,6 +232,38 @@ private fun LengthField(key: String, lengthMm: Double, onLengthChanged: (Double)
             color = HarmenColours.TextFaint,
         )
     }
+}
+
+/** The Turkish word for a measurement. Never a literal in code. */
+private val ShapeDimension.label: Int
+    @StringRes get() = when (this) {
+        ShapeDimension.LENGTH -> R.string.dimension_length
+        ShapeDimension.THICKNESS -> R.string.dimension_thickness
+        ShapeDimension.HEIGHT -> R.string.dimension_height
+        ShapeDimension.WIDTH -> R.string.dimension_width
+        ShapeDimension.DEPTH -> R.string.dimension_depth
+        ShapeDimension.DIAMETER -> R.string.dimension_diameter
+    }
+
+/** A full-width action inside a panel section. */
+@Composable
+private fun PanelButton(@StringRes label: Int, onClick: () -> Unit) {
+    Text(
+        text = stringResource(label),
+        style = HarmenType.PropertyKey,
+        color = HarmenColours.Accent,
+        textAlign = TextAlign.Center,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 4.dp, vertical = 4.dp)
+            .clip(RoundedCornerShape(metrics.cornerRadius))
+            .background(HarmenColours.PanelRaised)
+            .clickable(role = Role.Button, onClick = onClick)
+            // A finger needs 44dp; the row above it is a text field and the two
+            // must not be mistaken for each other.
+            .height(44.dp)
+            .padding(vertical = 13.dp),
+    )
 }
 
 /** A bracketed panel section. */

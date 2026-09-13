@@ -21,13 +21,15 @@ import com.harmen.pafta.project.DrawingDocument
 import com.harmen.pafta.project.DrawnShape
 import com.harmen.pafta.project.LayerState
 import com.harmen.pafta.project.PaftaProject
+import com.harmen.pafta.project.ShapeDimension
 import com.harmen.pafta.project.StoreResult
 import com.harmen.pafta.project.StoredMeasurement
 import com.harmen.pafta.project.UndoStack
 import com.harmen.pafta.project.WallMaterial
 import com.harmen.pafta.project.pick
 import com.harmen.pafta.project.snapSegments
-import com.harmen.pafta.project.withLength
+import com.harmen.pafta.project.withDimension
+import com.harmen.pafta.project.withId
 import com.harmen.pafta.units.formatLength
 import java.io.File
 import kotlinx.coroutines.Job
@@ -116,7 +118,9 @@ public class EditorViewModel(
                         bounds = doc.bounds,
                         unsupportedEntityTypes = doc.unsupportedEntityTypes,
                     )
-                    _state.value = loaded.toEditorState(doc)
+                    _state.value = loaded.toEditorState(doc).let {
+                        it.copy(properties = drawingProperties(_document.value, it))
+                    }
                     rebuildSnapCandidates()
                 }
             }
@@ -190,8 +194,19 @@ public class EditorViewModel(
 
     public fun edit(transform: (EditorState) -> EditorState) {
         val current = _state.value
-        val next = transform(current)
-        if (next == current) return
+        val edited = transform(current)
+        if (edited == current) return
+
+        // The facts table counts what is on the plan, so it has to be counted
+        // again whenever the plan changes. It was worked out once, when the file
+        // was opened, and then stood still: drawing ten walls left it saying
+        // exactly what it had said before anything was drawn.
+        val next =
+            if (edited.shapes != current.shapes || edited.layers != current.layers) {
+                edited.copy(properties = drawingProperties(_document.value, edited))
+            } else {
+                edited
+            }
 
         history.record(current)
         _state.value = next.copy(canUndo = true, canRedo = false, dirty = true)
@@ -435,15 +450,50 @@ public class EditorViewModel(
     }
 
     /**
-     * Sets the selected shape to an exact length.
+     * Sets one of the selected shape's measurements exactly.
      *
      * The point of the whole drawing tool: a finger cannot land on 3600mm, so
-     * the wall is drawn roughly and then told what it is.
+     * the shape is drawn roughly and then told what it is — its length, its
+     * thickness, its height, whichever of those it has.
      */
-    public fun setSelectedLength(millimetres: Double) {
+    public fun setSelectedDimension(which: ShapeDimension, millimetres: Double) {
         val id = _state.value.selectedShapeId ?: return
         edit { s ->
-            s.copy(shapes = s.shapes.map { if (it.id == id) it.withLength(millimetres) else it })
+            val shapes = s.shapes.map {
+                if (it.id == id) it.withDimension(which, millimetres) else it
+            }
+            // A thickness change moves the wall to another layer, which that
+            // layer has to exist for.
+            s.copy(
+                shapes = shapes,
+                layers = shapes.firstOrNull { it.id == id }
+                    ?.let { s.layers.including(it.layer) }
+                    ?: s.layers,
+            )
+        }
+        rebuildSnapCandidates()
+    }
+
+    /**
+     * Copies the selected shape and selects the copy.
+     *
+     * This is how a second component with different numbers is made: duplicate
+     * the one that is nearly right, then retype what differs. The copy is
+     * nudged clear of the original, because a copy sitting exactly on top of
+     * what it came from looks like nothing happened.
+     */
+    public fun duplicateSelected() {
+        val id = _state.value.selectedShapeId ?: return
+        val original = _state.value.shapes.firstOrNull { it.id == id } ?: return
+        val copy = original.withId(newShapeId())
+            .translated(DUPLICATE_OFFSET_MM, -DUPLICATE_OFFSET_MM)
+
+        edit { s ->
+            s.copy(
+                shapes = s.shapes + copy,
+                layers = s.layers.including(copy.layer),
+                selectedShapeId = copy.id,
+            )
         }
         rebuildSnapCandidates()
     }
@@ -511,6 +561,9 @@ public class EditorViewModel(
 
         /** The id a shape being dragged carries; it never reaches the project. */
         private const val PREVIEW_ID = "onizleme"
+
+        /** How far a duplicate is nudged off the shape it came from. */
+        private const val DUPLICATE_OFFSET_MM = 500.0
     }
 
     private fun rebuildSnapCandidates() {
@@ -617,7 +670,9 @@ private fun PaftaProject.toEditorState(doc: DrawingDocument): EditorState = Edit
     layers = doc.layers.including(shapes),
     shapes = shapes,
     materials = emptyList(),
-    properties = drawingProperties(doc),
+    // Filled in by the caller, which is the only place that has both the file
+    // and the finished snapshot to count.
+    properties = emptyList(),
     selectionTitle = null,
     measurements = measurements.mapNotNull { it.toMeasurement() },
     dirty = false,
@@ -629,22 +684,30 @@ private fun PaftaProject.toEditorState(doc: DrawingDocument): EditorState = Edit
  * With nothing selected yet, the properties table shows the drawing's own facts
  * — which is more useful than an empty panel and confirms the import worked.
  */
-private fun drawingProperties(doc: DrawingDocument): List<PropertyRow> {
-    val size = doc.bounds.size
+private fun drawingProperties(doc: EditorDocument?, state: EditorState): List<PropertyRow> {
+    val bounds = doc?.bounds ?: Aabb.EMPTY
+    val size = bounds.size
+    // The file's own entities plus everything drawn on top: what the user means
+    // by "how many things are on this plan" is all of them, not just the ones
+    // that arrived in the file.
+    val entities = (doc?.drawing?.entities?.size ?: 0) +
+        state.shapes.sumOf { it.toEntities().size }
+
     return buildList {
-        add(PropertyRow(R.string.property_entities, doc.entityCount.toString()))
-        add(PropertyRow(R.string.property_layer_count, doc.layers.size.toString()))
-        if (!doc.bounds.isEmpty) {
+        add(PropertyRow(R.string.property_entities, entities.toString()))
+        add(PropertyRow(R.string.property_layer_count, state.layers.size.toString()))
+        if (!bounds.isEmpty) {
             add(PropertyRow(R.string.property_width, formatLength(size.x)))
             add(PropertyRow(R.string.property_height, formatLength(size.y)))
         }
-        if (doc.unsupportedEntityTypes.isNotEmpty()) {
+        val unsupported = doc?.unsupportedEntityTypes.orEmpty()
+        if (unsupported.isNotEmpty()) {
             // The values are entity names out of the user's own file: data, not
             // interface text.
             add(
                 PropertyRow(
                     R.string.property_not_shown,
-                    doc.unsupportedEntityTypes.sorted().joinToString(", "),
+                    unsupported.sorted().joinToString(", "),
                     numeric = false,
                 ),
             )

@@ -61,6 +61,15 @@ public sealed interface DrawnShape {
         @Serializable(with = Vec3Serializer::class) val a: Vec3,
         @Serializable(with = Vec3Serializer::class) val b: Vec3,
         val thicknessMm: Double = DEFAULT_WALL_THICKNESS_MM,
+        /**
+         * Floor to ceiling, in millimetres.
+         *
+         * Nothing on the plan shows it yet — a plan is a horizontal cut and a
+         * wall's height does not appear in one. It is carried now because the
+         * wall is the same object in the 3D view and in the schedules, and a
+         * height typed in today must still be there when those arrive.
+         */
+        val heightMm: Double = DEFAULT_WALL_HEIGHT_MM,
         val material: WallMaterial = WallMaterial.BRICK,
         override val layer: String = wallLayer(DEFAULT_WALL_THICKNESS_MM, WallMaterial.BRICK),
     ) : DrawnShape {
@@ -162,6 +171,9 @@ public sealed interface DrawnShape {
         /** A 20cm interior wall: the thickness most plans start from. */
         public const val DEFAULT_WALL_THICKNESS_MM: Double = 200.0
 
+        /** A storey height, which is what a wall is unless it is told otherwise. */
+        public const val DEFAULT_WALL_HEIGHT_MM: Double = 2800.0
+
         /**
          * Layer names for what PAFTA draws.
          *
@@ -230,6 +242,120 @@ public fun DrawnShape.withLength(millimetres: Double): DrawnShape {
         is DrawnShape.Circle -> copy(radiusMm = millimetres / 2.0)
         is DrawnShape.Rectangle -> this
     }
+}
+
+/**
+ * A number on a shape that the user is allowed to retype.
+ *
+ * Drawing by hand gets the shape roughly right; these are how it is made exact.
+ * Every shape says which of them it has, so the panel can offer those and only
+ * those — a thickness field on a circle would be a control that does nothing.
+ */
+public enum class ShapeDimension {
+    /** End to end, along the shape. */
+    LENGTH,
+
+    /** Across the shape: a wall's two faces. */
+    THICKNESS,
+
+    /** Floor to ceiling. */
+    HEIGHT,
+
+    /** A rectangle, left to right. */
+    WIDTH,
+
+    /** A rectangle, front to back. */
+    DEPTH,
+
+    /** A circle, edge to edge through the middle. */
+    DIAMETER,
+}
+
+/**
+ * The measurements of this shape the user may set, in drawing millimetres.
+ *
+ * Ordered, because the panel shows them in this order and the order is the one
+ * an architect says them in: how long, how thick, how tall.
+ */
+public fun DrawnShape.dimensions(): Map<ShapeDimension, Double> = when (this) {
+    is DrawnShape.Wall -> linkedMapOf(
+        ShapeDimension.LENGTH to a.toVec2().distanceTo(b.toVec2()),
+        ShapeDimension.THICKNESS to thicknessMm,
+        ShapeDimension.HEIGHT to heightMm,
+    )
+
+    is DrawnShape.Line -> linkedMapOf(
+        ShapeDimension.LENGTH to a.toVec2().distanceTo(b.toVec2()),
+    )
+
+    is DrawnShape.Rectangle -> linkedMapOf(
+        ShapeDimension.WIDTH to abs(opposite.x - corner.x),
+        ShapeDimension.DEPTH to abs(opposite.y - corner.y),
+    )
+
+    is DrawnShape.Circle -> linkedMapOf(ShapeDimension.DIAMETER to radiusMm * 2.0)
+}
+
+/**
+ * The same shape with one measurement set exactly.
+ *
+ * A measurement the shape does not have is ignored rather than refused: the
+ * panel only offers the ones [dimensions] reports, so asking for another is a
+ * mistake in the code, not something the user can do.
+ *
+ * Changing a wall's thickness moves it to the layer for that thickness, exactly
+ * as drawing it at that thickness would have. Otherwise a 100mm wall would sit
+ * on the 200mm layer for the rest of the project's life.
+ */
+public fun DrawnShape.withDimension(which: ShapeDimension, millimetres: Double): DrawnShape {
+    if (millimetres <= 0.0) return this
+
+    return when (this) {
+        is DrawnShape.Wall -> when (which) {
+            ShapeDimension.LENGTH -> withLength(millimetres)
+            ShapeDimension.THICKNESS -> copy(
+                thicknessMm = millimetres,
+                layer = DrawnShape.wallLayer(millimetres, material),
+            )
+            ShapeDimension.HEIGHT -> copy(heightMm = millimetres)
+            else -> this
+        }
+
+        is DrawnShape.Line ->
+            if (which == ShapeDimension.LENGTH) withLength(millimetres) else this
+
+        is DrawnShape.Rectangle -> {
+            // The corner the user drew from stays put and the opposite one
+            // moves, on the side it was already on — a rectangle made wider
+            // must not turn itself inside out.
+            val towardsX = if (opposite.x >= corner.x) 1.0 else -1.0
+            val towardsY = if (opposite.y >= corner.y) 1.0 else -1.0
+            when (which) {
+                ShapeDimension.WIDTH ->
+                    copy(opposite = Vec3(corner.x + towardsX * millimetres, opposite.y, opposite.z))
+                ShapeDimension.DEPTH ->
+                    copy(opposite = Vec3(opposite.x, corner.y + towardsY * millimetres, opposite.z))
+                else -> this
+            }
+        }
+
+        is DrawnShape.Circle ->
+            if (which == ShapeDimension.DIAMETER) copy(radiusMm = millimetres / 2.0) else this
+    }
+}
+
+/**
+ * The same shape under a new id.
+ *
+ * What makes a copy a copy: everything about it is the same except the one
+ * thing that says which shape it is. Used to duplicate a component so its
+ * numbers can be changed without touching the one it came from.
+ */
+public fun DrawnShape.withId(id: String): DrawnShape = when (this) {
+    is DrawnShape.Wall -> copy(id = id)
+    is DrawnShape.Line -> copy(id = id)
+    is DrawnShape.Rectangle -> copy(id = id)
+    is DrawnShape.Circle -> copy(id = id)
 }
 
 /**

@@ -15,10 +15,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathOperation
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -159,6 +161,11 @@ public fun PlanViewport(
         modifier = modifier
             .fillMaxSize()
             .background(HarmenColours.Canvas)
+            // Without this the plan is drawn straight over the tool rail, the
+            // panel and the top bar: a canvas in Compose is not held inside its
+            // own box unless it is told to be. Zooming in made the drawing crawl
+            // out across the whole screen.
+            .clipToBounds()
             .onSizeChanged { newSize ->
                 if (newSize != surface) {
                     surface = newSize
@@ -304,33 +311,65 @@ private fun DrawScope.drawWalls(
 ) {
     val byName = layers.associateBy { it.name }
 
-    for (band in walls) {
-        if (band.corners.size < 3) continue
-        val state = byName[band.layer]
-        if (state != null && !state.visible) continue
-        val alpha = (state?.opacity ?: 1.0).toFloat()
-        if (alpha <= 0.01f) continue
-
-        val colour = (state?.colour?.let { parseHex(it) } ?: HarmenColours.Linework)
-            .let { it.copy(alpha = it.alpha * alpha) }
-
+    fun pathOf(corners: List<Vec2>): Path {
         val path = Path()
-        val first = v.toScreen(band.corners.first())
+        val first = v.toScreen(corners.first())
         path.moveTo(first.x.toFloat(), first.y.toFloat())
-        for (k in 1 until band.corners.size) {
-            val p = v.toScreen(band.corners[k])
+        for (k in 1 until corners.size) {
+            val p = v.toScreen(corners[k])
             path.lineTo(p.x.toFloat(), p.y.toFloat())
         }
         path.close()
+        return path
+    }
 
-        // A wash rather than a flat solid: at this weight the wall reads as mass
-        // without burying the imported plan underneath it.
-        drawPath(path, colour.copy(alpha = colour.alpha * 0.35f))
-        drawPath(
-            path,
-            if (band.id == selectedId) HarmenColours.Accent else colour,
-            style = Stroke(width = 1.2f, cap = StrokeCap.Round),
-        )
+    val drawable = walls.filter { band ->
+        if (band.corners.size < 3) return@filter false
+        val state = byName[band.layer]
+        state == null || (state.visible && state.opacity > 0.01)
+    }
+
+    // One shape per layer, not one per wall. Two translucent bands laid over
+    // each other come out brighter where they overlap, which put a pale patch
+    // in every corner — the join was right and still looked wrong. Merged into
+    // a single outline the corner is simply part of the wall.
+    for ((layer, bands) in drawable.groupBy { it.layer }) {
+        val state = byName[layer]
+        val alpha = (state?.opacity ?: 1.0).toFloat()
+        val colour = (state?.colour?.let { parseHex(it) } ?: HarmenColours.Linework)
+            .let { it.copy(alpha = it.alpha * alpha) }
+
+        var merged = pathOf(bands.first().corners)
+        var mergedCleanly = true
+        for (band in bands.drop(1)) {
+            val next = Path()
+            if (next.op(merged, pathOf(band.corners), PathOperation.Union)) {
+                merged = next
+            } else {
+                // The union failed, which the platform may do on degenerate
+                // geometry. Adding the shape still fills correctly; only the
+                // outline is skipped, and a filled wall with no outline is far
+                // better than no wall.
+                merged.addPath(pathOf(band.corners))
+                mergedCleanly = false
+            }
+        }
+
+        drawPath(merged, colour.copy(alpha = colour.alpha * 0.45f))
+        if (mergedCleanly) {
+            drawPath(merged, colour, style = Stroke(width = 1.2f, cap = StrokeCap.Round))
+        }
+    }
+
+    // The selected wall is outlined on its own, over the rest.
+    if (selectedId != null) {
+        drawable.firstOrNull { it.id == selectedId }?.let {
+            drawPath(
+                pathOf(it.corners),
+                HarmenColours.Accent,
+                style = Stroke(width = 1.6f, cap = StrokeCap.Round),
+            )
+        }
     }
 }
 

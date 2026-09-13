@@ -60,6 +60,15 @@
     <string name="panel_properties">Özellikler</string>
     <string name="panel_selected">Seçili Öğe</string>
     <string name="unit_millimetre">mm</string>
+    <string name="action_duplicate">Kopyala</string>
+
+    <!-- ===== Seçili öğenin, kullanıcının yazabildiği ölçüleri ===== -->
+    <string name="dimension_length">Uzunluk</string>
+    <string name="dimension_thickness">Kalınlık</string>
+    <string name="dimension_height">Yükseklik</string>
+    <string name="dimension_width">Genişlik</string>
+    <string name="dimension_depth">Derinlik</string>
+    <string name="dimension_diameter">Çap</string>
     <string name="action_finish_chain">Bitir</string>
     <string name="panel_annotations">Not Araçları</string>
     <string name="panel_empty_layers">bu çizimde katman yok</string>

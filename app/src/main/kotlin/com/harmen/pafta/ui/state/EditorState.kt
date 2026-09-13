@@ -168,8 +168,15 @@ public data class EditorState(
     /** Preview of the last text the user typed, shown under the text tool. */
     val lastText: String = "",
     val gridVisible: Boolean = true,
-    /** Grid spacing in model millimetres. */
-    val gridSpacingMm: Double = 1000.0,
+    /**
+     * Grid spacing in model millimetres: 10cm.
+     *
+     * Fine enough to place a wall face on, and the brighter every-tenth line
+     * then falls on the metre, so the two readings an architect wants are both
+     * on the sheet. It is also what a point without anything to catch snaps to,
+     * so a wall drawn in open space still lands on a round number.
+     */
+    val gridSpacingMm: Double = 100.0,
     val annotationTool: AnnotationKind? = null,
     val canUndo: Boolean = false,
     val canRedo: Boolean = false,

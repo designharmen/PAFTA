@@ -177,6 +177,86 @@ class DrawnShapeTest {
         assertEquals(3000.0, band.corners.maxOf { it.x }, 1e-6)
     }
 
+    @Test
+    fun `a wall offers length, thickness and height, and each can be set`() {
+        val wall = DrawnShape.Wall("w1", v(0.0, 0.0), v(3000.0, 0.0), thicknessMm = 200.0)
+
+        assertEquals(
+            listOf(ShapeDimension.LENGTH, ShapeDimension.THICKNESS, ShapeDimension.HEIGHT),
+            wall.dimensions().keys.toList(),
+        )
+        assertEquals(3000.0, wall.dimensions().getValue(ShapeDimension.LENGTH), 1e-6)
+        assertEquals(200.0, wall.dimensions().getValue(ShapeDimension.THICKNESS), 1e-6)
+        assertEquals(
+            DrawnShape.DEFAULT_WALL_HEIGHT_MM,
+            wall.dimensions().getValue(ShapeDimension.HEIGHT),
+            1e-6,
+        )
+
+        val longer = wall.withDimension(ShapeDimension.LENGTH, 3600.0)
+        assertEquals(3600.0, longer.dimensions().getValue(ShapeDimension.LENGTH), 1e-6)
+
+        val taller = wall.withDimension(ShapeDimension.HEIGHT, 2400.0)
+        assertEquals(2400.0, taller.dimensions().getValue(ShapeDimension.HEIGHT), 1e-6)
+    }
+
+    @Test
+    fun `changing a wall's thickness moves it to the layer for that thickness`() {
+        val wall = DrawnShape.Wall("w1", v(0.0, 0.0), v(3000.0, 0.0), thicknessMm = 200.0)
+        assertEquals(DrawnShape.wallLayer(200.0, WallMaterial.BRICK), wall.layer)
+
+        val thinner = wall.withDimension(ShapeDimension.THICKNESS, 100.0)
+        // Otherwise a 100mm wall would sit on the 200mm layer for good, and
+        // hiding the 200mm walls would take it with them.
+        assertEquals(DrawnShape.wallLayer(100.0, WallMaterial.BRICK), thinner.layer)
+    }
+
+    @Test
+    fun `a rectangle is widened from the corner it was drawn from, either way round`() {
+        val forwards = DrawnShape.Rectangle("r1", v(0.0, 0.0), v(1000.0, 500.0))
+        val wider = forwards.withDimension(ShapeDimension.WIDTH, 2000.0)
+        assertEquals(2000.0, wider.dimensions().getValue(ShapeDimension.WIDTH), 1e-6)
+        assertEquals(500.0, wider.dimensions().getValue(ShapeDimension.DEPTH), 1e-6)
+
+        // Drawn right to left, it must grow to the left rather than flip over.
+        val backwards = DrawnShape.Rectangle("r2", v(0.0, 0.0), v(-1000.0, 500.0))
+        val alsoWider = assertIs<DrawnShape.Rectangle>(
+            backwards.withDimension(ShapeDimension.WIDTH, 2000.0),
+        )
+        assertEquals(-2000.0, alsoWider.opposite.x, 1e-6)
+    }
+
+    @Test
+    fun `a circle is set by its diameter, not its radius`() {
+        val circle = DrawnShape.Circle("c1", v(0.0, 0.0), radiusMm = 250.0)
+        assertEquals(500.0, circle.dimensions().getValue(ShapeDimension.DIAMETER), 1e-6)
+
+        val bigger = assertIs<DrawnShape.Circle>(
+            circle.withDimension(ShapeDimension.DIAMETER, 800.0),
+        )
+        assertEquals(400.0, bigger.radiusMm, 1e-6)
+    }
+
+    @Test
+    fun `a copy is the same shape under a different id`() {
+        val wall = DrawnShape.Wall("w1", v(0.0, 0.0), v(3000.0, 0.0), thicknessMm = 150.0)
+        val copy = assertIs<DrawnShape.Wall>(wall.withId("w2"))
+
+        assertEquals("w2", copy.id)
+        // Everything else is the same, which is what makes it a copy — and the
+        // id is what keeps selecting one from deleting the other.
+        assertEquals(wall, copy.copy(id = wall.id))
+    }
+
+    @Test
+    fun `a measurement that a shape does not have is left alone`() {
+        val circle = DrawnShape.Circle("c1", v(0.0, 0.0), radiusMm = 250.0)
+        assertEquals(circle, circle.withDimension(ShapeDimension.THICKNESS, 100.0))
+
+        val line = DrawnShape.Line("l1", v(0.0, 0.0), v(1000.0, 0.0))
+        assertEquals(line, line.withDimension(ShapeDimension.HEIGHT, 2400.0))
+    }
+
 }
 
 /**

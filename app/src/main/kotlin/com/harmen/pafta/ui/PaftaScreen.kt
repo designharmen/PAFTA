@@ -17,6 +17,7 @@ import com.harmen.pafta.geometry.Aabb
 import com.harmen.pafta.ui.chrome.HairlineDivider
 import com.harmen.pafta.ui.chrome.PaftaTopBar
 import com.harmen.pafta.project.DrawnShape
+import com.harmen.pafta.project.dimensions
 import com.harmen.pafta.project.lengthMm
 import com.harmen.pafta.project.wallBands
 import com.harmen.pafta.units.formatLength
@@ -150,10 +151,12 @@ public fun PaftaScreen(
                             onMaterialSelected = viewModel::selectMaterial,
                             onAnnotationToolSelected = { viewModel.selectAnnotationTool(it) },
                             selectedShapeId = state.selectedShapeId,
-                            selectedLengthMm = state.shapes
+                            selectedDimensions = state.shapes
                                 .firstOrNull { it.id == state.selectedShapeId }
-                                ?.lengthMm,
-                            onSelectedLengthChanged = viewModel::setSelectedLength,
+                                ?.dimensions()
+                                .orEmpty(),
+                            onSelectedDimensionChanged = viewModel::setSelectedDimension,
+                            onDuplicateSelected = viewModel::duplicateSelected,
                         )
                     }
                 }
