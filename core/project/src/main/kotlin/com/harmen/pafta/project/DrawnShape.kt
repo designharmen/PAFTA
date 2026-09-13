@@ -253,6 +253,75 @@ public fun DrawnShape.snapSegments(): List<Segment2> = when (this) {
 }
 
 /**
+ * A wall as it is actually drawn on the plan: a solid band, not an outline.
+ *
+ * Two walls whose centre lines meet at a corner still leave a square of nothing
+ * between them, because each band stops at its own end. [wallBands] closes that
+ * by reaching each end past the meeting point, far enough to cover the other
+ * wall's far face — which is exactly half the other wall's thickness. Filled in,
+ * the two bands then read as one solid corner, the way a wall is drawn on any
+ * plan. Nothing is added where a wall ends free: that end stays square.
+ *
+ * This is only how a wall is drawn. The wall itself is still its centre line and
+ * its thickness, which is what gets measured, saved and exported.
+ */
+public data class WallBand(
+    val id: String,
+    val layer: String,
+    /** The four corners of the band, in order, ready to be filled. */
+    val corners: List<Vec2>,
+)
+
+/** The walls among these shapes, as the bands they are drawn as. */
+public fun List<DrawnShape>.wallBands(): List<WallBand> {
+    val walls = filterIsInstance<DrawnShape.Wall>()
+    if (walls.isEmpty()) return emptyList()
+
+    /** Half the thickness of the thickest other wall that ends at [point]. */
+    fun reachAt(self: DrawnShape.Wall, point: Vec2): Double {
+        var reach = 0.0
+        for (other in walls) {
+            if (other.id == self.id) continue
+            val meets = other.a.toVec2().distanceTo(point) <= JOIN_TOLERANCE_MM ||
+                other.b.toVec2().distanceTo(point) <= JOIN_TOLERANCE_MM
+            if (meets) reach = maxOf(reach, other.thicknessMm / 2.0)
+        }
+        return reach
+    }
+
+    return walls.mapNotNull { wall ->
+        val start = wall.a.toVec2()
+        val end = wall.b.toVec2()
+        val along = end - start
+        val length = hypot(along.x, along.y)
+        if (length < 1e-6) return@mapNotNull null
+
+        val unit = Vec2(along.x / length, along.y / length)
+        val backwards = reachAt(wall, start)
+        val forwards = reachAt(wall, end)
+        val fromEnd = start - Vec2(unit.x * backwards, unit.y * backwards)
+        val toEnd = end + Vec2(unit.x * forwards, unit.y * forwards)
+
+        val half = wall.thicknessMm / 2.0
+        val n = Vec2(-unit.y * half, unit.x * half)
+        WallBand(
+            id = wall.id,
+            layer = wall.layer,
+            corners = listOf(fromEnd + n, toEnd + n, toEnd - n, fromEnd - n),
+        )
+    }
+}
+
+/**
+ * How close two wall ends must be to count as the same corner.
+ *
+ * A millimetre, because ends that were snapped together are identical and ends
+ * that were not are out by far more than this. Loose enough to survive a
+ * rounding, tight enough that two walls a finger apart are still two walls.
+ */
+private const val JOIN_TOLERANCE_MM = 1.0
+
+/**
  * The shape under a tap, or null.
  *
  * Later shapes win, because the one drawn most recently is the one on top and

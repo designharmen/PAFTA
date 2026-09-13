@@ -144,6 +144,39 @@ class DrawnShapeTest {
         // Identity is kept: moving a shape is not replacing it.
         assertEquals(wall.id, moved.id)
     }
+    @Test
+    fun `two walls that share a corner reach past it, so the corner closes`() {
+        val corner = Vec3(3000.0, 0.0, 0.0)
+        val walls = listOf(
+            DrawnShape.Wall("w1", Vec3(0.0, 0.0, 0.0), corner, thicknessMm = 200.0),
+            DrawnShape.Wall("w2", corner, Vec3(3000.0, 2000.0, 0.0), thicknessMm = 200.0),
+        )
+
+        val bands = walls.wallBands().associateBy { it.id }
+        assertEquals(2, bands.size)
+
+        // The first wall reaches 100mm past the corner — half the other wall's
+        // thickness, which is exactly its far face — and not at all at its free end.
+        val first = bands.getValue("w1").corners
+        assertEquals(0.0, first.minOf { it.x }, 1e-6)
+        assertEquals(3100.0, first.maxOf { it.x }, 1e-6)
+
+        // The second reaches back the same 100mm, and stops square at its own free end.
+        val second = bands.getValue("w2").corners
+        assertEquals(-100.0, second.minOf { it.y }, 1e-6)
+        assertEquals(2000.0, second.maxOf { it.y }, 1e-6)
+    }
+
+    @Test
+    fun `a wall standing alone is not stretched`() {
+        val band = listOf(
+            DrawnShape.Wall("w1", Vec3(0.0, 0.0, 0.0), Vec3(3000.0, 0.0, 0.0)),
+        ).wallBands().single()
+
+        assertEquals(0.0, band.corners.minOf { it.x }, 1e-6)
+        assertEquals(3000.0, band.corners.maxOf { it.x }, 1e-6)
+    }
+
 }
 
 /**
@@ -189,9 +222,17 @@ class DrawnShapePersistenceTest {
         // The imported file is untouched: drawing on top must never rewrite it.
         assertTrue(reopened.payload.contentEquals(dxf))
 
-        // And the drawing shows the file's line plus both drawn shapes.
+        // The document carries the FILE's geometry only — one line. What the user
+        // drew is kept live in the editor instead, because a copy frozen at open
+        // time would stay on screen unchanged while the real one was edited.
         val doc = assertIs<StoreResult.Success<DrawingDocument>>(reopened.openAsDrawing()).value
-        assertEquals(3, doc.entityCount)
+        assertEquals(1, doc.entityCount)
+        // The view is still framed around both, and both layers are in the palette.
+        assertTrue(doc.bounds.contains(Vec3(3000.0, 0.0, 0.0)), "bounds were ${doc.bounds}")
+        assertTrue(
+            doc.layers.any { it.name.startsWith(DrawnShape.LAYER_WALL) },
+            "palette was ${doc.layers.map { it.name }}",
+        )
 
         root.deleteRecursively()
     }
@@ -212,7 +253,8 @@ class DrawnShapePersistenceTest {
         )
         val doc = assertIs<StoreResult.Success<DrawingDocument>>(drawn.openAsDrawing()).value
 
-        assertEquals(1, doc.entityCount)
+        // The file itself is still empty; the wall is not copied into it.
+        assertEquals(0, doc.entityCount)
         // The wall's layer joins the palette, so it can be hidden like any other.
         assertTrue(
             doc.layers.any { it.name.startsWith(DrawnShape.LAYER_WALL) },

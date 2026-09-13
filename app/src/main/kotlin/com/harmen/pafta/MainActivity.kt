@@ -150,6 +150,7 @@ private fun PaftaApp(modifier: Modifier = Modifier) {
             state = editorState,
             viewModel = editorViewModel,
             drawing = opened.drawing,
+            fitBounds = opened.bounds,
             onBack = {
                 editorViewModel.close { openPath = null }
                 libraryViewModel.refresh()

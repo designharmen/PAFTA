@@ -13,9 +13,12 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.harmen.pafta.dxf.DxfDrawing
+import com.harmen.pafta.geometry.Aabb
 import com.harmen.pafta.ui.chrome.HairlineDivider
 import com.harmen.pafta.ui.chrome.PaftaTopBar
+import com.harmen.pafta.project.DrawnShape
 import com.harmen.pafta.project.lengthMm
+import com.harmen.pafta.project.wallBands
 import com.harmen.pafta.units.formatLength
 import com.harmen.pafta.ui.chrome.RightPanel
 import com.harmen.pafta.ui.chrome.ToolRail
@@ -42,6 +45,8 @@ public fun PaftaScreen(
     state: EditorState,
     viewModel: EditorViewModel,
     drawing: DxfDrawing,
+    /** What the opening view is framed around; the drawing's own extent if null. */
+    fitBounds: Aabb? = null,
     roomLabels: List<RoomLabel> = emptyList(),
     onBack: (() -> Unit)? = null,
     onShare: () -> Unit = {},
@@ -101,6 +106,7 @@ public fun PaftaScreen(
                         unitLabel = state.unitLabel,
                         gridVisible = state.gridVisible,
                         gridSpacingMm = state.gridSpacingMm,
+                        fitBounds = fitBounds,
                         modifier = Modifier.weight(1f).fillMaxHeight(),
                         pendingPicks = state.pendingPicks,
                         onPick = viewModel::onCanvasPick,
@@ -113,13 +119,22 @@ public fun PaftaScreen(
                         previewLabel = state.preview?.lengthMm?.let {
                             formatLength(it, state.display.lengthFormat)
                         },
+                        // Walls go through their own list because they are
+                        // filled bands with closed corners, not plain outlines.
                         drawn = remember(state.shapes) {
-                            state.shapes.flatMap { it.toEntities() }
+                            state.shapes
+                                .filterNot { it is DrawnShape.Wall }
+                                .flatMap { it.toEntities() }
                         },
+                        walls = remember(state.shapes) { state.shapes.wallBands() },
+                        highlightedWallId = state.selectedShapeId,
                         highlighted = state.shapes
-                            .firstOrNull { it.id == state.selectedShapeId }
+                            .firstOrNull {
+                                it.id == state.selectedShapeId && it !is DrawnShape.Wall
+                            }
                             ?.toEntities()
                             .orEmpty(),
+                        snapAt = state.snapAt,
                     )
 
                     if (showInspector) {

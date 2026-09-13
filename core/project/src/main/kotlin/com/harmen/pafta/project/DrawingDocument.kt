@@ -16,9 +16,16 @@ public data class DrawingDocument(
     /** Entity types present in the file that the reader does not model. */
     val unsupportedEntityTypes: Set<String>,
 ) {
+    /** How many entities came out of the file itself. */
     public val entityCount: Int get() = drawing.entities.size
 
-    /** True when there is nothing to draw, so the UI can say so plainly. */
+    /**
+     * True when the file brought nothing drawable.
+     *
+     * Only about the file: a project whose file is empty but which has hand-drawn
+     * walls is not an empty document, and the editor decides that by looking at
+     * both.
+     */
     public val isEmpty: Boolean get() = drawing.entities.isEmpty()
 }
 
@@ -49,8 +56,14 @@ public fun PaftaProject.openAsDrawing(): StoreResult<DrawingDocument> {
         )
     }
 
-    // What the user drew joins what the file brought, in that order, so a shape
-    // drawn today sits on top of the wall it was traced from.
+    // What the user drew, joined to the file's own geometry — but only to decide
+    // whether there is anything to show, to work out where the view should sit,
+    // and to collect the layers. It is deliberately NOT put into the document's
+    // drawing: the editor draws what the user has drawn from the live list, and
+    // a second copy frozen at the moment the file was opened would sit on the
+    // screen unchanged while the live one moved. Changing a wall's length then
+    // appeared to do nothing until the project was closed and opened again,
+    // because the stale copy was still there underneath.
     val drawn = shapes.flatMap { it.toEntities() }
     val merged =
         if (drawn.isEmpty()) drawing else drawing.copy(entities = drawing.entities + drawn)
@@ -75,8 +88,11 @@ public fun PaftaProject.openAsDrawing(): StoreResult<DrawingDocument> {
 
     return StoreResult.Success(
         DrawingDocument(
-            drawing = merged,
+            // The file's own geometry only. See above.
+            drawing = drawing,
             layers = mergeLayers(merged, layers),
+            // Both, so opening a project frames what was drawn as well as what
+            // was imported.
             bounds = merged.bounds,
             unsupportedEntityTypes = merged.unsupportedEntityTypes,
         ),

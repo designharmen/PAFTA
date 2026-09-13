@@ -153,6 +153,14 @@ public data class EditorState(
      * lifts, nothing has been drawn.
      */
     val preview: DrawnShape? = null,
+    /**
+     * The point the finger has been pulled onto, while it is being pulled.
+     *
+     * Shown as a small square on the plan. Without it the user has no way to
+     * tell whether a corner was caught or missed until the wall is finished and
+     * it is too late — and neither had I.
+     */
+    val snapAt: Vec2? = null,
     /** Thickness used by the wall tool, in drawing millimetres. */
     val wallThicknessMm: Double = DrawnShape.DEFAULT_WALL_THICKNESS_MM,
     /** Material used by the wall tool; it decides which layer the wall lands on. */

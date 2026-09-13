@@ -12,6 +12,7 @@ import com.harmen.pafta.geometry.Vec2
 import com.harmen.pafta.geometry.Vec3
 import com.harmen.pafta.measure.MeasurementEngine
 import com.harmen.pafta.measure.MeasurementKind
+import com.harmen.pafta.measure.SnapKind
 import com.harmen.pafta.measure.snap
 import com.harmen.pafta.project.AnnotationKind
 import com.harmen.pafta.project.AutoSavePolicy
@@ -387,7 +388,7 @@ public class EditorViewModel(
         // Deliberately does not clear the points picked so far: a tap is a
         // press and a release like any other, so clearing here would wipe the
         // first tap of a two-tap shape the instant the second tap began.
-        _state.update { it.copy(preview = null) }
+        _state.update { it.copy(preview = null, snapAt = lastSnap) }
     }
 
     /** The finger has moved; the shape being drawn follows it. */
@@ -395,7 +396,9 @@ public class EditorViewModel(
         val from = dragFrom ?: return
         val to = snapped(point, toleranceMm)
         dragTo = to
-        _state.update { it.copy(preview = shapeBetween(from, to, id = PREVIEW_ID)) }
+        _state.update {
+            it.copy(preview = shapeBetween(from, to, id = PREVIEW_ID), snapAt = lastSnap)
+        }
     }
 
     /** The finger has lifted: the shape is committed at the size it was drawn. */
@@ -404,7 +407,7 @@ public class EditorViewModel(
         val to = dragTo
         dragFrom = null
         dragTo = null
-        _state.update { it.copy(preview = null, pendingPicks = emptyList()) }
+        _state.update { it.copy(preview = null, pendingPicks = emptyList(), snapAt = null) }
         if (from == null || to == null) return
 
         val shape = shapeBetween(from, to, id = newShapeId()) ?: return
@@ -416,7 +419,7 @@ public class EditorViewModel(
     public fun cancelDrag() {
         dragFrom = null
         dragTo = null
-        _state.update { it.copy(preview = null) }
+        _state.update { it.copy(preview = null, snapAt = null) }
     }
 
     /** Ends a run of walls without switching tool. */
@@ -443,6 +446,14 @@ public class EditorViewModel(
         _state.update { it.copy(wallMaterial = material, activeTool = Tool.WALL) }
     }
 
+    /**
+     * The point a raw finger position is pulled onto.
+     *
+     * It also records what was caught in [lastSnap], so the screen can show it.
+     * A grid line is not recorded: the grid is already drawn, and marking every
+     * point on it would put a square under the finger at all times and say
+     * nothing.
+     */
     private fun snapped(point: Vec2, toleranceMm: Double): Vec2 {
         val nearby = snapCandidates.near(point, toleranceMm)
         val result = snap(
@@ -451,8 +462,16 @@ public class EditorViewModel(
             tolerance = toleranceMm,
             gridSpacing = if (_state.value.gridVisible) _state.value.gridSpacingMm else null,
         )
-        return result.point.toVec2()
+        val landed = result.point.toVec2()
+        lastSnap = when (result.kind) {
+            SnapKind.NONE, SnapKind.GRID -> null
+            else -> landed
+        }
+        return landed
     }
+
+    /** What [snapped] last caught, or null when it caught nothing worth showing. */
+    private var lastSnap: Vec2? = null
 
     /** Closes an area or a polyline, which have no fixed number of points. */
     public fun finishMeasurement() {

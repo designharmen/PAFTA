@@ -36,12 +36,14 @@ import androidx.compose.ui.unit.dp
 import com.harmen.pafta.dxf.DxfDrawing
 import com.harmen.pafta.dxf.DxfEntity
 import com.harmen.pafta.dxf.DxfTextAlign
+import com.harmen.pafta.geometry.Aabb
 import com.harmen.pafta.geometry.Vec2
 import com.harmen.pafta.geometry.Viewport2D
 import com.harmen.pafta.measure.Measurement
 import com.harmen.pafta.measure.MeasurementDisplay
 import com.harmen.pafta.measure.label
 import com.harmen.pafta.project.LayerState
+import com.harmen.pafta.project.WallBand
 import com.harmen.pafta.ui.theme.HarmenColours
 import com.harmen.pafta.ui.theme.HarmenType
 import kotlin.math.atan2
@@ -80,8 +82,30 @@ public fun PlanViewport(
      * every time a wall is added would jerk the view back to fit on every tap.
      */
     drawn: List<DxfEntity> = emptyList(),
+    /**
+     * The walls, as solid bands.
+     *
+     * Walls are drawn filled rather than as outlines, which is both how a plan
+     * shows a wall and what makes a corner read as a corner: two filled bands
+     * that overlap are one solid shape, while two outlines that overlap are four
+     * lines crossing in the corner.
+     */
+    walls: List<WallBand> = emptyList(),
     /** The selected shape's geometry, drawn again on top in the accent colour. */
     highlighted: List<DxfEntity> = emptyList(),
+    /** The selected wall, whose band is outlined in the accent colour. */
+    highlightedWallId: String? = null,
+    /** A point the finger has been pulled onto, marked so the user can see it. */
+    snapAt: Vec2? = null,
+    /**
+     * What the opening view is framed around.
+     *
+     * Normally the file's own extent, but a project may hold hand-drawn walls
+     * that reach past it — or have come from a file with nothing in it at all —
+     * and opening onto an empty corner of the sheet would look like the work
+     * had been lost.
+     */
+    fitBounds: Aabb? = null,
     /** The shape following the finger right now; not part of the drawing yet. */
     preview: List<DxfEntity> = emptyList(),
     /** The length of that shape, already worded and in the user's unit. */
@@ -116,12 +140,13 @@ public fun PlanViewport(
     var viewport by remember { mutableStateOf<Viewport2D?>(null) }
 
     // Fit once the surface is measured, and re-fit if the drawing is replaced.
-    val fitted = remember(drawing, surface) {
+    val frame = fitBounds ?: drawing.bounds
+    val fitted = remember(frame, surface) {
         if (surface.width == 0 || surface.height == 0) {
             null
         } else {
             Viewport2D.fit(
-                drawing.bounds,
+                frame,
                 surface.width.toDouble(),
                 surface.height.toDouble(),
                 paddingPixels = 72.0,
@@ -188,6 +213,7 @@ public fun PlanViewport(
             // What the user drew is linework like any other: same layer rules,
             // same visibility, same opacity.
             if (drawn.isNotEmpty()) drawEntities(drawn, layers, v)
+            if (walls.isNotEmpty()) drawWalls(walls, layers, v, highlightedWallId)
             drawDrawingText(drawing, layers, v, measurer)
             measurements.forEach { drawMeasurement(it, v, display, measurer) }
             // Selection is drawn over the linework rather than instead of it, so
@@ -210,6 +236,7 @@ public fun PlanViewport(
                     )
                 }
             }
+            if (snapAt != null) drawSnapMark(v.toScreen(snapAt))
             roomLabels.forEach { drawRoomLabel(it, v, measurer) }
         }
 
@@ -260,6 +287,69 @@ private fun DrawScope.drawGrid(v: Viewport2D, spacingMm: Double, canvas: Size) {
         j++
         y = originScreen.y + j * step
     }
+}
+
+/**
+ * Draws the walls as filled bands.
+ *
+ * Same layer rules as any other linework: a hidden layer hides its walls, and a
+ * faded layer fades them. The selected one is outlined rather than filled in the
+ * accent colour, so it stays readable as a wall while it is picked.
+ */
+private fun DrawScope.drawWalls(
+    walls: List<WallBand>,
+    layers: List<LayerState>,
+    v: Viewport2D,
+    selectedId: String?,
+) {
+    val byName = layers.associateBy { it.name }
+
+    for (band in walls) {
+        if (band.corners.size < 3) continue
+        val state = byName[band.layer]
+        if (state != null && !state.visible) continue
+        val alpha = (state?.opacity ?: 1.0).toFloat()
+        if (alpha <= 0.01f) continue
+
+        val colour = (state?.colour?.let { parseHex(it) } ?: HarmenColours.Linework)
+            .let { it.copy(alpha = it.alpha * alpha) }
+
+        val path = Path()
+        val first = v.toScreen(band.corners.first())
+        path.moveTo(first.x.toFloat(), first.y.toFloat())
+        for (k in 1 until band.corners.size) {
+            val p = v.toScreen(band.corners[k])
+            path.lineTo(p.x.toFloat(), p.y.toFloat())
+        }
+        path.close()
+
+        // A wash rather than a flat solid: at this weight the wall reads as mass
+        // without burying the imported plan underneath it.
+        drawPath(path, colour.copy(alpha = colour.alpha * 0.35f))
+        drawPath(
+            path,
+            if (band.id == selectedId) HarmenColours.Accent else colour,
+            style = Stroke(width = 1.2f, cap = StrokeCap.Round),
+        )
+    }
+}
+
+/**
+ * The mark under a caught point.
+ *
+ * A small square is the drawing-office sign for "this is an end point", and it
+ * is the only way the user can tell, while the finger is still down, that the
+ * wall has taken hold of the corner instead of landing beside it.
+ */
+private fun DrawScope.drawSnapMark(at: Vec2) {
+    val r = 9f
+    val c = Offset(at.x.toFloat(), at.y.toFloat())
+    drawRect(
+        color = HarmenColours.Accent,
+        topLeft = Offset(c.x - r, c.y - r),
+        size = Size(r * 2, r * 2),
+        style = Stroke(width = 1.6f),
+    )
 }
 
 /** Draws every entity on a visible layer, honouring the layer's opacity. */
