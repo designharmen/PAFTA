@@ -69,6 +69,14 @@ public fun PlanViewport(
     modifier: Modifier = Modifier,
     /** Points of a measurement the user has started but not finished. */
     pendingPicks: List<Vec2> = emptyList(),
+    /**
+     * Geometry the user has drawn since the file was opened.
+     *
+     * Kept as a separate list rather than folded into [drawing] on purpose: the
+     * viewport keys its zoom-to-fit on the drawing, so rebuilding that object
+     * every time a wall is added would jerk the view back to fit on every tap.
+     */
+    drawn: List<DxfEntity> = emptyList(),
     /** The selected shape's geometry, drawn again on top in the accent colour. */
     highlighted: List<DxfEntity> = emptyList(),
     /**
@@ -143,7 +151,10 @@ public fun PlanViewport(
             val v = active ?: return@Canvas
 
             if (gridVisible) drawGrid(v, gridSpacingMm, size)
-            drawDrawing(drawing, layers, v)
+            drawEntities(drawing.entities, layers, v)
+            // What the user drew is linework like any other: same layer rules,
+            // same visibility, same opacity.
+            if (drawn.isNotEmpty()) drawEntities(drawn, layers, v)
             drawDrawingText(drawing, layers, v, measurer)
             measurements.forEach { drawMeasurement(it, v, display, measurer) }
             // Selection is drawn over the linework rather than instead of it, so
@@ -203,10 +214,14 @@ private fun DrawScope.drawGrid(v: Viewport2D, spacingMm: Double, canvas: Size) {
 }
 
 /** Draws every entity on a visible layer, honouring the layer's opacity. */
-private fun DrawScope.drawDrawing(drawing: DxfDrawing, layers: List<LayerState>, v: Viewport2D) {
+private fun DrawScope.drawEntities(
+    entities: List<DxfEntity>,
+    layers: List<LayerState>,
+    v: Viewport2D,
+) {
     val byName = layers.associateBy { it.name }
 
-    for (entity in drawing.entities) {
+    for (entity in entities) {
         val state = byName[entity.layer]
         if (state != null && !state.visible) continue
         val alpha = (state?.opacity ?: 1.0).toFloat()

@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -80,6 +81,8 @@ public fun PaftaScreen(
                         onCancelMeasurement = viewModel::cancelMeasurement,
                         wallThicknessMm = state.wallThicknessMm,
                         onWallThicknessSelected = viewModel::selectWallThickness,
+                        wallMaterial = state.wallMaterial,
+                        onWallMaterialSelected = viewModel::selectWallMaterial,
                         selectedShapeId = state.selectedShapeId,
                         onDeleteSelected = viewModel::deleteSelected,
                     )
@@ -97,6 +100,9 @@ public fun PaftaScreen(
                         modifier = Modifier.weight(1f).fillMaxHeight(),
                         pendingPicks = state.pendingPicks,
                         onPick = viewModel::onCanvasPick,
+                        drawn = remember(state.shapes) {
+                            state.shapes.flatMap { it.toEntities() }
+                        },
                         highlighted = state.shapes
                             .firstOrNull { it.id == state.selectedShapeId }
                             ?.toEntities()

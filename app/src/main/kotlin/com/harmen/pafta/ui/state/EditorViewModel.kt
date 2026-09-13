@@ -21,7 +21,9 @@ import com.harmen.pafta.project.PaftaProject
 import com.harmen.pafta.project.StoreResult
 import com.harmen.pafta.project.StoredMeasurement
 import com.harmen.pafta.project.UndoStack
+import com.harmen.pafta.project.WallMaterial
 import com.harmen.pafta.project.pick
+import com.harmen.pafta.project.snapSegments
 import com.harmen.pafta.units.formatLength
 import java.io.File
 import kotlinx.coroutines.Job
@@ -284,7 +286,10 @@ public class EditorViewModel(
         val shape = shapeBetween(first, landed)
         _state.update { it.copy(pendingPicks = emptyList()) }
         if (shape != null) {
-            edit { s -> s.copy(shapes = s.shapes + shape, selectedShapeId = shape.id) }
+            // Deliberately not selected: a shape that selects itself the moment
+            // it is drawn makes everything look permanently picked, and the
+            // next shape appears to delete the last one as the highlight moves.
+            edit { s -> s.copy(shapes = s.shapes + shape) }
             rebuildSnapCandidates()
         }
     }
@@ -298,7 +303,18 @@ public class EditorViewModel(
         val b = Vec3(to.x, to.y, 0.0)
 
         val shape = when (_state.value.activeTool) {
-            Tool.WALL -> DrawnShape.Wall(id, a, b, _state.value.wallThicknessMm)
+            Tool.WALL -> {
+                val thickness = _state.value.wallThicknessMm
+                val material = _state.value.wallMaterial
+                DrawnShape.Wall(
+                    id = id,
+                    a = a,
+                    b = b,
+                    thicknessMm = thickness,
+                    material = material,
+                    layer = DrawnShape.wallLayer(thickness, material),
+                )
+            }
             Tool.LINE -> DrawnShape.Line(id, a, b)
             Tool.RECTANGLE -> DrawnShape.Rectangle(id, a, b)
             Tool.CIRCLE -> DrawnShape.Circle(id, a, from.distanceTo(to))
@@ -333,6 +349,11 @@ public class EditorViewModel(
     /** Sets the thickness the wall tool draws with, in millimetres. */
     public fun selectWallThickness(thicknessMm: Double) {
         _state.update { it.copy(wallThicknessMm = thicknessMm, activeTool = Tool.WALL) }
+    }
+
+    /** Sets what the wall tool builds with; this also decides its layer. */
+    public fun selectWallMaterial(material: WallMaterial) {
+        _state.update { it.copy(wallMaterial = material, activeTool = Tool.WALL) }
     }
 
     private fun snapped(point: Vec2, toleranceMm: Double): Vec2 {
@@ -377,12 +398,12 @@ public class EditorViewModel(
             emptyList()
         } else {
             val visible = _state.value.layers.filter { it.visible }.map { it.name }.toSet()
-            // The drawing here is the file's; what the user drew since opening
-            // it is snapped to as well, so a second wall meets the first.
-            val drawn = _state.value.shapes.flatMap { it.toEntities() }
-            val all =
-                if (drawn.isEmpty()) drawing else drawing.copy(entities = drawing.entities + drawn)
-            all.snapSegments(visibleLayers = visible.ifEmpty { null })
+            // The file's own geometry, plus what the user has drawn since. A
+            // wall contributes its centre line rather than its outline, which
+            // is what lets the next wall meet it end to end instead of half a
+            // thickness off to the side.
+            drawing.snapSegments(visibleLayers = visible.ifEmpty { null }) +
+                _state.value.shapes.flatMap { it.snapSegments() }
         }
     }
 

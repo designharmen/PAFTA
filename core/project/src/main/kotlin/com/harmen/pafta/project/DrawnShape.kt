@@ -20,6 +20,21 @@ import kotlin.math.hypot
  * into ordinary DXF entities, so the renderer, the snapping and the exporter all
  * keep working on one kind of thing.
  */
+/**
+ * What a wall is built of.
+ *
+ * The code is ASCII because it becomes part of a layer name, and layer names
+ * travel into exported DXF files whose encoding cannot carry `Ç`, `İ` or `Ş`.
+ * The Turkish name the user reads is composed at the interface, never here.
+ */
+@Serializable
+public enum class WallMaterial(public val code: String) {
+    BRICK("TUGLA"),
+    CONCRETE("BETON"),
+    AERATED("GAZBETON"),
+    TIMBER("AHSAP"),
+}
+
 @Serializable
 public sealed interface DrawnShape {
     public val id: String
@@ -46,8 +61,12 @@ public sealed interface DrawnShape {
         @Serializable(with = Vec3Serializer::class) val a: Vec3,
         @Serializable(with = Vec3Serializer::class) val b: Vec3,
         val thicknessMm: Double = DEFAULT_WALL_THICKNESS_MM,
-        override val layer: String = LAYER_WALL,
+        val material: WallMaterial = WallMaterial.BRICK,
+        override val layer: String = wallLayer(DEFAULT_WALL_THICKNESS_MM, WallMaterial.BRICK),
     ) : DrawnShape {
+
+        /** The centre line, which is what another wall should meet end to end. */
+        public fun centreLine(): Segment2 = Segment2(a.toVec2(), b.toVec2())
 
         /** The four corners of the wall's outline, anticlockwise from `a`. */
         public fun outline(): List<Vec2> {
@@ -154,8 +173,39 @@ public sealed interface DrawnShape {
         public const val LAYER_WALL: String = "DUVAR"
         public const val LAYER_DRAWING: String = "CIZIM"
 
+        /**
+         * The layer a wall belongs on, e.g. `DUVAR-TUGLA-200`.
+         *
+         * Walls are separated by thickness and material rather than piled onto
+         * one `DUVAR` layer, so the layer palette can show — and hide — every
+         * 200mm brick wall as a group. That is what the palette is for, and it
+         * costs nothing to do it at the moment the wall is drawn.
+         */
+        public fun wallLayer(thicknessMm: Double, material: WallMaterial): String =
+            "$LAYER_WALL-${material.code}-${Math.round(thicknessMm)}"
+
         private const val EPSILON_MM = 1e-6
     }
+}
+
+/**
+ * What another shape may snap to.
+ *
+ * A wall offers its **centre line**, not its outline. This is the difference
+ * between two walls meeting and two walls almost meeting: the outline's corners
+ * sit half a thickness off to the side, so snapping to them leaves every
+ * junction 100mm out and no amount of care with the finger fixes it.
+ */
+public fun DrawnShape.snapSegments(): List<Segment2> = when (this) {
+    is DrawnShape.Wall -> if (centreLine().length > 0.0) listOf(centreLine()) else emptyList()
+    is DrawnShape.Line -> listOf(Segment2(a.toVec2(), b.toVec2()))
+    is DrawnShape.Rectangle -> {
+        val c = outline()
+        c.indices.map { Segment2(c[it], c[(it + 1) % c.size]) }
+    }
+    // A circle has no straight edge to meet; its centre is offered instead, as
+    // a segment of no length, which the snapper treats as a single point.
+    is DrawnShape.Circle -> listOf(Segment2(centre.toVec2(), centre.toVec2()))
 }
 
 /**

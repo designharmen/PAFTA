@@ -45,6 +45,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.harmen.pafta.R
 import com.harmen.pafta.measure.MeasurementKind
+import com.harmen.pafta.project.WallMaterial
+import com.harmen.pafta.ui.adi
 import com.harmen.pafta.ui.state.Tool
 import com.harmen.pafta.ui.theme.HarmenColours
 import com.harmen.pafta.ui.theme.HarmenType
@@ -75,6 +77,8 @@ public fun ToolRail(
     onCancelMeasurement: () -> Unit = {},
     wallThicknessMm: Double = 200.0,
     onWallThicknessSelected: (Double) -> Unit = {},
+    wallMaterial: WallMaterial = WallMaterial.BRICK,
+    onWallMaterialSelected: (WallMaterial) -> Unit = {},
     selectedShapeId: String? = null,
     onDeleteSelected: () -> Unit = {},
 ) {
@@ -110,6 +114,17 @@ public fun ToolRail(
                             text = formatLength(thickness),
                             selected = thickness == wallThicknessMm,
                             onClick = { onWallThicknessSelected(thickness) },
+                        )
+                    }
+                    Spacer(Modifier.height(3.dp))
+                    // Material is chosen before drawing too, because it decides
+                    // which layer the wall lands on — and a wall cannot change
+                    // layer after the fact without breaking what was grouped.
+                    for (material in WallMaterial.entries) {
+                        RailChip(
+                            text = material.adi(),
+                            selected = material == wallMaterial,
+                            onClick = { onWallMaterialSelected(material) },
                         )
                     }
                 }

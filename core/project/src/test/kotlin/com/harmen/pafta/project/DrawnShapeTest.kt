@@ -27,7 +27,9 @@ class DrawnShapeTest {
 
         val polyline = assertIs<DxfEntity.Polyline>(wall.toEntities().single())
         assertTrue(polyline.closed)
-        assertEquals(DrawnShape.LAYER_WALL, polyline.layer)
+        // Walls land on a layer named for what they are, so the palette can
+        // group them: 200mm brick walls together, 300mm concrete separately.
+        assertEquals("DUVAR-TUGLA-200", polyline.layer)
     }
 
     @Test
@@ -98,6 +100,36 @@ class DrawnShapeTest {
 
         assertEquals(circle, shapes.pick(Vec2(1000.0, 0.0), toleranceMm = 20.0))
         assertNull(shapes.pick(Vec2(0.0, 0.0), toleranceMm = 20.0), "the middle is empty space")
+    }
+
+    @Test
+    fun `walls are separated onto a layer by thickness and material`() {
+        assertEquals("DUVAR-TUGLA-200", DrawnShape.wallLayer(200.0, WallMaterial.BRICK))
+        assertEquals("DUVAR-BETON-300", DrawnShape.wallLayer(300.0, WallMaterial.CONCRETE))
+        // Nothing in a layer name may need an encoding a DXF file cannot carry.
+        assertTrue(
+            DrawnShape.wallLayer(100.0, WallMaterial.AERATED).all { it.code < 128 },
+            "layer names must stay ASCII",
+        )
+    }
+
+    @Test
+    fun `a wall offers its centre line to snap to, not its outline`() {
+        val wall = DrawnShape.Wall("w1", v(0.0, 0.0), v(5000.0, 0.0), thicknessMm = 200.0)
+        val segment = wall.snapSegments().single()
+
+        // The end of the centre line is where the next wall must start. The
+        // outline's corners sit 100mm off to each side; snapping to one of those
+        // leaves every junction out by half a wall.
+        assertEquals(0.0, segment.a.y, 1e-9)
+        assertEquals(0.0, segment.b.y, 1e-9)
+        assertEquals(5000.0, segment.b.x, 1e-9)
+    }
+
+    @Test
+    fun `a rectangle offers all four of its edges`() {
+        val rect = DrawnShape.Rectangle("r1", v(0.0, 0.0), v(1000.0, 500.0))
+        assertEquals(4, rect.snapSegments().size)
     }
 
     @Test
@@ -182,7 +214,10 @@ class DrawnShapePersistenceTest {
 
         assertEquals(1, doc.entityCount)
         // The wall's layer joins the palette, so it can be hidden like any other.
-        assertTrue(doc.layers.any { it.name == DrawnShape.LAYER_WALL })
+        assertTrue(
+            doc.layers.any { it.name.startsWith(DrawnShape.LAYER_WALL) },
+            "palette was ${doc.layers.map { it.name }}",
+        )
 
         root.deleteRecursively()
     }

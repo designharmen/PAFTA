@@ -9,6 +9,7 @@ import com.harmen.pafta.project.FileFormat
 import com.harmen.pafta.project.IoCause
 import com.harmen.pafta.data.UpdateFailure
 import com.harmen.pafta.project.StoreFailure
+import com.harmen.pafta.project.WallMaterial
 import com.harmen.pafta.project.UnreadableReason
 import com.harmen.pafta.ui.state.UiError
 
@@ -149,6 +150,18 @@ private fun Map<String, Int>.dokum(): String = entries
     .sortedByDescending { it.value }
     .take(6)
     .joinToString(", ") { "${it.key} (${it.value})" }
+
+/** The Turkish name of a wall material. */
+@Composable
+@ReadOnlyComposable
+public fun WallMaterial.adi(): String = stringResource(
+    when (this) {
+        WallMaterial.BRICK -> R.string.material_brick
+        WallMaterial.CONCRETE -> R.string.material_concrete
+        WallMaterial.AERATED -> R.string.material_aerated
+        WallMaterial.TIMBER -> R.string.material_timber
+    },
+)
 
 /**
  * The Turkish sentence for a failed update.

@@ -41,6 +41,10 @@
     <string name="tool_text">Metin</string>
     <string name="tool_grid">Izgara</string>
     <string name="action_delete_shape">Sil</string>
+    <string name="material_brick">Tuğla</string>
+    <string name="material_concrete">Beton</string>
+    <string name="material_aerated">Gazbeton</string>
+    <string name="material_timber">Ahşap</string>
     <string name="measure_distance">Mesafe</string>
     <string name="measure_area">Alan</string>
     <string name="measure_angle">Açı</string>

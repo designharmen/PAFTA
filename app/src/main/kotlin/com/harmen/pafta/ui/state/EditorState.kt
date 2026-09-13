@@ -12,6 +12,7 @@ import com.harmen.pafta.project.AnnotationKind
 import com.harmen.pafta.project.LayerState
 import com.harmen.pafta.project.MaterialOverride
 import com.harmen.pafta.project.StoreFailure
+import com.harmen.pafta.project.WallMaterial
 
 /**
  * The tools on the left rail, in the order they appear.
@@ -138,6 +139,8 @@ public data class EditorState(
     val selectedShapeId: String? = null,
     /** Thickness used by the wall tool, in drawing millimetres. */
     val wallThicknessMm: Double = DrawnShape.DEFAULT_WALL_THICKNESS_MM,
+    /** Material used by the wall tool; it decides which layer the wall lands on. */
+    val wallMaterial: WallMaterial = WallMaterial.BRICK,
     /** Preview of the last text the user typed, shown under the text tool. */
     val lastText: String = "",
     val gridVisible: Boolean = true,
