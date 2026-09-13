@@ -554,57 +554,89 @@ plugin versions in `settings.gradle.kts` under `pluginManagement` and requesting
 them without versions in the modules, which would also remove the per-module
 duplication the root build currently documents.
 
-## Phase ordering, after the first device test
+## The pivot: PAFTA becomes a drawing tool
 
-The plan had Phase 2 as the 3D viewer. The first real use suggests otherwise.
+The owner stopped the work mid-phase and asked for something different: study
+**Rayon** ([rayon.design](https://www.rayon.design/)) and build PAFTA to be like
+it, replanning every phase if necessary.
 
-The user's own files are DWG (AutoCAD) and RVT (Revit). DXF — the one format
-PAFTA reads — is what both of those export to, so the app is usable today only
-by asking the user to convert every file before importing it. A 3D viewer does
-not change that; **DWG reading does.**
+### What Rayon is, from its own documentation and third-party reviews
 
-The case for moving DWG earlier:
+A browser-based 2D architectural drawing tool — "the new-gen web-based tool that
+streamlines the creation of precise and aesthetic architectural 2D drawings,
+data-linked tables, and real-time collaboration". Its feature areas:
 
-- it is the format the user actually has, in volume
-- the DXF engine, measurement, annotation, layer palette and `.pafta` container
-  are already built and tested; DWG reading feeds all of them
-- LibreDWG is a C library, so it is the first phase needing the NDK — which the
-  3D viewer also needs. Doing it first derisks both.
+| Area | What it does |
+| --- | --- |
+| Drawing | walls, zones (rooms defined in one click), openings (doors and windows dropped onto walls), lines, shapes |
+| Editing | copy, move, trim, offset, scale, join, rotate |
+| Blocks | 3,000–4,000 CAD blocks — furniture, technical symbols, legends — with top, side and front views; users save their own |
+| Styles | colours, line weights, hatches, fonts, text sizes |
+| Annotation | dimensions, leaders, text, measurement |
+| Data | properties on objects, and tables generated from them (room schedule, door and window schedule) |
+| Layout | layers, pages, print |
+| Files | imports DWG, DXF, PDF; exports PNG, PDF, DWG, DXF |
+| Collaboration | real-time multi-user editing, comments, sharing |
+| AI | visualisation from a plan, and tracing an image into a vector sketch |
 
-The case against, which is real: LibreDWG is **GPL-3.0**, and linking it sets the
-licence of the whole application. That is a decision to take deliberately, not
-in passing. It is allowed under the project's licence constraint as written, but
-it should be confirmed before the work starts, not after.
+Pricing is a free tier of three models and a Pro tier at about $38 a month.
 
-Recorded as an open question rather than a decision.
+### The finding that decides PAFTA's shape
 
-## Phase 2 — 3D viewer
+**Rayon does not run on a tablet.** Its own FAQ says it is "currently compatible
+only with desktops", that tablets and phones are not optimised, and its community
+carries open requests for even a read-only viewer on mobile. Tablet support is on
+their roadmap, not in their product.
 
-- Filament `SurfaceView`, orbit/pan/zoom, wireframe and solid modes.
-- GLB/GLTF through `gltfio`.
-- Model tree from the glTF node hierarchy; layer palette drives node visibility.
-- **Exit criterion:** a GLB orbits at interactive frame rates on a device.
+So the instruction "make PAFTA like Rayon" does not mean writing a copy of
+Rayon. It means building **what Rayon is for, on the device Rayon does not
+run on** — an architect standing in a flat with a tablet, not sitting at a desk.
+That is a product position rather than an imitation, and it changes what matters:
+every tool has to work with a finger, offline, on a screen held in one hand.
 
-## Phase 3 — measurement and annotation on real geometry
+### What this does to the work already done
 
-- Ray-pick against mesh and drawing geometry, feeding `MeasurementEngine`.
-- Annotation placement, editing, persistence; screenshot and share.
-- **Exit criterion:** measure a model, save, reopen, and see the measurement.
+Almost nothing is wasted, and that is not a consolation — it is why the pivot is
+affordable. The geometry, the viewport, snapping, the undo history, auto-save,
+the `.pafta` container, the DXF reader **and writer**, the Turkish-only
+discipline and the brand system are all foundations of a drawing tool, not just
+of a viewer. What changes is the direction of travel: PAFTA stops being
+something that *shows* a drawing and becomes something that *makes* one.
 
-## Phase 4 — native formats (needs the NDK)
+The old Phases 2–6 are withdrawn. The 3D viewer in particular was a plan for a
+different product: Rayon is deliberately 2D, and the owner's own files are floor
+plans.
 
-Assimp for OBJ/STL/PLY/DAE/3DS. First phase requiring `externalNativeBuild`;
-budget time for CMake and ABI configuration.
+### The new plan
 
-## Phase 5 — BIM
+Each phase still ends with an installed, tested build, and the rules in
+`CLAUDE.md` are unchanged.
 
-IfcOpenShell for IFC, property panel, section/clipping planes, camera presets.
-Revit interoperability goes through IFC round-trip via Revit's own
-export/import — there is no free library that reads `.rvt` directly.
+| Phase | What it delivers | Rests on |
+| --- | --- | --- |
+| **A — Drawing** | Draw a wall with a real thickness, a line, a rectangle, a circle; select, move and delete what you drew; it saves into the project and exports to DXF | snapping, viewport, undo, `DxfWriter` — all built |
+| **B — Architectural objects** | Zones (a room named and measured in one tap), openings (doors and windows placed onto a wall, with width and swing) | Phase A |
+| **C — Editing** | copy, rotate, scale, offset, trim, join, multi-select | Phase A |
+| **D — Library** | Place blocks from a library; build the library by importing the office's own DXF blocks rather than shipping someone else's 3,000 | block expansion — built |
+| **E — Styles and layers** | line weights, colours, hatches, text styles; create, rename and reorder layers | layer palette — built |
+| **F — Annotation** | dimension chains, leaders, tags, text on the drawing | measurement — built in this session |
+| **G — Properties and tables** | properties on objects, and a room schedule and a door/window schedule generated from them | Phase B |
+| **H — Sheets and output** | sheets with a title block; export PDF, PNG and DXF; print | Phase A |
+| **I — DWG and PDF import** | open the files the owner actually has, without a computer in the loop | **needs the GPL-3.0 decision** |
+| **J — Sharing** | comments and shared review | **needs a decision: a server costs money every month** |
 
-## Phase 6 — and beyond
+Two phases wait on the owner rather than on engineering, and both are marked as
+such above. Phase J in particular collides with the project's own constraint —
+"no subscription, nothing that requires payment" — because real-time
+collaboration cannot exist without a server that someone pays for monthly.
+Sharing a file, or a read-only link, is a different and much cheaper thing than
+Rayon's live multi-user editing.
 
-DWG reading via LibreDWG (**decide on GPL-3.0 first** — see
-[LICENCES.md](LICENCES.md)), CuraEngine slicing, and SketchUp `.skp` reading,
-which stays marked as high-risk: the open-source parsers cover only some file
-versions.
+**AI features are deliberately absent.** Rayon's image generation and tracing run
+on paid services; the same constraint applies.
+
+### Exit criterion for the pivot as a whole
+
+An architect can stand in a room with a tablet, draw the room, place its door,
+name it, read its area, and email a PDF — without a desktop anywhere in the
+process.
