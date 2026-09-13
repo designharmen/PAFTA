@@ -53,6 +53,9 @@
     <string name="tool_measure">Ölç</string>
     <string name="tool_palette">Palet</string>
     <string name="tool_layers">Katmanlar</string>
+    <string name="tool_door">Kapı</string>
+    <string name="tool_window">Pencere</string>
+    <string name="tool_zone">Mahal</string>
 
     <!-- ===== Sağ panel bölüm başlıkları ===== -->
     <string name="panel_layers">Katman Paleti</string>
@@ -69,6 +72,25 @@
     <string name="dimension_width">Genişlik</string>
     <string name="dimension_depth">Derinlik</string>
     <string name="dimension_diameter">Çap</string>
+    <string name="dimension_sill">Denizlik</string>
+
+    <!-- ===== Kapı ve pencere ===== -->
+    <string name="panel_zone_name">Mahal adı</string>
+    <string name="zone_default_name">Mahal</string>
+    <string name="zone_area">Alan</string>
+    <string name="zone_not_closed">duvarlar kapanmıyor</string>
+    <string name="swing_title">Açılış yönü</string>
+    <string name="swing_left_in">Sol içe</string>
+    <string name="swing_left_out">Sol dışa</string>
+    <string name="swing_right_in">Sağ içe</string>
+    <string name="swing_right_out">Sağ dışa</string>
+    <string name="hint_place_on_wall">açıklığı koymak için bir duvara dokun</string>
+    <string name="hint_place_in_room">alanı ölçmek için odanın içine dokun</string>
+    <string name="opening_door_word">kapı</string>
+    <string name="opening_window_word">pencere</string>
+    <string name="error_no_wall_there">Oraya %1$s koyamam: dokunduğun yerde duvar yok. Önce duvarı çiz, sonra duvarın üstüne dokun.</string>
+    <string name="error_opening_too_wide">Bu %1$s duvardan geniş. Ya daha dar bir ölçü seç ya da duvarı uzat.</string>
+    <string name="error_not_enclosed">Burası kapalı bir oda değil. Mahal koyabilmem için duvarların çevreyi tam kapatması gerekiyor — açık kalan yeri tamamla, sonra tekrar dokun.</string>
     <string name="action_finish_chain">Bitir</string>
     <string name="panel_annotations">Not Araçları</string>
     <string name="panel_empty_layers">bu çizimde katman yok</string>

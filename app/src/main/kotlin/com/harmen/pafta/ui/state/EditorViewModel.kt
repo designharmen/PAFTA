@@ -17,19 +17,23 @@ import com.harmen.pafta.measure.SnapKind
 import com.harmen.pafta.measure.snap
 import com.harmen.pafta.project.AnnotationKind
 import com.harmen.pafta.project.AutoSavePolicy
+import com.harmen.pafta.project.DoorSwing
 import com.harmen.pafta.project.DrawingDocument
 import com.harmen.pafta.project.DrawnShape
 import com.harmen.pafta.project.LayerState
+import com.harmen.pafta.project.OpeningKind
 import com.harmen.pafta.project.PaftaProject
 import com.harmen.pafta.project.ShapeDimension
 import com.harmen.pafta.project.StoreResult
 import com.harmen.pafta.project.StoredMeasurement
 import com.harmen.pafta.project.UndoStack
 import com.harmen.pafta.project.WallMaterial
-import com.harmen.pafta.project.pick
+import com.harmen.pafta.project.pickResolved
 import com.harmen.pafta.project.snapSegments
+import com.harmen.pafta.project.toEntities
 import com.harmen.pafta.project.withDimension
 import com.harmen.pafta.project.withId
+import com.harmen.pafta.project.zonePlans
 import com.harmen.pafta.units.formatLength
 import java.io.File
 import kotlinx.coroutines.Job
@@ -272,6 +276,9 @@ public class EditorViewModel(
         when (_state.value.activeTool) {
             Tool.MEASURE -> measurePick(point, toleranceMm)
             Tool.SELECT -> selectAt(point, toleranceMm)
+            Tool.DOOR -> placeOpening(point, toleranceMm, OpeningKind.DOOR)
+            Tool.WINDOW -> placeOpening(point, toleranceMm, OpeningKind.WINDOW)
+            Tool.ZONE -> placeZone(point)
             in DRAWING_TOOLS -> drawPick(point, toleranceMm)
             else -> Unit
         }
@@ -368,8 +375,149 @@ public class EditorViewModel(
     }
 
     private fun selectAt(point: Vec2, toleranceMm: Double) {
-        val hit = _state.value.shapes.pick(point, toleranceMm)
+        // Resolved, so a tap in a doorway picks the door rather than the wall
+        // it is cut into, and a tap on the floor picks the room.
+        val hit = _state.value.shapes.pickResolved(point, toleranceMm)
         _state.update { it.copy(selectedShapeId = hit?.id) }
+    }
+
+    /**
+     * Puts a door or a window in the wall under the tap.
+     *
+     * Nothing happens on a tap that misses every wall, and the screen says why:
+     * an opening is a hole in something, so there is nowhere for one to go on
+     * open paper. That is a truthful no, not a silent one.
+     */
+    private fun placeOpening(point: Vec2, toleranceMm: Double, kind: OpeningKind) {
+        val wall = _state.value.shapes
+            .filterIsInstance<DrawnShape.Wall>()
+            .lastOrNull { shape ->
+                shape.centreLine().closestPointTo(point).distanceTo(point) <=
+                    shape.thicknessMm / 2.0 + toleranceMm
+            }
+
+        if (wall == null) {
+            _error.value = UiError.NothingToPlaceOn(kind)
+            return
+        }
+
+        val along = wall.b.toVec2() - wall.a.toVec2()
+        val length = along.length
+        if (length < 1.0) return
+        // How far down the wall the finger landed, measured along its centre
+        // line — which is the one number an opening keeps.
+        val distance = ((point - wall.a.toVec2()) dot along) / length
+
+        val width = when (kind) {
+            OpeningKind.DOOR -> _state.value.doorWidthMm
+            OpeningKind.WINDOW -> _state.value.windowWidthMm
+        }
+        if (width > length) {
+            _error.value = UiError.OpeningTooWide(kind)
+            return
+        }
+
+        val opening = DrawnShape.Opening(
+            id = newShapeId(),
+            wallId = wall.id,
+            kind = kind,
+            alongMm = distance,
+            widthMm = width,
+            heightMm = when (kind) {
+                OpeningKind.DOOR -> DrawnShape.DEFAULT_DOOR_HEIGHT_MM
+                OpeningKind.WINDOW -> DrawnShape.DEFAULT_WINDOW_HEIGHT_MM
+            },
+            sillMm = when (kind) {
+                OpeningKind.DOOR -> 0.0
+                OpeningKind.WINDOW -> DrawnShape.DEFAULT_WINDOW_SILL_MM
+            },
+            swing = _state.value.doorSwing,
+            layer = when (kind) {
+                OpeningKind.DOOR -> DrawnShape.LAYER_DOOR
+                OpeningKind.WINDOW -> DrawnShape.LAYER_WINDOW
+            },
+        )
+
+        edit { s ->
+            s.copy(shapes = s.shapes + opening, layers = s.layers.including(opening.layer))
+        }
+    }
+
+    /**
+     * Names and measures the room the tap landed in.
+     *
+     * One tap: the walls around the point are found, the floor between them is
+     * measured, and the room is there. It is given the plain word for a room
+     * until the user types over it, because a room with no name at all cannot
+     * be told from the floor it sits on.
+     */
+    private fun placeZone(point: Vec2) {
+        val zone = DrawnShape.Zone(
+            id = newShapeId(),
+            name = defaultZoneName,
+            seed = Vec3(point.x, point.y, 0.0),
+        )
+
+        // Refused rather than placed empty: a room the walls do not enclose is
+        // a mis-tap, and one that sits on the plan measuring nothing is worse
+        // than being told the walls do not close.
+        val measured = (_state.value.shapes + zone).zonePlans().first { it.id == zone.id }
+        if (measured.isOpen) {
+            _error.value = UiError.NotEnclosed
+            return
+        }
+
+        edit { s ->
+            s.copy(
+                shapes = s.shapes + zone,
+                layers = s.layers.including(zone.layer),
+                selectedShapeId = zone.id,
+            )
+        }
+    }
+
+    /**
+     * The word a new room is given until the user types over it.
+     *
+     * Set by the screen from `strings.xml`, never written here: a Turkish word
+     * in Kotlin is how English ends up on a Turkish screen. Empty until the
+     * screen sets it, which only means a new room starts unnamed.
+     */
+    public var defaultZoneName: String = ""
+
+    /** Sets the name of the selected room. */
+    public fun setSelectedName(name: String) {
+        val id = _state.value.selectedShapeId ?: return
+        edit { s ->
+            s.copy(
+                shapes = s.shapes.map {
+                    if (it.id == id && it is DrawnShape.Zone) it.copy(name = name) else it
+                },
+            )
+        }
+    }
+
+    /** Sets which way the selected door opens, and which way the next one will. */
+    public fun setDoorSwing(swing: DoorSwing) {
+        val id = _state.value.selectedShapeId
+        edit { s ->
+            s.copy(
+                doorSwing = swing,
+                shapes = s.shapes.map {
+                    if (it.id == id && it is DrawnShape.Opening) it.copy(swing = swing) else it
+                },
+            )
+        }
+    }
+
+    /** Sets the width the opening tools place with. */
+    public fun setOpeningWidth(kind: OpeningKind, millimetres: Double) {
+        _state.update {
+            when (kind) {
+                OpeningKind.DOOR -> it.copy(doorWidthMm = millimetres, activeTool = Tool.DOOR)
+                OpeningKind.WINDOW -> it.copy(windowWidthMm = millimetres, activeTool = Tool.WINDOW)
+            }
+        }
     }
 
     /** Moves the selected shape by a drawing-millimetre offset. */
@@ -690,8 +838,7 @@ private fun drawingProperties(doc: EditorDocument?, state: EditorState): List<Pr
     // The file's own entities plus everything drawn on top: what the user means
     // by "how many things are on this plan" is all of them, not just the ones
     // that arrived in the file.
-    val entities = (doc?.drawing?.entities?.size ?: 0) +
-        state.shapes.sumOf { it.toEntities().size }
+    val entities = (doc?.drawing?.entities?.size ?: 0) + state.shapes.toEntities().size
 
     return buildList {
         add(PropertyRow(R.string.property_entities, entities.toString()))

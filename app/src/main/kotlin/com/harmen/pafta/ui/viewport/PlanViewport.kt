@@ -41,11 +41,14 @@ import com.harmen.pafta.dxf.DxfTextAlign
 import com.harmen.pafta.geometry.Aabb
 import com.harmen.pafta.geometry.Vec2
 import com.harmen.pafta.geometry.Viewport2D
+import com.harmen.pafta.geometry.tessellateArc
 import com.harmen.pafta.measure.Measurement
 import com.harmen.pafta.measure.MeasurementDisplay
 import com.harmen.pafta.measure.label
 import com.harmen.pafta.project.LayerState
+import com.harmen.pafta.project.OpeningPlan
 import com.harmen.pafta.project.WallBand
+import com.harmen.pafta.project.ZonePlan
 import com.harmen.pafta.ui.theme.HarmenColours
 import com.harmen.pafta.ui.theme.HarmenType
 import kotlin.math.atan2
@@ -93,6 +96,24 @@ public fun PlanViewport(
      * lines crossing in the corner.
      */
     walls: List<WallBand> = emptyList(),
+    /**
+     * Doors and windows, already worked out against the walls they are in.
+     *
+     * They are handed in beside the walls rather than with them because each
+     * one takes a piece out of a wall before anything is drawn: a doorway is a
+     * hole, and a hole drawn on top of a wall is a rectangle on a wall.
+     */
+    openings: List<OpeningPlan> = emptyList(),
+    /** Rooms, with the floor they cover and what to write on it. */
+    zones: List<ZonePlan> = emptyList(),
+    /**
+     * The name and area written on a room, already in Turkish.
+     *
+     * Worked out by the screen, not here: the words and the way a number is
+     * written belong in `strings.xml` and in the unit settings, and the
+     * viewport knows neither.
+     */
+    zoneLabel: (ZonePlan) -> List<String> = { emptyList() },
     /** The selected shape's geometry, drawn again on top in the accent colour. */
     highlighted: List<DxfEntity> = emptyList(),
     /** The selected wall, whose band is outlined in the accent colour. */
@@ -219,8 +240,11 @@ public fun PlanViewport(
             drawEntities(drawing.entities, layers, v)
             // What the user drew is linework like any other: same layer rules,
             // same visibility, same opacity.
+            // Floors go under everything: a room is what the walls stand on.
+            if (zones.isNotEmpty()) drawZones(zones, layers, v, measurer, zoneLabel)
             if (drawn.isNotEmpty()) drawEntities(drawn, layers, v)
-            if (walls.isNotEmpty()) drawWalls(walls, layers, v, highlightedWallId)
+            if (walls.isNotEmpty()) drawWalls(walls, layers, v, highlightedWallId, openings)
+            if (openings.isNotEmpty()) drawOpenings(openings, layers, v, highlightedWallId)
             drawDrawingText(drawing, layers, v, measurer)
             measurements.forEach { drawMeasurement(it, v, display, measurer) }
             // Selection is drawn over the linework rather than instead of it, so
@@ -308,6 +332,7 @@ private fun DrawScope.drawWalls(
     layers: List<LayerState>,
     v: Viewport2D,
     selectedId: String?,
+    openings: List<OpeningPlan>,
 ) {
     val byName = layers.associateBy { it.name }
 
@@ -355,6 +380,19 @@ private fun DrawScope.drawWalls(
             }
         }
 
+        // Every doorway and window takes its piece out before anything is
+        // drawn, so the wall has real holes in it rather than symbols painted
+        // over a solid band.
+        for (opening in openings) {
+            if (opening.cut.size < 3) continue
+            val cut = Path()
+            if (cut.op(merged, pathOf(opening.cut), PathOperation.Difference)) {
+                merged = cut
+            } else {
+                mergedCleanly = false
+            }
+        }
+
         drawPath(merged, colour.copy(alpha = colour.alpha * 0.45f))
         if (mergedCleanly) {
             drawPath(merged, colour, style = Stroke(width = 1.2f, cap = StrokeCap.Round))
@@ -369,6 +407,124 @@ private fun DrawScope.drawWalls(
                 HarmenColours.Accent,
                 style = Stroke(width = 1.6f, cap = StrokeCap.Round),
             )
+        }
+    }
+}
+
+/**
+ * Doors and windows: the frame, the glass or the leaf, and the swing.
+ *
+ * The hole itself was already taken out of the wall, so what is drawn here is
+ * only what stands in the hole.
+ */
+private fun DrawScope.drawOpenings(
+    openings: List<OpeningPlan>,
+    layers: List<LayerState>,
+    v: Viewport2D,
+    selectedId: String?,
+) {
+    val byName = layers.associateBy { it.name }
+
+    for (opening in openings) {
+        val state = byName[opening.layer]
+        if (state != null && !state.visible) continue
+        val alpha = (state?.opacity ?: 1.0).toFloat()
+        if (alpha <= 0.01f) continue
+
+        val base = (state?.colour?.let { parseHex(it) } ?: HarmenColours.Linework)
+            .let { it.copy(alpha = it.alpha * alpha) }
+        val colour = if (opening.id == selectedId) HarmenColours.Accent else base
+
+        for (line in opening.jambs + opening.leaf) {
+            val a = v.toScreen(line.a)
+            val b = v.toScreen(line.b)
+            drawLine(
+                colour,
+                Offset(a.x.toFloat(), a.y.toFloat()),
+                Offset(b.x.toFloat(), b.y.toFloat()),
+                strokeWidth = 1.2f,
+            )
+        }
+
+        opening.swing?.let { arc ->
+            // Thinner and quieter than the leaf: the swing is where the door
+            // will be, not where it is.
+            val points = tessellateArc(
+                arc.centre,
+                arc.radiusMm,
+                Math.toRadians(arc.startDegrees),
+                Math.toRadians(arc.endDegrees),
+                segments = 24,
+            )
+            val path = Path()
+            val first = v.toScreen(points.first())
+            path.moveTo(first.x.toFloat(), first.y.toFloat())
+            for (k in 1 until points.size) {
+                val p = v.toScreen(points[k])
+                path.lineTo(p.x.toFloat(), p.y.toFloat())
+            }
+            drawPath(path, colour.copy(alpha = colour.alpha * 0.6f), style = Stroke(width = 1f))
+        }
+    }
+}
+
+/**
+ * Rooms: the floor, and its name and area written in the middle.
+ *
+ * A room whose walls no longer close is not drawn as a shape at all — there is
+ * no shape — but its name is still written where the user put it, so nothing
+ * they typed disappears while they are still building the walls.
+ */
+private fun DrawScope.drawZones(
+    zones: List<ZonePlan>,
+    layers: List<LayerState>,
+    v: Viewport2D,
+    measurer: TextMeasurer,
+    label: (ZonePlan) -> List<String>,
+) {
+    val byName = layers.associateBy { it.name }
+
+    for (zone in zones) {
+        val state = byName[zone.layer]
+        if (state != null && !state.visible) continue
+        val alpha = (state?.opacity ?: 1.0).toFloat()
+        if (alpha <= 0.01f) continue
+
+        if (zone.outline.size >= 3) {
+            val path = Path()
+            val first = v.toScreen(zone.outline.first())
+            path.moveTo(first.x.toFloat(), first.y.toFloat())
+            for (k in 1 until zone.outline.size) {
+                val p = v.toScreen(zone.outline[k])
+                path.lineTo(p.x.toFloat(), p.y.toFloat())
+            }
+            path.close()
+            // Barely there: a floor is a wash the linework sits on, not a
+            // colour that competes with it.
+            drawPath(path, HarmenColours.Accent.copy(alpha = 0.07f * alpha))
+        }
+
+        val lines = label(zone)
+        if (lines.isEmpty()) continue
+
+        val at = v.toScreen(zone.anchor)
+        var y = at.y - (lines.size - 1) * 9.0
+        for ((index, text) in lines.withIndex()) {
+            drawLabel(
+                text = text,
+                at = Vec2(at.x, y),
+                style = HarmenType.RoomLabel.copy(
+                    color = if (index == 0) {
+                        HarmenColours.Text.copy(alpha = 0.75f * alpha)
+                    } else {
+                        HarmenColours.TextMuted.copy(alpha = alpha)
+                    },
+                ),
+                measurer = measurer,
+                centred = true,
+                background = null,
+            )
+            y += 18.0
         }
     }
 }

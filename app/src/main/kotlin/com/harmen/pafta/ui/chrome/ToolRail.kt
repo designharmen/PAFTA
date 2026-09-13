@@ -1,5 +1,6 @@
 package com.harmen.pafta.ui.chrome
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -18,6 +19,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Architecture
 import androidx.compose.material.icons.outlined.Circle
+import androidx.compose.material.icons.outlined.Dashboard
+import androidx.compose.material.icons.outlined.DoorFront
 import androidx.compose.material.icons.outlined.Crop169
 import androidx.compose.material.icons.outlined.GridOn
 import androidx.compose.material.icons.outlined.Layers
@@ -28,6 +31,7 @@ import androidx.compose.material.icons.outlined.SquareFoot
 import androidx.compose.material.icons.outlined.Straighten
 import androidx.compose.material.icons.outlined.TextFields
 import androidx.compose.material.icons.outlined.Texture
+import androidx.compose.material.icons.outlined.Window
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -45,6 +49,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.harmen.pafta.R
 import com.harmen.pafta.measure.MeasurementKind
+import com.harmen.pafta.project.OpeningKind
 import com.harmen.pafta.project.WallMaterial
 import com.harmen.pafta.ui.adi
 import com.harmen.pafta.ui.state.Tool
@@ -82,6 +87,9 @@ public fun ToolRail(
     selectedShapeId: String? = null,
     onDeleteSelected: () -> Unit = {},
     onFinishChain: () -> Unit = {},
+    doorWidthMm: Double = 900.0,
+    windowWidthMm: Double = 1200.0,
+    onOpeningWidthSelected: (OpeningKind, Double) -> Unit = { _, _ -> },
 ) {
     Column(
         modifier = modifier
@@ -128,6 +136,34 @@ public fun ToolRail(
                             onClick = { onWallMaterialSelected(material) },
                         )
                     }
+                }
+            }
+            // An opening is placed, not drawn, so the one thing it needs before
+            // it is placed is how wide it is — and the one thing the user needs
+            // is to be told where to tap.
+            if (tool == activeTool && tool in OPENING_TOOLS && !compact) {
+                val kind = if (tool == Tool.DOOR) OpeningKind.DOOR else OpeningKind.WINDOW
+                val chosen = if (kind == OpeningKind.DOOR) doorWidthMm else windowWidthMm
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(3.dp),
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 5.dp, vertical = 4.dp),
+                ) {
+                    for (width in if (kind == OpeningKind.DOOR) DOOR_WIDTHS_MM else WINDOW_WIDTHS_MM) {
+                        RailChip(
+                            text = formatLength(width),
+                            selected = width == chosen,
+                            onClick = { onOpeningWidthSelected(kind, width) },
+                        )
+                    }
+                    RailNote(R.string.hint_place_on_wall)
+                }
+            }
+            // The room tool has nothing to set, only somewhere to tap.
+            if (tool == Tool.ZONE && activeTool == Tool.ZONE && !compact) {
+                Column(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 5.dp, vertical = 4.dp),
+                ) {
+                    RailNote(R.string.hint_place_in_room)
                 }
             }
             // A run of walls has to be able to stop. Switching tool ends it too,
@@ -338,6 +374,9 @@ private fun Tool.icon(): ImageVector = when (this) {
     Tool.LINE -> Icons.Outlined.ShowChart
     Tool.RECTANGLE -> Icons.Outlined.Crop169
     Tool.CIRCLE -> Icons.Outlined.Circle
+    Tool.DOOR -> Icons.Outlined.DoorFront
+    Tool.WINDOW -> Icons.Outlined.Window
+    Tool.ZONE -> Icons.Outlined.Dashboard
     Tool.MEASURE -> Icons.Outlined.SquareFoot
     Tool.GRID -> Icons.Outlined.GridOn
     Tool.ARC -> Icons.Outlined.Architecture
@@ -352,3 +391,29 @@ private val CHAINABLE = setOf(Tool.WALL, Tool.LINE)
 
 /** The wall thicknesses a plan is actually drawn with, in millimetres. */
 private val WALL_THICKNESSES_MM = listOf(100.0, 200.0, 300.0)
+
+/** Tools that put an opening in a wall. */
+private val OPENING_TOOLS = setOf(Tool.DOOR, Tool.WINDOW)
+
+/** Door leaf widths as they are actually ordered. */
+private val DOOR_WIDTHS_MM = listOf(700.0, 800.0, 900.0, 1000.0)
+
+/** Window widths, the same way. */
+private val WINDOW_WIDTHS_MM = listOf(600.0, 900.0, 1200.0, 1800.0)
+
+/**
+ * A line of guidance under a tool.
+ *
+ * Placing needs a target, and a tool that waits silently for a tap somewhere
+ * particular is a tool that does nothing when you tap the wrong place.
+ */
+@Composable
+private fun RailNote(@StringRes text: Int) {
+    Text(
+        text = stringResource(text),
+        style = HarmenType.Status,
+        color = HarmenColours.TextFaint,
+        textAlign = TextAlign.Center,
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 2.dp, vertical = 5.dp),
+    )
+}

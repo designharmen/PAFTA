@@ -64,7 +64,9 @@ public fun PaftaProject.openAsDrawing(): StoreResult<DrawingDocument> {
     // screen unchanged while the live one moved. Changing a wall's length then
     // appeared to do nothing until the project was closed and opened again,
     // because the stale copy was still there underneath.
-    val drawn = shapes.flatMap { it.toEntities() }
+    // The list's own, not each shape's: a door and a room have no geometry
+    // until they are put next to the walls they belong to.
+    val drawn = shapes.toEntities()
     val merged =
         if (drawn.isEmpty()) drawing else drawing.copy(entities = drawing.entities + drawn)
 

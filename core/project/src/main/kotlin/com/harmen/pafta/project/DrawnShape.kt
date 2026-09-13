@@ -35,6 +35,20 @@ public enum class WallMaterial(public val code: String) {
     TIMBER("AHSAP"),
 }
 
+/** What an opening in a wall is. */
+@Serializable
+public enum class OpeningKind { DOOR, WINDOW }
+
+/**
+ * Which jamb a door is hinged on, and which side of the wall it opens to.
+ *
+ * Four choices rather than two settings, because this is the one property of a
+ * door everybody draws by pointing at it, and a screen with two dropdowns for
+ * something you could point at is the kind of thing this project is against.
+ */
+@Serializable
+public enum class DoorSwing { LEFT_IN, LEFT_OUT, RIGHT_IN, RIGHT_OUT }
+
 @Serializable
 public sealed interface DrawnShape {
     public val id: String
@@ -167,12 +181,85 @@ public sealed interface DrawnShape {
             copy(centre = Vec3(centre.x + dx, centre.y + dy, centre.z))
     }
 
+    /**
+     * A door or a window, in a wall.
+     *
+     * It does not carry its own position on the sheet: it carries which wall it
+     * is in and how far along that wall it sits. That is what keeps a door in
+     * its doorway when the wall is moved or made longer, which is the whole
+     * reason an opening is an object rather than a hole drawn by hand.
+     */
+    @Serializable
+    @SerialName("aciklik")
+    public data class Opening(
+        override val id: String,
+        /** The [Wall] this is cut into. */
+        val wallId: String,
+        val kind: OpeningKind,
+        /** From the wall's start, along its centre line, to the middle of the opening. */
+        val alongMm: Double,
+        val widthMm: Double = DEFAULT_DOOR_WIDTH_MM,
+        val heightMm: Double = DEFAULT_DOOR_HEIGHT_MM,
+        /** Height of the sill above the floor. A door sits on the floor: zero. */
+        val sillMm: Double = 0.0,
+        val swing: DoorSwing = DoorSwing.LEFT_IN,
+        override val layer: String = LAYER_DOOR,
+    ) : DrawnShape {
+
+        /**
+         * Nothing on its own.
+         *
+         * An opening is a shape in a wall, and it cannot draw itself without
+         * knowing which wall: where its jambs are and which way its door swings
+         * both come from the wall's line and thickness. `List<DrawnShape>`
+         * resolves it — see `openingPlans`.
+         */
+        override fun toEntities(): List<DxfEntity> = emptyList()
+
+        /** Moves with its wall, so moving it on its own would tear it out of one. */
+        override fun translated(dx: Double, dy: Double): DrawnShape = this
+    }
+
+    /**
+     * A room: named, and measured from the walls around it.
+     *
+     * It stores the point the user tapped, not the outline. The outline is
+     * worked out from the walls every time it is needed, so moving a wall
+     * changes the room and its area with it — which is what an architect
+     * expects and what a stored outline could never do.
+     */
+    @Serializable
+    @SerialName("mahal")
+    public data class Zone(
+        override val id: String,
+        val name: String = "",
+        /** Where the user tapped inside the room. */
+        @Serializable(with = Vec3Serializer::class) val seed: Vec3,
+        override val layer: String = LAYER_ZONE,
+    ) : DrawnShape {
+
+        /** Derived from the walls, like the outline. See `zonePlans`. */
+        override fun toEntities(): List<DxfEntity> = emptyList()
+
+        override fun translated(dx: Double, dy: Double): DrawnShape =
+            copy(seed = Vec3(seed.x + dx, seed.y + dy, seed.z))
+    }
+
     public companion object {
         /** A 20cm interior wall: the thickness most plans start from. */
         public const val DEFAULT_WALL_THICKNESS_MM: Double = 200.0
 
         /** A storey height, which is what a wall is unless it is told otherwise. */
         public const val DEFAULT_WALL_HEIGHT_MM: Double = 2800.0
+
+        /** A room door. */
+        public const val DEFAULT_DOOR_WIDTH_MM: Double = 900.0
+        public const val DEFAULT_DOOR_HEIGHT_MM: Double = 2100.0
+
+        /** A room window, and how high off the floor it starts. */
+        public const val DEFAULT_WINDOW_WIDTH_MM: Double = 1200.0
+        public const val DEFAULT_WINDOW_HEIGHT_MM: Double = 1400.0
+        public const val DEFAULT_WINDOW_SILL_MM: Double = 900.0
 
         /**
          * Layer names for what PAFTA draws.
@@ -184,6 +271,9 @@ public sealed interface DrawnShape {
          */
         public const val LAYER_WALL: String = "DUVAR"
         public const val LAYER_DRAWING: String = "CIZIM"
+        public const val LAYER_DOOR: String = "KAPI"
+        public const val LAYER_WINDOW: String = "PENCERE"
+        public const val LAYER_ZONE: String = "MAHAL"
 
         /**
          * The layer a wall belongs on, e.g. `DUVAR-TUGLA-200`.
@@ -209,7 +299,8 @@ public val DrawnShape.lengthMm: Double?
         is DrawnShape.Wall -> a.toVec2().distanceTo(b.toVec2())
         is DrawnShape.Line -> a.toVec2().distanceTo(b.toVec2())
         is DrawnShape.Circle -> radiusMm * 2.0
-        is DrawnShape.Rectangle -> null
+        is DrawnShape.Opening -> widthMm
+        is DrawnShape.Rectangle, is DrawnShape.Zone -> null
     }
 
 /**
@@ -240,7 +331,8 @@ public fun DrawnShape.withLength(millimetres: Double): DrawnShape {
         is DrawnShape.Wall -> copy(b = stretched(a, b))
         is DrawnShape.Line -> copy(b = stretched(a, b))
         is DrawnShape.Circle -> copy(radiusMm = millimetres / 2.0)
-        is DrawnShape.Rectangle -> this
+        is DrawnShape.Opening -> copy(widthMm = millimetres)
+        is DrawnShape.Rectangle, is DrawnShape.Zone -> this
     }
 }
 
@@ -269,6 +361,9 @@ public enum class ShapeDimension {
 
     /** A circle, edge to edge through the middle. */
     DIAMETER,
+
+    /** How high above the floor a window starts. */
+    SILL,
 }
 
 /**
@@ -294,6 +389,23 @@ public fun DrawnShape.dimensions(): Map<ShapeDimension, Double> = when (this) {
     )
 
     is DrawnShape.Circle -> linkedMapOf(ShapeDimension.DIAMETER to radiusMm * 2.0)
+
+    // A door has no sill, so it is not offered one: floor level is not a
+    // setting, it is where doors are.
+    is DrawnShape.Opening -> when (kind) {
+        OpeningKind.DOOR -> linkedMapOf(
+            ShapeDimension.WIDTH to widthMm,
+            ShapeDimension.HEIGHT to heightMm,
+        )
+        OpeningKind.WINDOW -> linkedMapOf(
+            ShapeDimension.WIDTH to widthMm,
+            ShapeDimension.HEIGHT to heightMm,
+            ShapeDimension.SILL to sillMm,
+        )
+    }
+
+    // A room is measured, not set: its size comes from the walls around it.
+    is DrawnShape.Zone -> emptyMap()
 }
 
 /**
@@ -341,6 +453,15 @@ public fun DrawnShape.withDimension(which: ShapeDimension, millimetres: Double):
 
         is DrawnShape.Circle ->
             if (which == ShapeDimension.DIAMETER) copy(radiusMm = millimetres / 2.0) else this
+
+        is DrawnShape.Opening -> when (which) {
+            ShapeDimension.WIDTH -> copy(widthMm = millimetres)
+            ShapeDimension.HEIGHT -> copy(heightMm = millimetres)
+            ShapeDimension.SILL -> copy(sillMm = millimetres)
+            else -> this
+        }
+
+        is DrawnShape.Zone -> this
     }
 }
 
@@ -356,6 +477,8 @@ public fun DrawnShape.withId(id: String): DrawnShape = when (this) {
     is DrawnShape.Line -> copy(id = id)
     is DrawnShape.Rectangle -> copy(id = id)
     is DrawnShape.Circle -> copy(id = id)
+    is DrawnShape.Opening -> copy(id = id)
+    is DrawnShape.Zone -> copy(id = id)
 }
 
 /**
@@ -376,6 +499,9 @@ public fun DrawnShape.snapSegments(): List<Segment2> = when (this) {
     // A circle has no straight edge to meet; its centre is offered instead, as
     // a segment of no length, which the snapper treats as a single point.
     is DrawnShape.Circle -> listOf(Segment2(centre.toVec2(), centre.toVec2()))
+    // Neither is a thing to snap to: an opening is a hole in a wall that is
+    // already offering its centre line, and a room is the space between them.
+    is DrawnShape.Opening, is DrawnShape.Zone -> emptyList()
 }
 
 /**
@@ -445,7 +571,7 @@ public fun List<DrawnShape>.wallBands(): List<WallBand> {
  * that were not are out by far more than this. Loose enough to survive a
  * rounding, tight enough that two walls a finger apart are still two walls.
  */
-private const val JOIN_TOLERANCE_MM = 1.0
+internal const val JOIN_TOLERANCE_MM = 1.0
 
 /**
  * The shape under a tap, or null.
@@ -479,6 +605,11 @@ public fun List<DrawnShape>.pick(at: Vec2, toleranceMm: Double): DrawnShape? {
                 val fromCentre = shape.centre.toVec2().distanceTo(at)
                 abs(fromCentre - shape.radiusMm) <= toleranceMm
             }
+
+            // Both are picked through what they are drawn from — an opening
+            // through its wall, a room through its outline — which needs the
+            // whole drawing, not one shape. `pickResolved` does that.
+            is DrawnShape.Opening, is DrawnShape.Zone -> false
         }
         if (hit) return shape
     }

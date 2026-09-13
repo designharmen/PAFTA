@@ -52,8 +52,11 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.harmen.pafta.R
 import com.harmen.pafta.project.AnnotationKind
+import com.harmen.pafta.project.DoorSwing
 import com.harmen.pafta.project.LayerState
 import com.harmen.pafta.project.ShapeDimension
+import com.harmen.pafta.project.ZonePlan
+import com.harmen.pafta.units.formatArea
 import com.harmen.pafta.ui.adi
 import com.harmen.pafta.ui.state.MaterialSwatch
 import com.harmen.pafta.ui.state.PropertyRow
@@ -88,6 +91,12 @@ public fun RightPanel(
     onSelectedDimensionChanged: (ShapeDimension, Double) -> Unit = { _, _ -> },
     /** Makes a second component from the selected one, to be edited from there. */
     onDuplicateSelected: () -> Unit = {},
+    /** The selected room, when one is selected: its name, and what it measures. */
+    selectedZone: ZonePlan? = null,
+    onSelectedNameChanged: (String) -> Unit = {},
+    /** Which way the selected door opens; null when what is selected is not a door. */
+    selectedSwing: DoorSwing? = null,
+    onSwingSelected: (DoorSwing) -> Unit = {},
 ) {
     Column(
         modifier = modifier
@@ -139,7 +148,7 @@ public fun RightPanel(
             }
         }
 
-        if (selectedShapeId != null && selectedDimensions.isNotEmpty()) {
+        if (selectedShapeId != null && (selectedDimensions.isNotEmpty() || selectedZone != null)) {
             Section(R.string.panel_selected) {
                 for ((which, value) in selectedDimensions) {
                     MeasurementField(
@@ -149,6 +158,32 @@ public fun RightPanel(
                         onChanged = { onSelectedDimensionChanged(which, it) },
                     )
                 }
+
+                if (selectedZone != null) {
+                    NameField(
+                        key = selectedShapeId,
+                        name = selectedZone.name,
+                        onNameChanged = onSelectedNameChanged,
+                    )
+                    // Read-only on purpose: a room's area is what the walls
+                    // leave, and typing over it would be typing over the plan.
+                    PropertyTableRow(
+                        PropertyRow(
+                            R.string.zone_area,
+                            if (selectedZone.isOpen) {
+                                stringResource(R.string.zone_not_closed)
+                            } else {
+                                formatArea(selectedZone.areaMm2)
+                            },
+                            numeric = !selectedZone.isOpen,
+                        ),
+                    )
+                }
+
+                if (selectedSwing != null) {
+                    SwingChooser(selectedSwing, onSwingSelected)
+                }
+
                 PanelButton(R.string.action_duplicate, onDuplicateSelected)
             }
         }
@@ -234,6 +269,110 @@ private fun MeasurementField(
     }
 }
 
+/**
+ * The selected room's name.
+ *
+ * A plain text field rather than a number one: a room is called `Salon`, and a
+ * keyboard that only offers digits would make that impossible to type.
+ */
+@Composable
+private fun NameField(key: String, name: String, onNameChanged: (String) -> Unit) {
+    var text by remember(key, name) { mutableStateOf(name) }
+
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 4.dp),
+    ) {
+        Text(
+            text = stringResource(R.string.panel_zone_name),
+            style = HarmenType.PropertyKey,
+            color = HarmenColours.TextMuted,
+            modifier = Modifier.weight(1f),
+        )
+        Box(
+            contentAlignment = Alignment.CenterEnd,
+            modifier = Modifier
+                .width(132.dp)
+                .clip(RoundedCornerShape(metrics.cornerRadius))
+                .background(HarmenColours.PanelRaised)
+                .drawBehind {
+                    drawRect(color = HarmenColours.Accent, style = Stroke(width = 1.dp.toPx()))
+                }
+                .padding(horizontal = 6.dp, vertical = 7.dp),
+        ) {
+            BasicTextField(
+                value = text,
+                onValueChange = { text = it },
+                singleLine = true,
+                textStyle = HarmenType.Body.copy(
+                    color = HarmenColours.Text,
+                    textAlign = TextAlign.End,
+                ),
+                cursorBrush = SolidColor(HarmenColours.Accent),
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                keyboardActions = KeyboardActions(onDone = { onNameChanged(text.trim()) }),
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+    }
+}
+
+/**
+ * Which jamb the door hangs on and which way it opens.
+ *
+ * Four buttons rather than two settings, because this is something an architect
+ * decides by looking at the plan, and four things to look at beats two things
+ * to reason about.
+ */
+@Composable
+private fun SwingChooser(selected: DoorSwing, onSelected: (DoorSwing) -> Unit) {
+    Text(
+        text = stringResource(R.string.swing_title),
+        style = HarmenType.PropertyKey,
+        color = HarmenColours.TextMuted,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 4.dp, end = 4.dp, top = 8.dp, bottom = 4.dp),
+    )
+    Column(Modifier.fillMaxWidth()) {
+        for (row in DoorSwing.entries.chunked(2)) {
+            Row(Modifier.fillMaxWidth()) {
+                for (swing in row) {
+                    Text(
+                        text = stringResource(swing.label),
+                        style = HarmenType.PropertyKey,
+                        color = if (swing == selected) HarmenColours.Text else HarmenColours.TextMuted,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(horizontal = 4.dp, vertical = 3.dp)
+                            .clip(RoundedCornerShape(metrics.cornerRadius))
+                            .background(
+                                if (swing == selected) {
+                                    HarmenColours.SelectedWash
+                                } else {
+                                    HarmenColours.PanelRaised
+                                },
+                            )
+                            .clickable(role = Role.Button) { onSelected(swing) }
+                            .height(44.dp)
+                            .padding(vertical = 13.dp),
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** The Turkish name of a swing direction. */
+private val DoorSwing.label: Int
+    @StringRes get() = when (this) {
+        DoorSwing.LEFT_IN -> R.string.swing_left_in
+        DoorSwing.LEFT_OUT -> R.string.swing_left_out
+        DoorSwing.RIGHT_IN -> R.string.swing_right_in
+        DoorSwing.RIGHT_OUT -> R.string.swing_right_out
+    }
+
 /** The Turkish word for a measurement. Never a literal in code. */
 private val ShapeDimension.label: Int
     @StringRes get() = when (this) {
@@ -243,6 +382,7 @@ private val ShapeDimension.label: Int
         ShapeDimension.WIDTH -> R.string.dimension_width
         ShapeDimension.DEPTH -> R.string.dimension_depth
         ShapeDimension.DIAMETER -> R.string.dimension_diameter
+        ShapeDimension.SILL -> R.string.dimension_sill
     }
 
 /** A full-width action inside a panel section. */

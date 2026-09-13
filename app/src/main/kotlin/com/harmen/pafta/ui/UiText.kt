@@ -11,6 +11,7 @@ import com.harmen.pafta.data.UpdateFailure
 import com.harmen.pafta.project.StoreFailure
 import com.harmen.pafta.project.WallMaterial
 import com.harmen.pafta.project.UnreadableReason
+import com.harmen.pafta.project.OpeningKind
 import com.harmen.pafta.ui.state.UiError
 
 /**
@@ -186,7 +187,20 @@ public fun UpdateFailure.mesaj(): String = stringResource(
 public fun UiError.mesaj(): String = when (this) {
     is UiError.Store -> failure.mesaj()
     is UiError.SaveFailed -> stringResource(R.string.error_save_failed, failure.mesaj())
+    is UiError.NothingToPlaceOn -> stringResource(R.string.error_no_wall_there, kind.adi())
+    is UiError.OpeningTooWide -> stringResource(R.string.error_opening_too_wide, kind.adi())
+    UiError.NotEnclosed -> stringResource(R.string.error_not_enclosed)
 }
+
+/** "kapı" or "pencere", for a sentence that needs the word. */
+@Composable
+@ReadOnlyComposable
+public fun OpeningKind.adi(): String = stringResource(
+    when (this) {
+        OpeningKind.DOOR -> R.string.opening_door_word
+        OpeningKind.WINDOW -> R.string.opening_window_word
+    },
+)
 
 /**
  * What the user can do today about a format PAFTA cannot yet open.

@@ -7,10 +7,12 @@ import com.harmen.pafta.measure.Measurement
 import com.harmen.pafta.measure.MeasurementDisplay
 import com.harmen.pafta.measure.MeasurementKind
 import com.harmen.pafta.project.Annotation
+import com.harmen.pafta.project.DoorSwing
 import com.harmen.pafta.project.DrawnShape
 import com.harmen.pafta.project.AnnotationKind
 import com.harmen.pafta.project.LayerState
 import com.harmen.pafta.project.MaterialOverride
+import com.harmen.pafta.project.OpeningKind
 import com.harmen.pafta.project.StoreFailure
 import com.harmen.pafta.project.WallMaterial
 
@@ -38,6 +40,9 @@ public enum class Tool(
     LINE(R.string.tool_line, ready = true),
     RECTANGLE(R.string.tool_rectangle, ready = true),
     CIRCLE(R.string.tool_circle, ready = true),
+    DOOR(R.string.tool_door, ready = true),
+    WINDOW(R.string.tool_window, ready = true),
+    ZONE(R.string.tool_zone, ready = true),
     MEASURE(R.string.tool_measure, ready = true),
     GRID(R.string.tool_grid, ready = true),
     ARC(R.string.tool_arc),
@@ -55,6 +60,15 @@ public enum class Tool(
  * that sees the finger.
  */
 public val DRAWING_TOOLS: Set<Tool> = setOf(Tool.WALL, Tool.LINE, Tool.RECTANGLE, Tool.CIRCLE)
+
+/**
+ * Tools that put an object somewhere rather than draw a shape.
+ *
+ * A door is not dragged out to a size: it is a component, so it is placed with
+ * one tap on the wall it belongs in and then given its numbers. The same is
+ * true of a room, which is placed by tapping the floor it covers.
+ */
+public val PLACING_TOOLS: Set<Tool> = setOf(Tool.DOOR, Tool.WINDOW, Tool.ZONE)
 
 /** The tab group in the second row of the top bar. */
 public enum class ViewTab(@StringRes public val label: Int) {
@@ -109,6 +123,20 @@ public sealed interface UiError {
 
     /** A save failed, which needs saying differently: work is still unsaved. */
     public data class SaveFailed(val failure: StoreFailure) : UiError
+
+    /**
+     * A door or a window was put down where there is no wall.
+     *
+     * Data, not a sentence: which kind it was, so `UiText` can say "kapı" or
+     * "pencere" without an English word ever being written in Kotlin.
+     */
+    public data class NothingToPlaceOn(val kind: OpeningKind) : UiError
+
+    /** The opening does not fit in the wall it was put in. */
+    public data class OpeningTooWide(val kind: OpeningKind) : UiError
+
+    /** The tap for a room did not land inside walls that close. */
+    public data object NotEnclosed : UiError
 }
 
 /**
@@ -165,6 +193,12 @@ public data class EditorState(
     val wallThicknessMm: Double = DrawnShape.DEFAULT_WALL_THICKNESS_MM,
     /** Material used by the wall tool; it decides which layer the wall lands on. */
     val wallMaterial: WallMaterial = WallMaterial.BRICK,
+    /** Width the door tool places with, in drawing millimetres. */
+    val doorWidthMm: Double = DrawnShape.DEFAULT_DOOR_WIDTH_MM,
+    /** Width the window tool places with. */
+    val windowWidthMm: Double = DrawnShape.DEFAULT_WINDOW_WIDTH_MM,
+    /** Which jamb a placed door hangs on, and which way it opens. */
+    val doorSwing: DoorSwing = DoorSwing.LEFT_IN,
     /** Preview of the last text the user typed, shown under the text tool. */
     val lastText: String = "",
     val gridVisible: Boolean = true,

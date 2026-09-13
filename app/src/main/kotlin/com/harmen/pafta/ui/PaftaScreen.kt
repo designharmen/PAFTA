@@ -8,18 +8,26 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.harmen.pafta.R
 import com.harmen.pafta.dxf.DxfDrawing
 import com.harmen.pafta.geometry.Aabb
 import com.harmen.pafta.ui.chrome.HairlineDivider
 import com.harmen.pafta.ui.chrome.PaftaTopBar
 import com.harmen.pafta.project.DrawnShape
+import com.harmen.pafta.project.OpeningKind
 import com.harmen.pafta.project.dimensions
+import com.harmen.pafta.project.openingPlans
+import com.harmen.pafta.project.zonePlans
 import com.harmen.pafta.project.lengthMm
 import com.harmen.pafta.project.wallBands
+import com.harmen.pafta.units.AreaUnit
+import com.harmen.pafta.units.formatArea
 import com.harmen.pafta.units.formatLength
 import com.harmen.pafta.ui.chrome.RightPanel
 import com.harmen.pafta.ui.chrome.ToolRail
@@ -54,6 +62,12 @@ public fun PaftaScreen(
     onMenu: (TopMenu) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
+    // Turkish words the view model needs but must never contain: a literal in
+    // Kotlin is how English reaches a Turkish screen.
+    val newRoomName = stringResource(R.string.zone_default_name)
+    val openRoomNote = stringResource(R.string.zone_not_closed)
+    LaunchedEffect(newRoomName) { viewModel.defaultZoneName = newRoomName }
+
     BoxWithConstraints(modifier.fillMaxSize().background(HarmenColours.Ground)) {
         val compact = maxWidth < COMPACT_WIDTH
         val showInspector = maxWidth >= INSPECTOR_WIDTH
@@ -95,8 +109,15 @@ public fun PaftaScreen(
                         selectedShapeId = state.selectedShapeId,
                         onDeleteSelected = viewModel::deleteSelected,
                         onFinishChain = viewModel::finishChain,
+                        doorWidthMm = state.doorWidthMm,
+                        windowWidthMm = state.windowWidthMm,
+                        onOpeningWidthSelected = viewModel::setOpeningWidth,
                     )
                     VerticalHairline(Modifier.fillMaxHeight())
+
+                    // Worked out once per change and used by both the drawing and
+                    // the panel, so the two can never disagree about a room.
+                    val zones = remember(state.shapes) { state.shapes.zonePlans() }
 
                     PlanViewport(
                         drawing = drawing,
@@ -128,6 +149,20 @@ public fun PaftaScreen(
                                 .flatMap { it.toEntities() }
                         },
                         walls = remember(state.shapes) { state.shapes.wallBands() },
+                        openings = remember(state.shapes) { state.shapes.openingPlans() },
+                        zones = zones,
+                        zoneLabel = { plan ->
+                            buildList {
+                                if (plan.name.isNotBlank()) add(plan.name)
+                                add(
+                                    if (plan.isOpen) {
+                                        openRoomNote
+                                    } else {
+                                        formatArea(plan.areaMm2, AreaUnit.SQUARE_METRE, decimals = 2)
+                                    },
+                                )
+                            }
+                        },
                         highlightedWallId = state.selectedShapeId,
                         highlighted = state.shapes
                             .firstOrNull {
@@ -157,6 +192,13 @@ public fun PaftaScreen(
                                 .orEmpty(),
                             onSelectedDimensionChanged = viewModel::setSelectedDimension,
                             onDuplicateSelected = viewModel::duplicateSelected,
+                            selectedZone = zones.firstOrNull { it.id == state.selectedShapeId },
+                            onSelectedNameChanged = viewModel::setSelectedName,
+                            selectedSwing = (
+                                state.shapes.firstOrNull { it.id == state.selectedShapeId }
+                                    as? DrawnShape.Opening
+                                )?.takeIf { it.kind == OpeningKind.DOOR }?.swing,
+                            onSwingSelected = viewModel::setDoorSwing,
                         )
                     }
                 }
