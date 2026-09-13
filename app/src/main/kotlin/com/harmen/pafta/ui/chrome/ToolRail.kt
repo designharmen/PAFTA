@@ -17,8 +17,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Architecture
-import androidx.compose.material.icons.outlined.Create
-import androidx.compose.material.icons.outlined.FormatListNumbered
+import androidx.compose.material.icons.outlined.Circle
+import androidx.compose.material.icons.outlined.Crop169
 import androidx.compose.material.icons.outlined.GridOn
 import androidx.compose.material.icons.outlined.Layers
 import androidx.compose.material.icons.outlined.NearMe
@@ -62,11 +62,8 @@ import com.harmen.pafta.units.formatLength
 @Composable
 public fun ToolRail(
     activeTool: Tool,
-    dimensionPresets: List<Double>,
-    selectedPreset: Double?,
     lastText: String,
     onToolSelected: (Tool) -> Unit,
-    onPresetSelected: (Double) -> Unit,
     compact: Boolean = false,
     modifier: Modifier = Modifier,
     measureMode: MeasurementKind = MeasurementKind.DISTANCE,
@@ -76,6 +73,10 @@ public fun ToolRail(
     onFinishMeasurement: () -> Unit = {},
     onUndoPick: () -> Unit = {},
     onCancelMeasurement: () -> Unit = {},
+    wallThicknessMm: Double = 200.0,
+    onWallThicknessSelected: (Double) -> Unit = {},
+    selectedShapeId: String? = null,
+    onDeleteSelected: () -> Unit = {},
 ) {
     Column(
         modifier = modifier
@@ -94,11 +95,37 @@ public fun ToolRail(
                 onClick = { onToolSelected(tool) },
             )
 
-            if (tool == Tool.DIMENSIONS && activeTool == Tool.DIMENSIONS) {
-                PresetList(dimensionPresets, selectedPreset, onPresetSelected)
-            }
             if (tool == Tool.TEXT && activeTool == Tool.TEXT && lastText.isNotBlank()) {
                 LastTextPreview(lastText)
+            }
+            // A wall has to be told how thick it is before it can be drawn;
+            // these are the thicknesses a plan is actually drawn with.
+            if (tool == Tool.WALL && activeTool == Tool.WALL && !compact) {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(3.dp),
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 5.dp, vertical = 4.dp),
+                ) {
+                    for (thickness in WALL_THICKNESSES_MM) {
+                        RailChip(
+                            text = formatLength(thickness),
+                            selected = thickness == wallThicknessMm,
+                            onClick = { onWallThicknessSelected(thickness) },
+                        )
+                    }
+                }
+            }
+            if (tool == Tool.SELECT && activeTool == Tool.SELECT && !compact &&
+                selectedShapeId != null
+            ) {
+                Column(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 5.dp, vertical = 4.dp),
+                ) {
+                    RailChip(
+                        text = stringResource(R.string.action_delete_shape),
+                        selected = false,
+                        onClick = onDeleteSelected,
+                    )
+                }
             }
             if (tool == Tool.MEASURE && activeTool == Tool.MEASURE && !compact) {
                 MeasurePanel(
@@ -250,48 +277,6 @@ private fun RailChip(text: String, selected: Boolean, onClick: () -> Unit) {
     }
 }
 
-/** The `3100mm` / `4500mm` / `4800mm` quick-dimension buttons. */
-@Composable
-private fun PresetList(
-    presets: List<Double>,
-    selected: Double?,
-    onPresetSelected: (Double) -> Unit,
-) {
-    Column(
-        verticalArrangement = Arrangement.spacedBy(3.dp),
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 5.dp, vertical = 4.dp),
-    ) {
-        for (preset in presets) {
-            val isSelected = selected == preset
-            Box(
-                contentAlignment = Alignment.Center,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(metrics.cornerRadius))
-                    .background(if (isSelected) HarmenColours.SelectedWash else HarmenColours.PanelRaised)
-                    .drawBehind {
-                        if (!isSelected) return@drawBehind
-                        drawRect(
-                            color = HarmenColours.Accent,
-                            style = Stroke(width = 1.dp.toPx()),
-                        )
-                    }
-                    .clickable(role = Role.Button) { onPresetSelected(preset) }
-                    .padding(vertical = 5.dp, horizontal = 2.dp),
-            ) {
-                Text(
-                    text = formatLength(preset),
-                    style = HarmenType.Numeric,
-                    color = if (isSelected) HarmenColours.Text else HarmenColours.TextMuted,
-                    maxLines = 1,
-                )
-            }
-        }
-    }
-}
-
 /** Shows the most recent annotation string under the Text tool. */
 @Composable
 private fun LastTextPreview(lastText: String) {
@@ -320,15 +305,18 @@ private fun LastTextPreview(lastText: String) {
  */
 private fun Tool.icon(): ImageVector = when (this) {
     Tool.SELECT -> Icons.Outlined.NearMe
-    Tool.PENCIL -> Icons.Outlined.Create
+    Tool.WALL -> Icons.Outlined.Straighten
     Tool.LINE -> Icons.Outlined.ShowChart
+    Tool.RECTANGLE -> Icons.Outlined.Crop169
+    Tool.CIRCLE -> Icons.Outlined.Circle
+    Tool.MEASURE -> Icons.Outlined.SquareFoot
+    Tool.GRID -> Icons.Outlined.GridOn
     Tool.ARC -> Icons.Outlined.Architecture
-    Tool.DIM -> Icons.Outlined.Straighten
-    Tool.DIMENSIONS -> Icons.Outlined.FormatListNumbered
     Tool.HATCH -> Icons.Outlined.Texture
     Tool.TEXT -> Icons.Outlined.TextFields
-    Tool.GRID -> Icons.Outlined.GridOn
-    Tool.MEASURE -> Icons.Outlined.SquareFoot
     Tool.PALETTE -> Icons.Outlined.Palette
     Tool.LAYERS -> Icons.Outlined.Layers
 }
+
+/** The wall thicknesses a plan is actually drawn with, in millimetres. */
+private val WALL_THICKNESSES_MM = listOf(100.0, 200.0, 300.0)

@@ -16,6 +16,8 @@ import com.harmen.pafta.measure.snap
 import com.harmen.pafta.project.AnnotationKind
 import com.harmen.pafta.project.AutoSavePolicy
 import com.harmen.pafta.project.DrawingDocument
+import com.harmen.pafta.project.DrawnShape
+import com.harmen.pafta.project.pick
 import com.harmen.pafta.project.PaftaProject
 import com.harmen.pafta.project.StoreResult
 import com.harmen.pafta.project.StoredMeasurement
@@ -71,6 +73,9 @@ public class EditorViewModel(
      */
     private var snapCandidates: List<Segment2> = emptyList()
 
+    /** Makes each drawn shape's id unique within a session. */
+    private var nextShape: Int = 0
+
     /** The project as last loaded or saved; the overlay is rebuilt from state. */
     private var project: PaftaProject? = null
     private var autoSaveJob: Job? = null
@@ -118,10 +123,11 @@ public class EditorViewModel(
     public fun selectTool(tool: Tool) {
         // Leaving the measuring tool abandons a half-taken measurement rather
         // than leaving two stray points waiting on the drawing.
-        if (tool != Tool.MEASURE) {
-            engine.cancel()
-            _state.update { it.copy(pendingPicks = emptyList()) }
-        }
+        // Leaving a tool abandons whatever it had half-finished, rather than
+        // leaving stray points waiting on the drawing.
+        if (tool != Tool.MEASURE) engine.cancel()
+        _state.update { it.copy(pendingPicks = emptyList()) }
+        if (tool != Tool.SELECT) _state.update { it.copy(selectedShapeId = null) }
         _state.update {
             it.copy(
                 activeTool = tool,
@@ -143,10 +149,6 @@ public class EditorViewModel(
 
     public fun selectAnnotationTool(kind: AnnotationKind?) {
         _state.update { it.copy(annotationTool = kind, activeTool = Tool.TEXT) }
-    }
-
-    public fun selectDimensionPreset(preset: Double?) {
-        _state.update { it.copy(selectedPreset = preset, activeTool = Tool.DIMENSIONS) }
     }
 
     public fun toggleGrid() {
@@ -238,8 +240,15 @@ public class EditorViewModel(
      *   every zoom level.
      */
     public fun onCanvasPick(point: Vec2, toleranceMm: Double) {
-        if (_state.value.activeTool != Tool.MEASURE) return
+        when (_state.value.activeTool) {
+            Tool.MEASURE -> measurePick(point, toleranceMm)
+            Tool.SELECT -> selectAt(point, toleranceMm)
+            Tool.WALL, Tool.LINE, Tool.RECTANGLE, Tool.CIRCLE -> drawPick(point, toleranceMm)
+            else -> Unit
+        }
+    }
 
+    private fun measurePick(point: Vec2, toleranceMm: Double) {
         val nearby = snapCandidates.near(point, toleranceMm)
         val landed = snap(
             pick = point,
@@ -255,6 +264,88 @@ public class EditorViewModel(
             _state.update { it.copy(pendingPicks = emptyList()) }
             edit { s -> s.copy(measurements = s.measurements + finished) }
         }
+    }
+
+    /**
+     * A tap while a drawing tool is active.
+     *
+     * Every shape here takes exactly two taps — a wall its two ends, a rectangle
+     * two opposite corners, a circle its centre and a point on its edge. Two
+     * taps is the most a shape is allowed to cost: one is not enough to say
+     * where and how big, and three is a tool that needs explaining.
+     */
+    private fun drawPick(point: Vec2, toleranceMm: Double) {
+        val landed = snapped(point, toleranceMm)
+        val first = _state.value.pendingPicks.firstOrNull()
+
+        if (first == null) {
+            _state.update { it.copy(pendingPicks = listOf(landed)) }
+            return
+        }
+
+        val shape = shapeBetween(first, landed)
+        _state.update { it.copy(pendingPicks = emptyList()) }
+        if (shape != null) {
+            edit { s -> s.copy(shapes = s.shapes + shape, selectedShapeId = shape.id) }
+            rebuildSnapCandidates()
+        }
+    }
+
+    private fun shapeBetween(from: Vec2, to: Vec2): DrawnShape? {
+        // Unique within the project: the clock separates sessions, the counter
+        // separates shapes drawn inside one. A repeated id would mean selecting
+        // one shape and deleting another.
+        val id = "s" + clock() + "-" + (nextShape++)
+        val a = Vec3(from.x, from.y, 0.0)
+        val b = Vec3(to.x, to.y, 0.0)
+
+        val shape = when (_state.value.activeTool) {
+            Tool.WALL -> DrawnShape.Wall(id, a, b, _state.value.wallThicknessMm)
+            Tool.LINE -> DrawnShape.Line(id, a, b)
+            Tool.RECTANGLE -> DrawnShape.Rectangle(id, a, b)
+            Tool.CIRCLE -> DrawnShape.Circle(id, a, from.distanceTo(to))
+            else -> return null
+        }
+        // A shape with no size is a mis-tap, not a drawing: two taps in the same
+        // place should leave the plan exactly as it was.
+        return if (shape.toEntities().isEmpty()) null else shape
+    }
+
+    private fun selectAt(point: Vec2, toleranceMm: Double) {
+        val hit = _state.value.shapes.pick(point, toleranceMm)
+        _state.update { it.copy(selectedShapeId = hit?.id) }
+    }
+
+    /** Moves the selected shape by a drawing-millimetre offset. */
+    public fun moveSelected(dx: Double, dy: Double) {
+        val id = _state.value.selectedShapeId ?: return
+        edit { s ->
+            s.copy(shapes = s.shapes.map { if (it.id == id) it.translated(dx, dy) else it })
+        }
+        rebuildSnapCandidates()
+    }
+
+    /** Deletes the selected shape. Recorded, so it can be undone. */
+    public fun deleteSelected() {
+        val id = _state.value.selectedShapeId ?: return
+        edit { s -> s.copy(shapes = s.shapes.filterNot { it.id == id }, selectedShapeId = null) }
+        rebuildSnapCandidates()
+    }
+
+    /** Sets the thickness the wall tool draws with, in millimetres. */
+    public fun selectWallThickness(thicknessMm: Double) {
+        _state.update { it.copy(wallThicknessMm = thicknessMm, activeTool = Tool.WALL) }
+    }
+
+    private fun snapped(point: Vec2, toleranceMm: Double): Vec2 {
+        val nearby = snapCandidates.near(point, toleranceMm)
+        val result = snap(
+            pick = point,
+            segments = nearby,
+            tolerance = toleranceMm,
+            gridSpacing = if (_state.value.gridVisible) _state.value.gridSpacingMm else null,
+        )
+        return result.point.toVec2()
     }
 
     /** Closes an area or a polyline, which have no fixed number of points. */
@@ -288,7 +379,12 @@ public class EditorViewModel(
             emptyList()
         } else {
             val visible = _state.value.layers.filter { it.visible }.map { it.name }.toSet()
-            drawing.snapSegments(visibleLayers = visible.ifEmpty { null })
+            // The drawing here is the file's; what the user drew since opening
+            // it is snapped to as well, so a second wall meets the first.
+            val drawn = _state.value.shapes.flatMap { it.toEntities() }
+            val all =
+                if (drawn.isEmpty()) drawing else drawing.copy(entities = drawing.entities + drawn)
+            all.snapSegments(visibleLayers = visible.ifEmpty { null })
         }
     }
 
@@ -364,6 +460,7 @@ private fun PaftaProject.toEditorState(doc: DrawingDocument): EditorState = Edit
     projectName = manifest.projectName,
     unitLabel = manifest.source.fileName,
     layers = doc.layers,
+    shapes = shapes,
     materials = emptyList(),
     properties = drawingProperties(doc),
     selectionTitle = null,
@@ -407,4 +504,5 @@ private fun PaftaProject.withOverlayFrom(state: EditorState): PaftaProject = cop
     annotations = state.annotations,
     measurements = state.measurements.map { StoredMeasurement.from(it) },
     materials = state.materialOverrides,
+    shapes = state.shapes,
 )

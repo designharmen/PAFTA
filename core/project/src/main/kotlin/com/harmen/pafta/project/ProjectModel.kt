@@ -292,6 +292,11 @@ public data class PaftaProject(
     val layers: List<LayerState> = emptyList(),
     val materials: List<MaterialOverride> = emptyList(),
     val cameras: List<CameraPreset> = emptyList(),
+    /**
+     * What the user drew, kept apart from [payload] so the imported file is
+     * never rewritten. The two are merged when the drawing is opened.
+     */
+    val shapes: List<DrawnShape> = emptyList(),
     /** PNG bytes, or null when no preview has been captured yet. */
     val thumbnail: ByteArray? = null,
 ) {
@@ -307,6 +312,7 @@ public data class PaftaProject(
             layers == other.layers &&
             materials == other.materials &&
             cameras == other.cameras &&
+            shapes == other.shapes &&
             (thumbnail?.contentEquals(other.thumbnail ?: ByteArray(0)) ?: (other.thumbnail == null))
     }
 
@@ -318,6 +324,7 @@ public data class PaftaProject(
         result = 31 * result + layers.hashCode()
         result = 31 * result + materials.hashCode()
         result = 31 * result + cameras.hashCode()
+        result = 31 * result + shapes.hashCode()
         result = 31 * result + (thumbnail?.contentHashCode() ?: 0)
         return result
     }

@@ -69,6 +69,8 @@ public fun PlanViewport(
     modifier: Modifier = Modifier,
     /** Points of a measurement the user has started but not finished. */
     pendingPicks: List<Vec2> = emptyList(),
+    /** The selected shape's geometry, drawn again on top in the accent colour. */
+    highlighted: List<DxfEntity> = emptyList(),
     /**
      * A tap, as a model point plus the snap tolerance in model units.
      *
@@ -144,6 +146,9 @@ public fun PlanViewport(
             drawDrawing(drawing, layers, v)
             drawDrawingText(drawing, layers, v, measurer)
             measurements.forEach { drawMeasurement(it, v, display, measurer) }
+            // Selection is drawn over the linework rather than instead of it, so
+            // the shape stays legible while it is picked.
+            highlighted.forEach { drawEntity(it, v, HarmenColours.Accent) }
             if (pendingPicks.isNotEmpty()) drawPending(pendingPicks, v)
             roomLabels.forEach { drawRoomLabel(it, v, measurer) }
         }

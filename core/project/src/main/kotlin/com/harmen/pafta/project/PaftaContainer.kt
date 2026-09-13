@@ -24,6 +24,7 @@ internal object Entries {
     const val LAYERS = "layers.json"
     const val MATERIALS = "materials.json"
     const val CAMERAS = "cameras.json"
+    const val SHAPES = "shapes.json"
     const val THUMBNAIL = "thumbnail.png"
     const val PAYLOAD_DIR = "payload/"
 }
@@ -73,6 +74,7 @@ public object PaftaContainer {
             zip.text(Entries.LAYERS, json.encodeToString(project.layers))
             zip.text(Entries.MATERIALS, json.encodeToString(project.materials))
             zip.text(Entries.CAMERAS, json.encodeToString(project.cameras))
+            zip.text(Entries.SHAPES, json.encodeToString(project.shapes))
 
             project.thumbnail?.let { zip.bytes(Entries.THUMBNAIL, it) }
             zip.bytes(Entries.PAYLOAD_DIR + project.manifest.source.fileName, project.payload)
@@ -90,6 +92,7 @@ public object PaftaContainer {
         var layers: List<LayerState> = emptyList()
         var materials: List<MaterialOverride> = emptyList()
         var cameras: List<CameraPreset> = emptyList()
+        var shapes: List<DrawnShape> = emptyList()
         var thumbnail: ByteArray? = null
         var payload: ByteArray? = null
 
@@ -117,6 +120,9 @@ public object PaftaContainer {
                     name == Entries.CAMERAS ->
                         cameras = decode(name) { json.decodeFromString(zip.readText()) }
 
+                    name == Entries.SHAPES ->
+                        shapes = decode(name) { json.decodeFromString(zip.readText()) }
+
                     name == Entries.THUMBNAIL -> thumbnail = zip.readBytes()
 
                     name.startsWith(Entries.PAYLOAD_DIR) -> payload = zip.readBytes()
@@ -141,6 +147,7 @@ public object PaftaContainer {
             layers = layers,
             materials = materials,
             cameras = cameras,
+            shapes = shapes,
             thumbnail = thumbnail,
         )
     }

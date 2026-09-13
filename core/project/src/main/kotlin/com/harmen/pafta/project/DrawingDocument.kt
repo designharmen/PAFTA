@@ -49,11 +49,17 @@ public fun PaftaProject.openAsDrawing(): StoreResult<DrawingDocument> {
         )
     }
 
-    // Parsed, but with nothing this reader can draw. The failure carries the
-    // file's own inventory, so the screen can name what is in there instead of
-    // leaving the user in front of an empty canvas — or, worse, with the import
-    // refused and the file gone.
-    if (drawing.entities.isEmpty()) {
+    // What the user drew joins what the file brought, in that order, so a shape
+    // drawn today sits on top of the wall it was traced from.
+    val drawn = shapes.flatMap { it.toEntities() }
+    val merged =
+        if (drawn.isEmpty()) drawing else drawing.copy(entities = drawing.entities + drawn)
+
+    // Parsed, but with nothing this reader can draw — and nothing drawn by hand
+    // either. The failure carries the file's own inventory, so the screen can
+    // name what is in there instead of leaving the user in front of an empty
+    // canvas, or worse, with the import refused and the file gone.
+    if (merged.entities.isEmpty()) {
         return StoreResult.Failure(
             StoreFailure.Unreadable(
                 FileFormat.DXF,
@@ -69,10 +75,10 @@ public fun PaftaProject.openAsDrawing(): StoreResult<DrawingDocument> {
 
     return StoreResult.Success(
         DrawingDocument(
-            drawing = drawing,
-            layers = mergeLayers(drawing, layers),
-            bounds = drawing.bounds,
-            unsupportedEntityTypes = drawing.unsupportedEntityTypes,
+            drawing = merged,
+            layers = mergeLayers(merged, layers),
+            bounds = merged.bounds,
+            unsupportedEntityTypes = merged.unsupportedEntityTypes,
         ),
     )
 }

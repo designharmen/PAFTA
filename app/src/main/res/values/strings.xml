@@ -32,14 +32,15 @@
 
     <!-- ===== Sol araç paneli ===== -->
     <string name="tool_select">Seç</string>
-    <string name="tool_pencil">Kalem</string>
+    <string name="tool_wall">Duvar</string>
+    <string name="tool_rectangle">Dikdörtgen</string>
+    <string name="tool_circle">Daire</string>
     <string name="tool_line">Çizgi</string>
     <string name="tool_arc">Yay</string>
-    <string name="tool_dim">Ölçü</string>
-    <string name="tool_dimensions">Ölçüler</string>
     <string name="tool_hatch">Tarama</string>
     <string name="tool_text">Metin</string>
     <string name="tool_grid">Izgara</string>
+    <string name="action_delete_shape">Sil</string>
     <string name="measure_distance">Mesafe</string>
     <string name="measure_area">Alan</string>
     <string name="measure_angle">Açı</string>

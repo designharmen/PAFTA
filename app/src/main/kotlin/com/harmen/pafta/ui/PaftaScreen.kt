@@ -69,11 +69,8 @@ public fun PaftaScreen(
                 Row(Modifier.fillMaxWidth().weight(1f)) {
                     ToolRail(
                         activeTool = state.activeTool,
-                        dimensionPresets = state.dimensionPresets,
-                        selectedPreset = state.selectedPreset,
                         lastText = state.lastText,
                         onToolSelected = viewModel::selectTool,
-                        onPresetSelected = { viewModel.selectDimensionPreset(it) },
                         compact = compact,
                         measureMode = state.measureMode,
                         pendingPickCount = state.pendingPicks.size,
@@ -81,6 +78,10 @@ public fun PaftaScreen(
                         onFinishMeasurement = viewModel::finishMeasurement,
                         onUndoPick = viewModel::undoPick,
                         onCancelMeasurement = viewModel::cancelMeasurement,
+                        wallThicknessMm = state.wallThicknessMm,
+                        onWallThicknessSelected = viewModel::selectWallThickness,
+                        selectedShapeId = state.selectedShapeId,
+                        onDeleteSelected = viewModel::deleteSelected,
                     )
                     VerticalHairline(Modifier.fillMaxHeight())
 
@@ -96,6 +97,10 @@ public fun PaftaScreen(
                         modifier = Modifier.weight(1f).fillMaxHeight(),
                         pendingPicks = state.pendingPicks,
                         onPick = viewModel::onCanvasPick,
+                        highlighted = state.shapes
+                            .firstOrNull { it.id == state.selectedShapeId }
+                            ?.toEntities()
+                            .orEmpty(),
                     )
 
                     if (showInspector) {

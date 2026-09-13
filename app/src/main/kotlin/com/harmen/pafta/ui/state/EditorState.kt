@@ -7,6 +7,7 @@ import com.harmen.pafta.measure.Measurement
 import com.harmen.pafta.measure.MeasurementDisplay
 import com.harmen.pafta.measure.MeasurementKind
 import com.harmen.pafta.project.Annotation
+import com.harmen.pafta.project.DrawnShape
 import com.harmen.pafta.project.AnnotationKind
 import com.harmen.pafta.project.LayerState
 import com.harmen.pafta.project.MaterialOverride
@@ -31,16 +32,16 @@ public enum class Tool(
      */
     public val ready: Boolean = false,
 ) {
-    SELECT(R.string.tool_select),
-    PENCIL(R.string.tool_pencil),
-    LINE(R.string.tool_line),
+    SELECT(R.string.tool_select, ready = true),
+    WALL(R.string.tool_wall, ready = true),
+    LINE(R.string.tool_line, ready = true),
+    RECTANGLE(R.string.tool_rectangle, ready = true),
+    CIRCLE(R.string.tool_circle, ready = true),
+    MEASURE(R.string.tool_measure, ready = true),
+    GRID(R.string.tool_grid, ready = true),
     ARC(R.string.tool_arc),
-    DIM(R.string.tool_dim),
-    DIMENSIONS(R.string.tool_dimensions),
     HATCH(R.string.tool_hatch),
     TEXT(R.string.tool_text),
-    GRID(R.string.tool_grid, ready = true),
-    MEASURE(R.string.tool_measure, ready = true),
     PALETTE(R.string.tool_palette),
     LAYERS(R.string.tool_layers),
 }
@@ -131,9 +132,12 @@ public data class EditorState(
      * means to take back.
      */
     val pendingPicks: List<Vec2> = emptyList(),
-    /** Dimension presets offered under the dimensions tool, in millimetres. */
-    val dimensionPresets: List<Double> = listOf(3100.0, 4500.0, 4800.0),
-    val selectedPreset: Double? = null,
+    /** What the user has drawn, on top of the imported file. */
+    val shapes: List<DrawnShape> = emptyList(),
+    /** The drawn shape currently selected, if any. */
+    val selectedShapeId: String? = null,
+    /** Thickness used by the wall tool, in drawing millimetres. */
+    val wallThicknessMm: Double = DrawnShape.DEFAULT_WALL_THICKNESS_MM,
     /** Preview of the last text the user typed, shown under the text tool. */
     val lastText: String = "",
     val gridVisible: Boolean = true,
