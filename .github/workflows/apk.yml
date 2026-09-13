@@ -116,9 +116,15 @@ jobs:
           fi
 
           summary="${RUNNER_TEMP}/errors.txt"
-          grep -E '^e: |^w: |error:|warning:|^> Task .* FAILED|What went wrong|Execution failed|Caused by: [A-Za-z]' "$log" \
-            | grep -v 'See log for more details' \
-            | head -n 120 > "$summary" || true
+          {
+            # Derleyici hataları.
+            grep -E '^e: |^w: |error:|warning:|^> Task .* FAILED|Execution failed|Caused by: [A-Za-z]' "$log" \
+              | grep -v 'See log for more details' || true
+            # "What went wrong" başlığının ALTINDAKİ satırlar. Kaynak birleştirme
+            # hatası (aynı isimli iki metin gibi) sebebini yalnızca orada yazıyor;
+            # sadece başlığı almak bir derlemeye mal oldu.
+            grep -A 10 -E '^\* What went wrong' "$log" || true
+          } | head -n 140 > "$summary" || true
 
           echo "===== DERLEME HATALARI ====="
           if [ -s "$summary" ]; then

@@ -19,6 +19,9 @@ it does so four minutes into a CI run. This catches them in a second:
     which has no such overload
   * a reference to StoreFailure.message, a property that was deliberately
     removed so that no English prose can reach a Turkish screen
+  * two strings defined under the same name — Android's resource merger rejects
+    the whole build for this, four minutes in, and says so in a step whose
+    output our error summary does not even capture
   * a typeface outside the Harmen Design system, or a font file referenced from
     Kotlin that is not actually in res/font — the brand guideline names Inter,
     Roboto, Montserrat and Poppins as forbidden, and a missing font file is a
@@ -91,6 +94,28 @@ def check_escaping(raw_text: str) -> list[str]:
                 f"{STRINGS.name}:{line}: '{name}' birden fazla değer alıyor ama "
                 f"sırasız; %1$s, %2$s biçimini kullanın."
             )
+
+    return problems
+
+
+def check_duplicates(raw_text: str) -> list[str]:
+    """Aynı isimle iki kez tanımlanmış metin var mı."""
+    problems: list[str] = []
+    seen: dict[str, int] = {}
+
+    for number, line in enumerate(raw_text.splitlines(), start=1):
+        match = re.search(r'<string\s+name="([^"]+)"', line)
+        if not match:
+            continue
+        name = match.group(1)
+        if name in seen:
+            problems.append(
+                f"{STRINGS.name}:{number}: '{name}' ikinci kez tanımlanmış "
+                f"(ilki {seen[name]}. satırda). Android aynı isimli iki metni "
+                f"kabul etmez ve derlemeyi durdurur."
+            )
+        else:
+            seen[name] = number
 
     return problems
 
@@ -245,7 +270,8 @@ def main() -> int:
     }
 
     problems = (
-        check_escaping(raw)
+        check_duplicates(raw)
+        + check_escaping(raw)
         + check_references(defined)
         + check_kotlin_usage()
         + check_fonts()
