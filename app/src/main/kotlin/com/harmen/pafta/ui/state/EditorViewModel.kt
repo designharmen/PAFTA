@@ -17,6 +17,7 @@ import com.harmen.pafta.project.AnnotationKind
 import com.harmen.pafta.project.AutoSavePolicy
 import com.harmen.pafta.project.DrawingDocument
 import com.harmen.pafta.project.DrawnShape
+import com.harmen.pafta.project.LayerState
 import com.harmen.pafta.project.PaftaProject
 import com.harmen.pafta.project.StoreResult
 import com.harmen.pafta.project.StoredMeasurement
@@ -24,6 +25,7 @@ import com.harmen.pafta.project.UndoStack
 import com.harmen.pafta.project.WallMaterial
 import com.harmen.pafta.project.pick
 import com.harmen.pafta.project.snapSegments
+import com.harmen.pafta.project.withLength
 import com.harmen.pafta.units.formatLength
 import java.io.File
 import kotlinx.coroutines.Job
@@ -77,6 +79,10 @@ public class EditorViewModel(
 
     /** Makes each drawn shape's id unique within a session. */
     private var nextShape: Int = 0
+
+    /** Where the finger went down, and where it is now, while drawing. */
+    private var dragFrom: Vec2? = null
+    private var dragTo: Vec2? = null
 
     /** The project as last loaded or saved; the overlay is rebuilt from state. */
     private var project: PaftaProject? = null
@@ -243,7 +249,7 @@ public class EditorViewModel(
         when (_state.value.activeTool) {
             Tool.MEASURE -> measurePick(point, toleranceMm)
             Tool.SELECT -> selectAt(point, toleranceMm)
-            Tool.WALL, Tool.LINE, Tool.RECTANGLE, Tool.CIRCLE -> drawPick(point, toleranceMm)
+            in DRAWING_TOOLS -> drawPick(point, toleranceMm)
             else -> Unit
         }
     }
@@ -283,22 +289,35 @@ public class EditorViewModel(
             return
         }
 
-        val shape = shapeBetween(first, landed)
-        _state.update { it.copy(pendingPicks = emptyList()) }
-        if (shape != null) {
-            // Deliberately not selected: a shape that selects itself the moment
-            // it is drawn makes everything look permanently picked, and the
-            // next shape appears to delete the last one as the highlight moves.
-            edit { s -> s.copy(shapes = s.shapes + shape) }
-            rebuildSnapCandidates()
+        val shape = shapeBetween(first, landed, id = newShapeId())
+        if (shape == null) {
+            _state.update { it.copy(pendingPicks = emptyList()) }
+            return
         }
+
+        // A wall is rarely drawn alone: a room is a run of them. The next wall
+        // therefore starts where this one ended, so the whole outline is drawn
+        // in one movement instead of restarting at every corner — and the
+        // junction is exact, because it is the same point rather than a second
+        // attempt to hit it.
+        val chained = _state.value.activeTool in CHAINED_TOOLS
+        _state.update { it.copy(pendingPicks = if (chained) listOf(landed) else emptyList()) }
+
+        // Deliberately not selected: a shape that selects itself the moment it
+        // is drawn makes everything look permanently picked, and the next shape
+        // appears to delete the last one as the highlight moves.
+        edit { s -> s.copy(shapes = s.shapes + shape, layers = s.layers.including(shape.layer)) }
+        rebuildSnapCandidates()
     }
 
-    private fun shapeBetween(from: Vec2, to: Vec2): DrawnShape? {
-        // Unique within the project: the clock separates sessions, the counter
-        // separates shapes drawn inside one. A repeated id would mean selecting
-        // one shape and deleting another.
-        val id = "s" + clock() + "-" + (nextShape++)
+    /**
+     * Unique within the project: the clock separates sessions, the counter
+     * separates shapes drawn inside one. A repeated id would mean selecting one
+     * shape and deleting another.
+     */
+    private fun newShapeId(): String = "s" + clock() + "-" + (nextShape++)
+
+    private fun shapeBetween(from: Vec2, to: Vec2, id: String): DrawnShape? {
         val a = Vec3(from.x, from.y, 0.0)
         val b = Vec3(to.x, to.y, 0.0)
 
@@ -351,6 +370,74 @@ public class EditorViewModel(
         _state.update { it.copy(wallThicknessMm = thicknessMm, activeTool = Tool.WALL) }
     }
 
+    // --- Drawing by dragging -------------------------------------------------
+
+    /**
+     * The finger has gone down with a drawing tool active.
+     *
+     * Dragging is how a wall should be drawn — the shape follows the path the
+     * hand takes, the way a line is drawn with a pencil — so this is the main
+     * route. Two separate taps still work for anyone who prefers to place two
+     * points exactly, and for a hand that cannot hold a steady drag.
+     */
+    public fun beginDrag(point: Vec2, toleranceMm: Double) {
+        if (_state.value.activeTool !in DRAWING_TOOLS) return
+        dragFrom = snapped(point, toleranceMm)
+        dragTo = dragFrom
+        // Deliberately does not clear the points picked so far: a tap is a
+        // press and a release like any other, so clearing here would wipe the
+        // first tap of a two-tap shape the instant the second tap began.
+        _state.update { it.copy(preview = null) }
+    }
+
+    /** The finger has moved; the shape being drawn follows it. */
+    public fun updateDrag(point: Vec2, toleranceMm: Double) {
+        val from = dragFrom ?: return
+        val to = snapped(point, toleranceMm)
+        dragTo = to
+        _state.update { it.copy(preview = shapeBetween(from, to, id = PREVIEW_ID)) }
+    }
+
+    /** The finger has lifted: the shape is committed at the size it was drawn. */
+    public fun endDrag() {
+        val from = dragFrom
+        val to = dragTo
+        dragFrom = null
+        dragTo = null
+        _state.update { it.copy(preview = null, pendingPicks = emptyList()) }
+        if (from == null || to == null) return
+
+        val shape = shapeBetween(from, to, id = newShapeId()) ?: return
+        edit { s -> s.copy(shapes = s.shapes + shape, layers = s.layers.including(shape.layer)) }
+        rebuildSnapCandidates()
+    }
+
+    /** The drag turned into a pinch, or was otherwise abandoned. */
+    public fun cancelDrag() {
+        dragFrom = null
+        dragTo = null
+        _state.update { it.copy(preview = null) }
+    }
+
+    /** Ends a run of walls without switching tool. */
+    public fun finishChain() {
+        _state.update { it.copy(pendingPicks = emptyList()) }
+    }
+
+    /**
+     * Sets the selected shape to an exact length.
+     *
+     * The point of the whole drawing tool: a finger cannot land on 3600mm, so
+     * the wall is drawn roughly and then told what it is.
+     */
+    public fun setSelectedLength(millimetres: Double) {
+        val id = _state.value.selectedShapeId ?: return
+        edit { s ->
+            s.copy(shapes = s.shapes.map { if (it.id == id) it.withLength(millimetres) else it })
+        }
+        rebuildSnapCandidates()
+    }
+
     /** Sets what the wall tool builds with; this also decides its layer. */
     public fun selectWallMaterial(material: WallMaterial) {
         _state.update { it.copy(wallMaterial = material, activeTool = Tool.WALL) }
@@ -392,19 +479,25 @@ public class EditorViewModel(
         edit { s -> s.copy(measurements = emptyList()) }
     }
 
+    private companion object {
+        /** Tools that keep going from where the last shape ended. */
+        private val CHAINED_TOOLS = setOf(Tool.WALL, Tool.LINE)
+
+        /** The id a shape being dragged carries; it never reaches the project. */
+        private const val PREVIEW_ID = "onizleme"
+    }
+
     private fun rebuildSnapCandidates() {
-        val drawing = _document.value?.drawing
-        snapCandidates = if (drawing == null) {
-            emptyList()
-        } else {
-            val visible = _state.value.layers.filter { it.visible }.map { it.name }.toSet()
-            // The file's own geometry, plus what the user has drawn since. A
-            // wall contributes its centre line rather than its outline, which
-            // is what lets the next wall meet it end to end instead of half a
-            // thickness off to the side.
-            drawing.snapSegments(visibleLayers = visible.ifEmpty { null }) +
-                _state.value.shapes.flatMap { it.snapSegments() }
-        }
+        val visible = _state.value.layers.filter { it.visible }.map { it.name }.toSet()
+        // The file's own geometry, plus what the user has drawn since. A wall
+        // contributes its centre line rather than its outline, which is what
+        // lets the next wall meet it end to end instead of half a thickness off
+        // to the side. Drawn shapes count even when no file is open: a plan
+        // started from nothing still has to snap to itself.
+        val fromFile = _document.value?.drawing
+            ?.snapSegments(visibleLayers = visible.ifEmpty { null })
+            .orEmpty()
+        snapCandidates = fromFile + _state.value.shapes.flatMap { it.snapSegments() }
     }
 
     public fun dismissError() {
@@ -474,11 +567,28 @@ public class EditorViewModel(
     }
 }
 
+/**
+ * The palette, with [layer] present.
+ *
+ * A shape drawn onto a layer the palette has never heard of is invisible to
+ * every control that works by layer: hiding `DUVAR-TUGLA-200` would leave the
+ * walls on screen, because nothing knew that layer existed. Registering it at
+ * the moment it is first drawn on is what makes the grouping real.
+ */
+private fun List<LayerState>.including(layer: String): List<LayerState> =
+    if (any { it.name == layer }) this else this + LayerState(id = layer, name = layer)
+
+/** The palette, with every layer these shapes sit on present. */
+private fun List<LayerState>.including(shapes: List<DrawnShape>): List<LayerState> =
+    shapes.fold(this) { palette, shape -> palette.including(shape.layer) }
+
 /** Builds the editor snapshot for a freshly opened project. */
 private fun PaftaProject.toEditorState(doc: DrawingDocument): EditorState = EditorState(
     projectName = manifest.projectName,
     unitLabel = manifest.source.fileName,
-    layers = doc.layers,
+    // A project saved with walls on `DUVAR-TUGLA-200` has to come back with
+    // that layer in the palette, or reopening it loses the ability to hide it.
+    layers = doc.layers.including(shapes),
     shapes = shapes,
     materials = emptyList(),
     properties = drawingProperties(doc),

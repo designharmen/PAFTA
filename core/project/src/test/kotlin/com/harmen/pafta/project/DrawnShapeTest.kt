@@ -222,3 +222,64 @@ class DrawnShapePersistenceTest {
         root.deleteRecursively()
     }
 }
+
+/**
+ * Setting an exact length after drawing.
+ *
+ * A finger cannot land on 3600mm. The wall is drawn roughly and then told what
+ * it is, which is how every CAD tool works and the only way touch drawing can
+ * produce a measured plan.
+ */
+class DrawnShapeLengthTest {
+
+    private fun v(x: Double, y: Double) = Vec3(x, y, 0.0)
+
+    @Test
+    fun `a wall keeps its start and direction when its length is set`() {
+        val wall = DrawnShape.Wall("w1", v(1000.0, 500.0), v(1000.0, 2000.0))
+        assertEquals(1500.0, wall.lengthMm!!, 1e-9)
+
+        val exact = assertIs<DrawnShape.Wall>(wall.withLength(3600.0))
+
+        // The start stays put: it is usually snapped to a corner that matters.
+        assertEquals(1000.0, exact.a.x, 1e-9)
+        assertEquals(500.0, exact.a.y, 1e-9)
+        // The end moves along the same direction, to exactly the length asked for.
+        assertEquals(1000.0, exact.b.x, 1e-9)
+        assertEquals(4100.0, exact.b.y, 1e-9)
+        assertEquals(3600.0, exact.lengthMm!!, 1e-9)
+    }
+
+    @Test
+    fun `a diagonal wall reaches the exact length it is given`() {
+        val wall = DrawnShape.Wall("w1", v(0.0, 0.0), v(300.0, 400.0))
+        assertEquals(500.0, wall.lengthMm!!, 1e-9)
+        assertEquals(2500.0, wall.withLength(2500.0).lengthMm!!, 1e-9)
+    }
+
+    @Test
+    fun `a circle's length is its diameter, and setting it resizes the circle`() {
+        val circle = DrawnShape.Circle("c1", v(0.0, 0.0), radiusMm = 500.0)
+        assertEquals(1000.0, circle.lengthMm!!, 1e-9)
+
+        val exact = assertIs<DrawnShape.Circle>(circle.withLength(1600.0))
+        assertEquals(800.0, exact.radiusMm, 1e-9)
+    }
+
+    @Test
+    fun `a shape with no length is left alone rather than guessed at`() {
+        val dot = DrawnShape.Wall("w1", v(10.0, 10.0), v(10.0, 10.0))
+        assertEquals(dot, dot.withLength(1000.0))
+        // A rectangle is described by two corners, not by one length.
+        val rect = DrawnShape.Rectangle("r1", v(0.0, 0.0), v(100.0, 50.0))
+        assertEquals(null, rect.lengthMm)
+        assertEquals(rect, rect.withLength(1000.0))
+    }
+
+    @Test
+    fun `a length of zero or less changes nothing`() {
+        val wall = DrawnShape.Wall("w1", v(0.0, 0.0), v(1000.0, 0.0))
+        assertEquals(wall, wall.withLength(0.0))
+        assertEquals(wall, wall.withLength(-5.0))
+    }
+}

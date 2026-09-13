@@ -2,8 +2,8 @@ package com.harmen.pafta.ui.viewport
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -22,6 +22,8 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.input.pointer.PointerId
+import androidx.compose.ui.input.pointer.PointerInputScope
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.text.TextMeasurer
@@ -44,6 +46,7 @@ import com.harmen.pafta.ui.theme.HarmenColours
 import com.harmen.pafta.ui.theme.HarmenType
 import kotlin.math.atan2
 import kotlin.math.cos
+import kotlin.math.hypot
 import kotlin.math.sin
 
 /** A room name drawn on the plan. */
@@ -79,6 +82,18 @@ public fun PlanViewport(
     drawn: List<DxfEntity> = emptyList(),
     /** The selected shape's geometry, drawn again on top in the accent colour. */
     highlighted: List<DxfEntity> = emptyList(),
+    /** The shape following the finger right now; not part of the drawing yet. */
+    preview: List<DxfEntity> = emptyList(),
+    /** The length of that shape, already worded and in the user's unit. */
+    previewLabel: String? = null,
+    /**
+     * Whether a drawing tool is active.
+     *
+     * It changes what one finger means: with a drawing tool it draws, without
+     * one it moves the view. Two fingers always move the view, so there is
+     * always a way to get around the plan.
+     */
+    drawEnabled: Boolean = false,
     /**
      * A tap, as a model point plus the snap tolerance in model units.
      *
@@ -87,6 +102,14 @@ public fun PlanViewport(
      * glass and a wildly different distance in the drawing depending on scale.
      */
     onPick: (Vec2, Double) -> Unit = { _, _ -> },
+    /** The finger went down with a drawing tool active. */
+    onDrawBegin: (Vec2, Double) -> Unit = { _, _ -> },
+    /** The finger moved; the shape follows it. */
+    onDrawMove: (Vec2, Double) -> Unit = { _, _ -> },
+    /** The finger lifted: draw the shape at the size it was dragged. */
+    onDrawEnd: () -> Unit = {},
+    /** The drag became a pinch, or ended without going anywhere. */
+    onDrawCancel: () -> Unit = {},
 ) {
     val measurer = rememberTextMeasurer()
     var surface by remember { mutableStateOf(IntSize.Zero) }
@@ -119,32 +142,42 @@ public fun PlanViewport(
                     viewport = null
                 }
             }
-            .pointerInput(drawing) {
-                detectTransformGestures { centroid, pan, zoom, _ ->
-                    val current = viewport ?: fitted ?: return@detectTransformGestures
-                    val panned = current.pannedBy(pan.x.toDouble(), pan.y.toDouble())
-                    viewport = if (zoom == 1f) {
-                        panned
-                    } else {
-                        panned.zoomedAbout(
-                            Vec2(centroid.x.toDouble(), centroid.y.toDouble()),
-                            zoom.toDouble(),
-                            // Keep the drawing between roughly 1% and 100x of fit
-                            // so a stray pinch cannot lose it entirely.
-                            minScale = (fitted?.scale ?: 1.0) * 0.01,
-                            maxScale = (fitted?.scale ?: 1.0) * 100.0,
-                        )
-                    }
+            .pointerInput(drawing, drawEnabled) {
+                val snapRadiusPx = SNAP_RADIUS.toPx().toDouble()
+
+                /** Where on the plan a point of glass is, and how far a snap reaches there. */
+                fun at(screen: Offset): Pair<Vec2, Double>? {
+                    val current = viewport ?: fitted ?: return null
+                    return current.toModel(Vec2(screen.x.toDouble(), screen.y.toDouble())) to
+                        current.lengthToModel(snapRadiusPx)
                 }
-            }
-            .pointerInput(drawing) {
-                detectTapGestures { tap ->
-                    val current = viewport ?: fitted ?: return@detectTapGestures
-                    onPick(
-                        current.toModel(Vec2(tap.x.toDouble(), tap.y.toDouble())),
-                        current.lengthToModel(snapRadiusPx),
-                    )
-                }
+
+                planGestures(
+                    drawEnabled = drawEnabled,
+                    onTransform = { centroid, pan, zoom ->
+                        val current = viewport ?: fitted
+                        if (current != null) {
+                            val panned = current.pannedBy(pan.x.toDouble(), pan.y.toDouble())
+                            viewport = if (zoom == 1f) {
+                                panned
+                            } else {
+                                panned.zoomedAbout(
+                                    Vec2(centroid.x.toDouble(), centroid.y.toDouble()),
+                                    zoom.toDouble(),
+                                    // Keep the drawing between roughly 1% and 100x
+                                    // of fit so a stray pinch cannot lose it.
+                                    minScale = (fitted?.scale ?: 1.0) * 0.01,
+                                    maxScale = (fitted?.scale ?: 1.0) * 100.0,
+                                )
+                            }
+                        }
+                    },
+                    onTap = { tap -> at(tap)?.let { (point, tol) -> onPick(point, tol) } },
+                    onDrawBegin = { down -> at(down)?.let { (p, t) -> onDrawBegin(p, t) } },
+                    onDrawMove = { move -> at(move)?.let { (p, t) -> onDrawMove(p, t) } },
+                    onDrawEnd = onDrawEnd,
+                    onDrawCancel = onDrawCancel,
+                )
             },
     ) {
         Canvas(Modifier.fillMaxSize()) {
@@ -161,6 +194,22 @@ public fun PlanViewport(
             // the shape stays legible while it is picked.
             highlighted.forEach { drawEntity(it, v, HarmenColours.Accent) }
             if (pendingPicks.isNotEmpty()) drawPending(pendingPicks, v)
+            // The shape under the finger, drawn in the accent colour with its
+            // length beside it: the number has to be visible while the hand is
+            // still moving, or there is no way to draw to a size.
+            if (preview.isNotEmpty()) {
+                preview.forEach { drawEntity(it, v, HarmenColours.Accent) }
+                if (previewLabel != null) {
+                    drawLabel(
+                        text = previewLabel,
+                        at = previewAnchor(preview, v),
+                        style = HarmenType.DimensionLabel.copy(color = HarmenColours.Text),
+                        measurer = measurer,
+                        centred = true,
+                        background = HarmenColours.Canvas,
+                    )
+                }
+            }
             roomLabels.forEach { drawRoomLabel(it, v, measurer) }
         }
 
@@ -430,12 +479,15 @@ private fun DrawScope.drawMeasurement(
 }
 
 /**
- * How far a snap may reach from a tap, in pixels.
+ * How far a snap may reach from the finger.
  *
- * Roughly half a fingertip. Wider and a tap two walls away still grabs a
- * corner; narrower and snapping stops helping on a zoomed-out plan.
+ * In dp, not pixels — and that distinction is the whole point. It was written
+ * in pixels at first, and on a tablet screen 28 pixels is about a millimetre
+ * and a half of glass: corners almost never caught, so walls would not meet
+ * end to end. In dp it is the same 10mm of glass on every screen, roughly a
+ * fingertip, which is what a snap radius has to be to be usable at all.
  */
-private const val snapRadiusPx: Double = 28.0
+private val SNAP_RADIUS = 28.dp
 
 /**
  * The measurement in progress: the points taken so far, and the line they
@@ -589,4 +641,134 @@ private fun CompassCorner(modifier: Modifier = Modifier) {
             strokeWidth = 1.4f,
         )
     }
+}
+
+/**
+ * Every touch on the plan, in one place.
+ *
+ * One handler rather than several, because the fingers have to be shared: with
+ * a drawing tool active a single finger draws, so it cannot also move the view,
+ * and a second finger has to be able to take a half-drawn shape back. Separate
+ * detectors each see their own gesture and would fight over the same finger.
+ *
+ * The rules it implements:
+ *  - one finger, drawing tool active  → draw, following the finger
+ *  - one finger, any other tool       → move the view
+ *  - two fingers, always              → move and zoom the view
+ *  - a press that never moves         → a tap, wherever it happened
+ */
+private suspend fun PointerInputScope.planGestures(
+    drawEnabled: Boolean,
+    onTransform: (centroid: Offset, pan: Offset, zoom: Float) -> Unit,
+    onTap: (Offset) -> Unit,
+    onDrawBegin: (Offset) -> Unit,
+    onDrawMove: (Offset) -> Unit,
+    onDrawEnd: () -> Unit,
+    onDrawCancel: () -> Unit,
+) {
+    awaitEachGesture {
+        val down = awaitFirstDown(requireUnconsumed = false)
+        val slop = viewConfiguration.touchSlop
+        var travelled = 0f
+        var drawing = false
+        var pinched = false
+        var last = down.position
+        var previous: Map<PointerId, Offset> = mapOf(down.id to down.position)
+
+        if (drawEnabled) {
+            drawing = true
+            onDrawBegin(down.position)
+        }
+
+        while (true) {
+            val event = awaitPointerEvent()
+            val pressed = event.changes.filter { it.pressed }
+            if (pressed.isEmpty()) break
+
+            if (pressed.size > 1 && drawing) {
+                // A second finger means "move the view", not "draw": the
+                // half-drawn shape is taken back rather than left stretched
+                // across the screen by the pinch.
+                drawing = false
+                pinched = true
+                onDrawCancel()
+            }
+
+            val current = pressed.associate { it.id to it.position }
+            val shared = current.keys.filter { previous.containsKey(it) }
+
+            if (shared.isNotEmpty()) {
+                val before = centroidOf(shared.map { previous.getValue(it) })
+                val after = centroidOf(shared.map { current.getValue(it) })
+                travelled += (after - before).getDistance()
+
+                if (drawing) {
+                    last = after
+                    onDrawMove(after)
+                    pressed.forEach { it.consume() }
+                } else if (travelled > slop) {
+                    // Zoom is how far apart the fingers are now against how far
+                    // apart they were a frame ago; with one finger it is 1.
+                    val zoom = if (shared.size > 1) {
+                        val spreadBefore = spreadOf(shared.map { previous.getValue(it) }, before)
+                        val spreadAfter = spreadOf(shared.map { current.getValue(it) }, after)
+                        if (spreadBefore > 0.01f) spreadAfter / spreadBefore else 1f
+                    } else {
+                        1f
+                    }
+                    onTransform(after, after - before, zoom)
+                    pressed.forEach { it.consume() }
+                }
+            }
+            previous = current
+        }
+
+        if (drawing) {
+            // Straight-line distance, not the length of the path: a finger that
+            // wandered and came back to where it started drew nothing, and must
+            // not leave a shape of no size behind.
+            if ((last - down.position).getDistance() > slop) {
+                onDrawEnd()
+            } else {
+                // A press that went nowhere is a tap, not a drag of no length.
+                // Two taps still place a shape, for anyone who would rather
+                // pick two points than hold a steady drag.
+                onDrawCancel()
+                onTap(down.position)
+            }
+        } else if (!pinched && travelled <= slop) {
+            onTap(down.position)
+        }
+    }
+}
+
+private fun centroidOf(points: List<Offset>): Offset {
+    var x = 0f
+    var y = 0f
+    for (p in points) {
+        x += p.x
+        y += p.y
+    }
+    return Offset(x / points.size, y / points.size)
+}
+
+/** Mean distance of the fingers from their centre. */
+private fun spreadOf(points: List<Offset>, centre: Offset): Float {
+    var total = 0f
+    for (p in points) total += hypot(p.x - centre.x, p.y - centre.y)
+    return total / points.size
+}
+
+/**
+ * Where the length of the shape being drawn is written.
+ *
+ * The middle of everything drawn so far, lifted clear of the linework so the
+ * number does not sit on top of the wall it is measuring.
+ */
+private fun previewAnchor(preview: List<DxfEntity>, v: Viewport2D): Vec2 {
+    val points = preview.flatMap { it.outline(16) }
+    if (points.isEmpty()) return Vec2.ZERO
+    val centre = Vec2(points.sumOf { it.x } / points.size, points.sumOf { it.y } / points.size)
+    val screen = v.toScreen(centre)
+    return Vec2(screen.x, screen.y - 22.0)
 }

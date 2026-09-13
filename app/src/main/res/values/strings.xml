@@ -58,6 +58,9 @@
     <string name="panel_layers">Katman Paleti</string>
     <string name="panel_materials">Malzeme Seçici</string>
     <string name="panel_properties">Özellikler</string>
+    <string name="panel_selected">Seçili Öğe</string>
+    <string name="unit_millimetre">mm</string>
+    <string name="action_finish_chain">Bitir</string>
     <string name="panel_annotations">Not Araçları</string>
     <string name="panel_empty_layers">bu çizimde katman yok</string>
     <string name="panel_empty_materials">malzeme yüklenmedi</string>

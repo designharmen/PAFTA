@@ -81,6 +81,7 @@ public fun ToolRail(
     onWallMaterialSelected: (WallMaterial) -> Unit = {},
     selectedShapeId: String? = null,
     onDeleteSelected: () -> Unit = {},
+    onFinishChain: () -> Unit = {},
 ) {
     Column(
         modifier = modifier
@@ -127,6 +128,19 @@ public fun ToolRail(
                             onClick = { onWallMaterialSelected(material) },
                         )
                     }
+                }
+            }
+            // A run of walls has to be able to stop. Switching tool ends it too,
+            // but that is not something to make the user discover.
+            if (tool == activeTool && tool in CHAINABLE && !compact && pendingPickCount > 0) {
+                Column(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 5.dp, vertical = 4.dp),
+                ) {
+                    RailChip(
+                        text = stringResource(R.string.action_finish_chain),
+                        selected = false,
+                        onClick = onFinishChain,
+                    )
                 }
             }
             if (tool == Tool.SELECT && activeTool == Tool.SELECT && !compact &&
@@ -332,6 +346,9 @@ private fun Tool.icon(): ImageVector = when (this) {
     Tool.PALETTE -> Icons.Outlined.Palette
     Tool.LAYERS -> Icons.Outlined.Layers
 }
+
+/** Tools that keep going from where the last shape ended. */
+private val CHAINABLE = setOf(Tool.WALL, Tool.LINE)
 
 /** The wall thicknesses a plan is actually drawn with, in millimetres. */
 private val WALL_THICKNESSES_MM = listOf(100.0, 200.0, 300.0)

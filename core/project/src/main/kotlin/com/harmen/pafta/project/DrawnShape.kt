@@ -189,6 +189,50 @@ public sealed interface DrawnShape {
 }
 
 /**
+ * How long the shape is, in drawing millimetres, or null when length is not
+ * what describes it.
+ */
+public val DrawnShape.lengthMm: Double?
+    get() = when (this) {
+        is DrawnShape.Wall -> a.toVec2().distanceTo(b.toVec2())
+        is DrawnShape.Line -> a.toVec2().distanceTo(b.toVec2())
+        is DrawnShape.Circle -> radiusMm * 2.0
+        is DrawnShape.Rectangle -> null
+    }
+
+/**
+ * The same shape at an exact length, keeping its start and its direction.
+ *
+ * This is what makes a drawn wall usable: a finger cannot land on 3600mm, so
+ * the wall is drawn roughly and then told what it is. The start point stays put
+ * because it is usually already snapped to something that matters — a corner,
+ * another wall — and moving it would break that join to fix the length.
+ */
+public fun DrawnShape.withLength(millimetres: Double): DrawnShape {
+    if (millimetres <= 0.0) return this
+
+    fun stretched(from: Vec3, to: Vec3): Vec3 {
+        val direction = to.toVec2() - from.toVec2()
+        val current = hypot(direction.x, direction.y)
+        // A shape with no length has no direction to stretch along; leave it.
+        if (current < 1e-6) return to
+        val factor = millimetres / current
+        return Vec3(
+            from.x + direction.x * factor,
+            from.y + direction.y * factor,
+            to.z,
+        )
+    }
+
+    return when (this) {
+        is DrawnShape.Wall -> copy(b = stretched(a, b))
+        is DrawnShape.Line -> copy(b = stretched(a, b))
+        is DrawnShape.Circle -> copy(radiusMm = millimetres / 2.0)
+        is DrawnShape.Rectangle -> this
+    }
+}
+
+/**
  * What another shape may snap to.
  *
  * A wall offers its **centre line**, not its outline. This is the difference

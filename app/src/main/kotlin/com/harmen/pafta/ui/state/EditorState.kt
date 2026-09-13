@@ -47,6 +47,15 @@ public enum class Tool(
     LAYERS(R.string.tool_layers),
 }
 
+/**
+ * Tools that make a shape rather than inspect one.
+ *
+ * Public because the viewport needs it too: while one of these is active a
+ * single finger draws instead of panning, and the viewport is the only place
+ * that sees the finger.
+ */
+public val DRAWING_TOOLS: Set<Tool> = setOf(Tool.WALL, Tool.LINE, Tool.RECTANGLE, Tool.CIRCLE)
+
 /** The tab group in the second row of the top bar. */
 public enum class ViewTab(@StringRes public val label: Int) {
     ACTIVE(R.string.tab_active),
@@ -137,6 +146,13 @@ public data class EditorState(
     val shapes: List<DrawnShape> = emptyList(),
     /** The drawn shape currently selected, if any. */
     val selectedShapeId: String? = null,
+    /**
+     * The shape being drawn right now, following the finger.
+     *
+     * It is not in [shapes] and not in the undo history: until the finger
+     * lifts, nothing has been drawn.
+     */
+    val preview: DrawnShape? = null,
     /** Thickness used by the wall tool, in drawing millimetres. */
     val wallThicknessMm: Double = DrawnShape.DEFAULT_WALL_THICKNESS_MM,
     /** Material used by the wall tool; it decides which layer the wall lands on. */

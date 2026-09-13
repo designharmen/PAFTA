@@ -15,9 +15,12 @@ import androidx.compose.ui.unit.dp
 import com.harmen.pafta.dxf.DxfDrawing
 import com.harmen.pafta.ui.chrome.HairlineDivider
 import com.harmen.pafta.ui.chrome.PaftaTopBar
+import com.harmen.pafta.project.lengthMm
+import com.harmen.pafta.units.formatLength
 import com.harmen.pafta.ui.chrome.RightPanel
 import com.harmen.pafta.ui.chrome.ToolRail
 import com.harmen.pafta.ui.chrome.VerticalHairline
+import com.harmen.pafta.ui.state.DRAWING_TOOLS
 import com.harmen.pafta.ui.state.EditorState
 import com.harmen.pafta.ui.state.EditorViewModel
 import com.harmen.pafta.ui.state.TopMenu
@@ -85,6 +88,7 @@ public fun PaftaScreen(
                         onWallMaterialSelected = viewModel::selectWallMaterial,
                         selectedShapeId = state.selectedShapeId,
                         onDeleteSelected = viewModel::deleteSelected,
+                        onFinishChain = viewModel::finishChain,
                     )
                     VerticalHairline(Modifier.fillMaxHeight())
 
@@ -100,6 +104,15 @@ public fun PaftaScreen(
                         modifier = Modifier.weight(1f).fillMaxHeight(),
                         pendingPicks = state.pendingPicks,
                         onPick = viewModel::onCanvasPick,
+                        drawEnabled = state.activeTool in DRAWING_TOOLS,
+                        onDrawBegin = viewModel::beginDrag,
+                        onDrawMove = viewModel::updateDrag,
+                        onDrawEnd = viewModel::endDrag,
+                        onDrawCancel = viewModel::cancelDrag,
+                        preview = state.preview?.toEntities().orEmpty(),
+                        previewLabel = state.preview?.lengthMm?.let {
+                            formatLength(it, state.display.lengthFormat)
+                        },
                         drawn = remember(state.shapes) {
                             state.shapes.flatMap { it.toEntities() }
                         },
@@ -121,6 +134,11 @@ public fun PaftaScreen(
                             onLayerOpacityChanged = viewModel::setLayerOpacity,
                             onMaterialSelected = viewModel::selectMaterial,
                             onAnnotationToolSelected = { viewModel.selectAnnotationTool(it) },
+                            selectedShapeId = state.selectedShapeId,
+                            selectedLengthMm = state.shapes
+                                .firstOrNull { it.id == state.selectedShapeId }
+                                ?.lengthMm,
+                            onSelectedLengthChanged = viewModel::setSelectedLength,
                         )
                     }
                 }

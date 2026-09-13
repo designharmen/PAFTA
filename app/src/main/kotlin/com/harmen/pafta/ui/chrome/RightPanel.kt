@@ -1,5 +1,6 @@
 package com.harmen.pafta.ui.chrome
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -15,6 +16,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ChatBubbleOutline
@@ -27,18 +31,25 @@ import androidx.compose.material.icons.outlined.VerifiedUser
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.annotation.StringRes
 import com.harmen.pafta.R
 import com.harmen.pafta.project.AnnotationKind
 import com.harmen.pafta.project.LayerState
@@ -69,6 +80,10 @@ public fun RightPanel(
     onMaterialSelected: (String) -> Unit,
     onAnnotationToolSelected: (AnnotationKind) -> Unit,
     modifier: Modifier = Modifier,
+    /** The selected shape, so its length can be corrected by typing. */
+    selectedShapeId: String? = null,
+    selectedLengthMm: Double? = null,
+    onSelectedLengthChanged: (Double) -> Unit = {},
 ) {
     Column(
         modifier = modifier
@@ -120,6 +135,16 @@ public fun RightPanel(
             }
         }
 
+        if (selectedShapeId != null && selectedLengthMm != null) {
+            Section(R.string.panel_selected) {
+                LengthField(
+                    key = selectedShapeId,
+                    lengthMm = selectedLengthMm,
+                    onLengthChanged = onSelectedLengthChanged,
+                )
+            }
+        }
+
         Section(R.string.panel_annotations) {
             for (kind in ANNOTATION_TOOLS) {
                 AnnotationToolRow(
@@ -129,6 +154,70 @@ public fun RightPanel(
                 )
             }
         }
+    }
+}
+
+/**
+ * The selected shape's length, as a number the user can retype.
+ *
+ * This is what turns a rough drag into a measured plan: the wall is drawn by
+ * hand, then told that it is 3600mm. The field shows plain millimetres with no
+ * unit inside it, because a keyboard on a tablet makes `3600` easy and
+ * `3600mm` a fight.
+ */
+@Composable
+private fun LengthField(key: String, lengthMm: Double, onLengthChanged: (Double) -> Unit) {
+    // Re-seeded whenever the selection changes, so the field always shows the
+    // shape the user is actually looking at.
+    var text by remember(key, lengthMm) { mutableStateOf(Math.round(lengthMm).toString()) }
+    val commit = {
+        text.trim().replace(',', '.').toDoubleOrNull()?.let { if (it > 0) onLengthChanged(it) }
+    }
+
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 4.dp),
+    ) {
+        Text(
+            text = stringResource(R.string.property_length),
+            style = HarmenType.PropertyKey,
+            color = HarmenColours.TextMuted,
+            modifier = Modifier.weight(1f),
+        )
+        Box(
+            contentAlignment = Alignment.CenterEnd,
+            modifier = Modifier
+                .width(92.dp)
+                .clip(RoundedCornerShape(metrics.cornerRadius))
+                .background(HarmenColours.PanelRaised)
+                .drawBehind {
+                    drawRect(color = HarmenColours.Accent, style = Stroke(width = 1.dp.toPx()))
+                }
+                .padding(horizontal = 6.dp, vertical = 7.dp),
+        ) {
+            BasicTextField(
+                value = text,
+                onValueChange = { entered -> text = entered.filter { it.isDigit() || it == '.' || it == ',' } },
+                singleLine = true,
+                textStyle = HarmenType.Numeric.copy(
+                    color = HarmenColours.Text,
+                    textAlign = TextAlign.End,
+                ),
+                cursorBrush = SolidColor(HarmenColours.Accent),
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Number,
+                    imeAction = ImeAction.Done,
+                ),
+                keyboardActions = KeyboardActions(onDone = { commit() }),
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+        Spacer(Modifier.width(6.dp))
+        Text(
+            text = stringResource(R.string.unit_millimetre),
+            style = HarmenType.PropertyKey,
+            color = HarmenColours.TextFaint,
+        )
     }
 }
 
