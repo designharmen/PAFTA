@@ -26,6 +26,9 @@ it does so four minutes into a CI run. This catches them in a second:
     Kotlin that is not actually in res/font — the brand guideline names Inter,
     Roboto, Montserrat and Poppins as forbidden, and a missing font file is a
     build error the development container cannot otherwise catch
+  * a named argument that the function being called does not have — the app
+    module cannot be compiled here, so a parameter renamed in one file and
+    still passed from another is otherwise only found by CI, minutes later
 
 Exits non-zero and prints the file and line on the first real problem found.
 """
@@ -40,6 +43,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 STRINGS = ROOT / "app/src/main/res/values/strings.xml"
 KOTLIN_DIRS = [ROOT / "app/src/main/kotlin"]
+# Argüman denetimi çekirdeği de kapsar: arayüz oradaki işlevleri çağırıyor.
+ALL_KOTLIN_DIRS = [ROOT / "app/src/main/kotlin"] + sorted(ROOT.glob("core/*/src/main/kotlin"))
 XML_DIRS = [ROOT / "app/src/main"]
 FONT_DIR = ROOT / "app/src/main/res/font"
 
@@ -250,6 +255,182 @@ def check_fonts() -> list[str]:
     return problems
 
 
+
+def _without_comments_and_strings(text: str) -> str:
+    """The same text with comments and string bodies blanked out.
+
+    Everything keeps its position and its newlines, so reported line numbers
+    stay true; only the contents that could contain a stray bracket or an `=`
+    are replaced. Without this a comment mentioning `foo(bar = 1)` reads as a
+    call.
+    """
+    out = []
+    i = 0
+    n = len(text)
+    while i < n:
+        two = text[i:i + 2]
+        if two == "//":
+            while i < n and text[i] != "\n":
+                out.append(" ")
+                i += 1
+        elif two == "/*":
+            while i < n and text[i:i + 2] != "*/":
+                out.append("\n" if text[i] == "\n" else " ")
+                i += 1
+            out.append("  ")
+            i += 2
+        elif text[i:i + 3] == '"""':
+            out.append('"""')
+            i += 3
+            while i < n and text[i:i + 3] != '"""':
+                out.append("\n" if text[i] == "\n" else " ")
+                i += 1
+            out.append('"""')
+            i += 3
+        elif text[i] == '"':
+            out.append('"')
+            i += 1
+            while i < n and text[i] != '"':
+                if text[i] == "\\":
+                    out.append("  ")
+                    i += 2
+                    continue
+                out.append(" ")
+                i += 1
+            out.append('"')
+            i += 1
+        else:
+            out.append(text[i])
+            i += 1
+    return "".join(out)
+
+
+def _balanced(text: str, open_at: int) -> tuple[str, int]:
+    """The contents of the bracket that opens at [open_at], and the index after it."""
+    depth = 0
+    i = open_at
+    n = len(text)
+    while i < n:
+        c = text[i]
+        if c in "([{":
+            depth += 1
+        elif c in ")]}":
+            depth -= 1
+            if depth == 0:
+                return text[open_at + 1:i], i + 1
+        i += 1
+    return "", n
+
+
+def _split_arguments(body: str) -> list[str]:
+    """Top-level comma-separated pieces of an argument or parameter list.
+
+    Angle brackets count as brackets so that `Map<String, Int>` stays one piece,
+    but not when they are half of `->`: a lambda parameter type would otherwise
+    unbalance the count and swallow every comma after it.
+    """
+    parts = []
+    depth = 0
+    current: list[str] = []
+    previous = ""
+    for c in body:
+        if c in "([{":
+            depth += 1
+        elif c in ")]}":
+            depth -= 1
+        elif c == "<" and previous not in ("-", "<", "="):
+            depth += 1
+        elif c == ">" and previous not in ("-", "="):
+            depth -= 1
+        if c == "," and depth == 0:
+            parts.append("".join(current))
+            current = []
+        else:
+            current.append(c)
+        previous = c
+    if "".join(current).strip():
+        parts.append("".join(current))
+    return parts
+
+
+DECLARATION = re.compile(
+    r"\b(?:fun|class)\s+(?:<[^>\n]*>\s*)?(?:[\w.]+\.)?(\w+)\s*(?:<[^>\n]*>\s*)?\("
+)
+CALL = re.compile(r"(?<![\w.])(\w+)\s*\(")
+NAMED_ARGUMENT = re.compile(r"^\s*(\w+)\s*=(?!=)")
+PARAMETER_NAME = re.compile(r"(\w+)\s*:")
+
+# `copy` belongs to whichever data class the receiver is, which needs the type
+# to know; the rest are Kotlin's own and never ours.
+UNCHECKABLE = {"copy", "require", "check", "listOf", "setOf", "mapOf"}
+
+IMPORT = re.compile(r"^\s*import\s+([\w.]+)", re.MULTILINE)
+
+
+def check_named_arguments() -> list[str]:
+    """Named arguments must be parameters the called function actually has.
+
+    This is the mistake that cost a build: a property read off the wrong type,
+    and an argument passed to a function that had no such parameter. The app
+    module needs the Android SDK to compile and the development container does
+    not have it, so nothing else catches this until CI does, minutes later.
+
+    Deliberately conservative. Only functions and constructors declared in this
+    repository are checked, and where a name is declared more than once every
+    declaration's parameters are accepted, so an overload can never be reported
+    as a mistake. It finds the wrong name, not the wrong type.
+    """
+    sources = []
+    for directory in ALL_KOTLIN_DIRS:
+        if directory.is_dir():
+            sources.extend(sorted(directory.rglob("*.kt")))
+
+    cleaned = {path: _without_comments_and_strings(path.read_text()) for path in sources}
+
+    # A name imported from somewhere OTHER than PAFTA is left alone: PAFTA has
+    # its own `DxfEntity.Text`, Compose has `Text`, and there is no way to tell
+    # from the text of a call which one is meant. PAFTA's own imports are not
+    # borrowed — those are exactly the calls worth checking.
+    borrowed = set()
+    for text in cleaned.values():
+        for match in IMPORT.finditer(text):
+            imported = match.group(1)
+            if not imported.startswith("com.harmen.pafta."):
+                borrowed.add(imported.rsplit(".", 1)[-1])
+
+    parameters: dict[str, set[str]] = {}
+    for text in cleaned.values():
+        for match in DECLARATION.finditer(text):
+            body, _ = _balanced(text, match.end() - 1)
+            names = set()
+            for piece in _split_arguments(body):
+                found = PARAMETER_NAME.search(piece)
+                if found:
+                    names.add(found.group(1))
+            parameters.setdefault(match.group(1), set()).update(names)
+
+    problems = []
+    for path, text in cleaned.items():
+        for match in CALL.finditer(text):
+            name = match.group(1)
+            if name in UNCHECKABLE or name in borrowed or name not in parameters:
+                continue
+            body, _ = _balanced(text, match.end() - 1)
+            for piece in _split_arguments(body):
+                named = NAMED_ARGUMENT.match(piece)
+                if not named:
+                    continue
+                argument = named.group(1)
+                if argument not in parameters[name]:
+                    line = text.count("\n", 0, match.start()) + 1
+                    problems.append(
+                        f"{path.relative_to(ROOT)}:{line} — {name}() çağrısında "
+                        f"'{argument}' diye bir argüman yok "
+                        f"(olanlar: {', '.join(sorted(parameters[name])) or 'yok'})"
+                    )
+    return problems
+
+
 def main() -> int:
     if not STRINGS.exists():
         fail(f"{STRINGS} bulunamadı")
@@ -275,6 +456,7 @@ def main() -> int:
         + check_references(defined)
         + check_kotlin_usage()
         + check_fonts()
+        + check_named_arguments()
     )
 
     if problems:

@@ -8,6 +8,7 @@ import com.harmen.pafta.dxf.DxfDrawing
 import com.harmen.pafta.dxf.near
 import com.harmen.pafta.dxf.snapSegments
 import com.harmen.pafta.geometry.Segment2
+import com.harmen.pafta.geometry.Aabb
 import com.harmen.pafta.geometry.Vec2
 import com.harmen.pafta.geometry.Vec3
 import com.harmen.pafta.measure.MeasurementEngine
@@ -41,6 +42,11 @@ import kotlinx.coroutines.launch
 public data class EditorDocument(
     val file: File,
     val drawing: DxfDrawing,
+    /**
+     * What the opening view is framed around: the file's extent together with
+     * anything already drawn by hand, which may reach past it.
+     */
+    val bounds: Aabb,
     val unsupportedEntityTypes: Set<String> = emptySet(),
 )
 
@@ -107,6 +113,7 @@ public class EditorViewModel(
                     _document.value = EditorDocument(
                         file = file,
                         drawing = doc.drawing,
+                        bounds = doc.bounds,
                         unsupportedEntityTypes = doc.unsupportedEntityTypes,
                     )
                     _state.value = loaded.toEditorState(doc)
