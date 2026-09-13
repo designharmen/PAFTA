@@ -607,33 +607,66 @@ The old Phases 2–6 are withdrawn. The 3D viewer in particular was a plan for a
 different product: Rayon is deliberately 2D, and the owner's own files are floor
 plans.
 
+### What the owner added when the plan was put to them
+
+Four decisions, all of which change the plan rather than a detail of it:
+
+1. **PAFTA has no commercial aim.** That dissolves the licence question that has
+   been open since Phase 0: GPL-3.0 is acceptable, so LibreDWG can read DWG, and
+   open-licensed material — block libraries, sample drawings — can be collected
+   from GitHub and elsewhere, each recorded in `LICENCES.md`.
+2. **Nothing from the original brief is given up.** The Rayon-shaped drawing
+   work is *in addition to* the 3D viewer, the other 3D formats and IFC/BIM, not
+   instead of them. Those phases are restored below, later in the order.
+3. **It has to run on the desktop too**, at the end.
+4. **Google Drive last**, so a project saved on the tablet can be opened and
+   carried on from a desktop. Deliberately last, because it may need a separate
+   email account for PAFTA.
+
+And one standing rule, now in `CLAUDE.md`: the interface stays simple. A tool
+that does nothing must not look like a tool that works.
+
 ### The new plan
 
-Each phase still ends with an installed, tested build, and the rules in
-`CLAUDE.md` are unchanged.
+Fourteen phases. Each one still ends with an installed, tested build, and the
+order is chosen so the app becomes useful as early as possible: everything that
+needs native code, a server or an account sits at the end.
 
 | Phase | What it delivers | Rests on |
 | --- | --- | --- |
-| **A — Drawing** | Draw a wall with a real thickness, a line, a rectangle, a circle; select, move and delete what you drew; it saves into the project and exports to DXF | snapping, viewport, undo, `DxfWriter` — all built |
-| **B — Architectural objects** | Zones (a room named and measured in one tap), openings (doors and windows placed onto a wall, with width and swing) | Phase A |
-| **C — Editing** | copy, rotate, scale, offset, trim, join, multi-select | Phase A |
-| **D — Library** | Place blocks from a library; build the library by importing the office's own DXF blocks rather than shipping someone else's 3,000 | block expansion — built |
+| **A — Drawing** | a wall with real thickness, a line, a rectangle, a circle; select, move, delete; saved into the project and exported to DXF | snapping, viewport, undo, `DxfWriter` — all built |
+| **B — Architectural objects** | zones (a room named and measured in one tap), openings (doors and windows on a wall, with width and swing) | A |
+| **C — Editing** | copy, rotate, scale, offset, trim, join, multi-select | A |
+| **D — Library** | place blocks; build the library from open-licensed sets and from the office's own DXF blocks | block expansion — built |
 | **E — Styles and layers** | line weights, colours, hatches, text styles; create, rename and reorder layers | layer palette — built |
-| **F — Annotation** | dimension chains, leaders, tags, text on the drawing | measurement — built in this session |
-| **G — Properties and tables** | properties on objects, and a room schedule and a door/window schedule generated from them | Phase B |
-| **H — Sheets and output** | sheets with a title block; export PDF, PNG and DXF; print | Phase A |
-| **I — DWG and PDF import** | open the files the owner actually has, without a computer in the loop | **needs the GPL-3.0 decision** |
-| **J — Sharing** | comments and shared review | **needs a decision: a server costs money every month** |
+| **F — Annotation** | dimension chains, leaders, tags, text on the drawing | measurement — built |
+| **G — Properties and tables** | properties on objects; room schedule and door/window schedule generated from them | B |
+| **H — Sheets and output** | sheets with a title block; PDF, PNG and DXF export; print | A |
+| **I — DWG and PDF import** | open the files the owner actually has, with no computer in the loop. **LibreDWG, GPL-3.0** | the licence decision above |
+| **J — 3D viewer** | Filament, GLB/GLTF, orbit and pan at interactive frame rates | NDK groundwork from I |
+| **K — Other 3D formats** | Assimp: OBJ, STL, PLY, DAE, 3DS | J |
+| **L — BIM** | IfcOpenShell for IFC; property panel, section planes | J, K |
+| **M — Desktop** | the same app on a desktop through Compose Multiplatform | everything above staying free of Android-only APIs |
+| **N — Google Drive** | projects saved to Drive; open on the tablet, carry on at the desk | M, and an account for PAFTA |
 
-Two phases wait on the owner rather than on engineering, and both are marked as
-such above. Phase J in particular collides with the project's own constraint —
-"no subscription, nothing that requires payment" — because real-time
-collaboration cannot exist without a server that someone pays for monthly.
-Sharing a file, or a read-only link, is a different and much cheaper thing than
-Rayon's live multi-user editing.
+3D-print slicing (CuraEngine, AGPL-3.0) stays on the list beyond N, unscheduled,
+as it was in the original brief.
 
-**AI features are deliberately absent.** Rayon's image generation and tracing run
-on paid services; the same constraint applies.
+**Two constraints that shape the late phases.** Phase M is not a rewrite if the
+groundwork holds: the `core:` modules are already pure Kotlin and the interface
+is Compose, so what matters is that new code keeps Android out of the parts that
+do not need it — a rule now written into `CLAUDE.md`. Phase N needs an account
+and Google's consent screen, which is free but is paperwork, hence its place at
+the end.
+
+**Real-time collaboration is not in the plan.** Rayon has it; it needs a server
+running every month, and a server costs money, which the project's constraint
+forbids. Sharing a file, or exporting a PDF to send, covers most of what it is
+used for and costs nothing. If the owner wants live multi-user editing later, it
+is a separate decision with a monthly bill attached.
+
+**AI features are not in the plan** either, for the same reason: Rayon's image
+generation and tracing run on paid services.
 
 ### Exit criterion for the pivot as a whole
 

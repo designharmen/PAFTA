@@ -124,8 +124,19 @@ private fun ToolButton(
     // Bronze is allowed on the icon — the guideline names icons alongside lines
     // and rules — but never on the caption beneath it, which is far under the
     // 24px floor for bronze text.
-    val tint = if (selected) HarmenColours.Accent else HarmenColours.TextMuted
-    val labelColour = if (selected) HarmenColours.Text else HarmenColours.TextMuted
+    //
+    // A tool whose phase has not landed yet is drawn faint and does not respond,
+    // so the rail never promises something it cannot do.
+    val tint = when {
+        !tool.ready -> HarmenColours.TextFaint
+        selected -> HarmenColours.Accent
+        else -> HarmenColours.TextMuted
+    }
+    val labelColour = when {
+        !tool.ready -> HarmenColours.TextFaint
+        selected -> HarmenColours.Text
+        else -> HarmenColours.TextMuted
+    }
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
@@ -133,7 +144,7 @@ private fun ToolButton(
             .padding(horizontal = 4.dp, vertical = 2.dp)
             .clip(RoundedCornerShape(metrics.cornerRadius))
             .background(if (selected) HarmenColours.SelectedWash else Color.Transparent)
-            .clickable(role = Role.Tab, onClick = onClick)
+            .clickable(enabled = tool.ready, role = Role.Tab, onClick = onClick)
             .padding(vertical = 7.dp),
     ) {
         val label = stringResource(tool.label)

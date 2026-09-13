@@ -120,14 +120,38 @@ Kurulum dosyası (APK) GitHub'da otomatik üretilir
 Yalnızca **MIT / BSD / Apache-2.0 / LGPL / GPL / AGPL** bileşenler. Ticari SDK
 yok, üyelik yok, ödeme gerektiren hiçbir şey yok.
 
-**DİKKAT:** DWG okuyan tek ücretsiz kütüphane **LibreDWG** ve lisansı
-**GPL-3.0**. Kullanılırsa uygulamanın **TAMAMI** o lisansla dağıtılmak zorunda
-kalır — yani PAFTA kapalı kaynak ticari ürün olarak satılamaz. Kısıta uyuyor ama
-bu, proje sahibinin **bilerek vermesi gereken** bir karardır.
-**O onaylamadan bu işe başlanmaz.** Aynı dikkat **CuraEngine (AGPL-3.0)** için de
-geçerlidir.
+**PAFTA'nın ticari amacı yok** (proje sahibinin kararı). Bunun iki sonucu var:
+
+1. **GPL kabul edilebilir.** DWG okuyan tek ücretsiz kütüphane olan
+   **LibreDWG (GPL-3.0)** artık kullanılabilir. Bedeli: uygulamanın **tamamı**
+   GPL-3.0 ile dağıtılır, kaynağı açık kalır, herkes kullanıp değiştirebilir.
+   Geri dönüşü, o bileşeni tamamen çıkarmaktan geçer. Aynısı **CuraEngine
+   (AGPL-3.0)** için de geçerli.
+2. **Açık kaynaklı hazır malzeme toplanabilir.** GitHub ve benzeri yerlerden
+   işe yarayan veri, blok kütüphanesi ve örnek dosya toplanabilir — her birinin
+   lisansı `docs/LICENCES.md` içine yazılmak şartıyla.
 
 Ayrıntı: `docs/LICENCES.md`
+
+---
+
+## 6b. Arayüz kuralı: karmaşık olmayacak
+
+Proje sahibinin sözleri: *"UI ve UX tasarımı tamamen kullanıcı dostu olsun.
+Komplike şeyler istemiyorum."*
+
+Bunun pratikteki karşılığı:
+
+- **Çalışmayan bir şey, çalışıyormuş gibi durmaz.** Henüz bağlanmamış bir araç
+  ya ekranda yoktur ya da soluk ve tıklanamazdır. Dokunup hiçbir şey olmaması
+  en kötü seçenek.
+- **Aynı işin iki adı olmaz.** "Ölç / Ölçü / Ölçüler" gibi birbirine benzeyen
+  üç isim, üç ayrı iş demek değilse tek isme iner.
+- **Bir ekranda tek asıl iş vardır.** Ayar kalabalığı panele değil, aracın
+  altına açılan küçük bir listeye gider.
+- **Parmakla çalışır.** Her dokunma hedefi en az 44dp; ince çizgiye dokunmak
+  gerekmez, tutma (snap) yakalar.
+- **Her metin, o işi ilk kez yapan birinin anlayacağı Türkçedir.**
 
 ---
 
@@ -140,6 +164,24 @@ olduğu gibi raporlanır. Faz kayıtla kapanır.
 Cihaz olmadan test edilebilen her şey **`core/` altında** olmalıdır. Birimler,
 geometri, DXF motoru, ölçüm, proje dosyası, geri al ve otomatik kayıt mantığı bu
 yüzden saf Kotlin ve bu yüzden test edilebiliyor.
+
+---
+
+## 8. Nereye gidiyoruz (uzun vade)
+
+Proje sahibinin koyduğu hedefler. Hiçbiri vazgeçilmiş değil; sıraları
+`docs/ROADMAP.md` içinde.
+
+- **PAFTA bir çizim aracıdır**, yalnızca görüntüleyici değil. Ölçü olarak
+  Rayon (rayon.design) alındı — ama Rayon tablette çalışmıyor, PAFTA çalışacak.
+- **İlk fazlarda istenenlerden vazgeçilmedi.** 3B görüntüleme, diğer 3B
+  biçimler, IFC/BIM — hepsi planda duruyor, sadece sonraya alındı.
+- **En sonunda masaüstünde de çalışacak.** Bu yüzden bugün yazılan her şey
+  Android'e gereğinden fazla bağlanmaz: çekirdek saf Kotlin kalır, arayüz
+  Compose'da ortak kullanılabilecek biçimde yazılır.
+- **En son adım Google Drive.** Proje dosyaları Drive'a kaydedilecek ve
+  masaüstünden açılıp düzenlemeye devam edilebilecek. Bunun için PAFTA adına
+  ayrı bir e-posta hesabı gerekebilir — o yüzden en sona bırakıldı.
 
 ---
 

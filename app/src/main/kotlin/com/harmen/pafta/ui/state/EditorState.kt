@@ -19,7 +19,18 @@ import com.harmen.pafta.project.StoreFailure
  * the wording lives in `strings.xml`, so a label can never be an English word
  * that slipped into code.
  */
-public enum class Tool(@StringRes public val label: Int) {
+public enum class Tool(
+    @StringRes public val label: Int,
+    /**
+     * Whether this tool actually does something yet.
+     *
+     * A tool that is drawn like every other one but answers a tap with nothing
+     * is the worst thing an interface can do, and PAFTA had nine of them. The
+     * unfinished ones are shown faint and cannot be tapped until the phase that
+     * builds them lands, so the rail always tells the truth about itself.
+     */
+    public val ready: Boolean = false,
+) {
     SELECT(R.string.tool_select),
     PENCIL(R.string.tool_pencil),
     LINE(R.string.tool_line),
@@ -28,8 +39,8 @@ public enum class Tool(@StringRes public val label: Int) {
     DIMENSIONS(R.string.tool_dimensions),
     HATCH(R.string.tool_hatch),
     TEXT(R.string.tool_text),
-    GRID(R.string.tool_grid),
-    MEASURE(R.string.tool_measure),
+    GRID(R.string.tool_grid, ready = true),
+    MEASURE(R.string.tool_measure, ready = true),
     PALETTE(R.string.tool_palette),
     LAYERS(R.string.tool_layers),
 }
