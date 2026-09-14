@@ -532,24 +532,23 @@ private fun FinishChooser(finish: FloorFinish, onChanged: (FloorFinish) -> Unit)
                 selected = choice == finish,
                 onClick = { onChanged(choice) },
                 modifier = Modifier.fillMaxWidth(),
+                swatch = { FinishSwatch(choice, size = 16.dp) },
             )
         }
     }
 }
 
-/** One tappable choice in a panel row. */
+/** One tappable choice in a panel row, with an optional drawn mark on it. */
 @Composable
 private fun ChoiceCell(
     text: String,
     selected: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    swatch: (@Composable () -> Unit)? = null,
 ) {
-    Text(
-        text = text,
-        style = HarmenType.PropertyKey,
-        color = if (selected) HarmenColours.Text else HarmenColours.TextMuted,
-        textAlign = TextAlign.Center,
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
         modifier = modifier
             .padding(horizontal = 2.dp, vertical = 2.dp)
             .clip(RoundedCornerShape(metrics.cornerRadius))
@@ -560,8 +559,22 @@ private fun ChoiceCell(
             }
             .clickable(role = Role.Button, onClick = onClick)
             .height(44.dp)
-            .padding(vertical = 13.dp),
-    )
+            .padding(horizontal = 8.dp),
+    ) {
+        if (swatch != null) {
+            swatch()
+            Spacer(Modifier.width(8.dp))
+        }
+        Text(
+            text = text,
+            style = HarmenType.PropertyKey,
+            color = if (selected) HarmenColours.Text else HarmenColours.TextMuted,
+            textAlign = if (swatch == null) TextAlign.Center else TextAlign.Start,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
+    }
 }
 
 /** The angles a plan is turned by, largest first. */

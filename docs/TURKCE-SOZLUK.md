@@ -55,6 +55,11 @@ gerçekten çalışan çizim araçları aldı.
 
 Dört aile: **Ahşap** · **Taş ve seramik** · **Esnek ve dökme** · **Tekstil**
 
+Her malzemenin ve her kaplamanın yanında, o malzemeyi anlatan çizilmiş bir
+küçük kare var — tuğla için duvar örgüsü, beton için agrega, gazbeton için
+blok, ahşap için damar; kaplamalarda tahta, karo, dökme ve hav. Aynı desen,
+planda duvarın içini de dolduruyor.
+
 Masif ahşap · Lamine parke · Laminat · Parke · Bambu · Seramik · Porselen ·
 Mermer · Granit · Traverten · Karo mozaik · Arduvaz · PVC · Linolyum · Kauçuk ·
 Epoksi · Perdahlı beton · Şap · Halı · Karo halı

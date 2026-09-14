@@ -859,6 +859,13 @@ public data class WallBand(
     val layer: String,
     /** The four corners of the band, in order, ready to be filled. */
     val corners: List<Vec2>,
+    /**
+     * What it is built of, so the plan can hatch it the way a plan does.
+     *
+     * Null only for a rounded corner between two pencil lines, which is made
+     * of nothing and is drawn as an outline.
+     */
+    val material: WallMaterial? = null,
 )
 
 /**
@@ -992,16 +999,32 @@ public fun List<DrawnShape>.wallBands(): List<WallBand> {
             id = wall.id,
             layer = wall.layer,
             corners = listOf(fromEnd + n, toEnd + n, toEnd - n, fromEnd - n),
+            material = wall.material,
         )
     } + curves.mapNotNull { curve ->
         val corners = curve.bandCorners()
-        if (corners.size < 3) null else WallBand(curve.id, curve.layer, corners)
+        if (corners.size < 3) {
+            null
+        } else {
+            // A rounded corner is a piece of the walls it joins, so it is
+            // hatched as whatever they are made of.
+            WallBand(
+                id = curve.id,
+                layer = curve.layer,
+                corners = corners,
+                material = walls.firstOrNull { it.layer == curve.layer }?.material,
+            )
+        }
     } + columns.mapNotNull { column ->
         // A round column is filled as a many-sided polygon rather than as a
         // circle, because the band list is polygons and one shape of thing is
         // easier to get right than two.
         val corners = if (column.round) column.roundCorners() else column.outline()
-        if (corners.size < 3) null else WallBand(column.id, column.layer, corners)
+        if (corners.size < 3) {
+            null
+        } else {
+            WallBand(column.id, column.layer, corners, column.material)
+        }
     }
 }
 

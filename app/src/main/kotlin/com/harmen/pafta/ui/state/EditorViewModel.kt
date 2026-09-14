@@ -425,7 +425,9 @@ public class EditorViewModel(
         if (length < 1.0) return
         // How far down the wall the finger landed, measured along its centre
         // line — which is the one number an opening keeps.
-        val distance = ((point - wall.a.toVec2()) dot along) / length
+        // Rounded to the grid, like everything else that is placed: a door
+        // 1837mm along a wall is a door nobody can dimension.
+        val distance = griddedAlong(((point - wall.a.toVec2()) dot along) / length)
 
         val width = when (kind) {
             OpeningKind.DOOR -> _state.value.doorWidthMm
@@ -791,6 +793,9 @@ public class EditorViewModel(
     private var moveFrom: Vec2? = null
     private var moveAt: Vec2? = null
 
+    /** How far the shape being dragged has actually been moved so far. */
+    private var moveApplied: Vec2 = Vec2.ZERO
+
     /**
      * Takes hold of whatever is under the finger, so it can be dragged.
      *
@@ -819,21 +824,51 @@ public class EditorViewModel(
 
         moveFrom = point
         moveAt = point
+        moveApplied = Vec2.ZERO
         _state.update { it.copy(selectedShapeId = hit.id) }
         return true
     }
 
-    /** The finger has moved; the shape goes with it. */
+    /**
+     * The finger has moved; the shape goes with it, in grid steps.
+     *
+     * Not wherever the finger is: a plan is drawn to round numbers, and a wall
+     * nudged 3mm by a thumb is a wall that no longer lines up with anything. So
+     * the whole distance dragged so far is rounded to the grid — 10cm — and the
+     * shape is moved by the difference. A shape that started on the grid stays
+     * on it; one that did not keeps its own offset, and moves by clean amounts.
+     *
+     * Turning the grid off gives the finger back, exactly as it does for
+     * drawing and measuring.
+     */
     public fun updateMove(point: Vec2) {
-        val previous = moveAt ?: return
+        val from = moveFrom ?: return
         moveAt = point
-        moveBy(point.x - previous.x, point.y - previous.y)
+
+        val wanted = griddedDelta(point.x - from.x, point.y - from.y)
+        val dx = wanted.x - moveApplied.x
+        val dy = wanted.y - moveApplied.y
+        if (kotlin.math.abs(dx) < 1e-9 && kotlin.math.abs(dy) < 1e-9) return
+
+        moveApplied = wanted
+        moveBy(dx, dy)
+    }
+
+    /** A dragged distance rounded to the grid, or left alone when it is off. */
+    private fun griddedDelta(dx: Double, dy: Double): Vec2 {
+        val spacing = _state.value.gridSpacingMm
+        if (!_state.value.gridVisible || spacing <= 0.0) return Vec2(dx, dy)
+        return Vec2(
+            Math.round(dx / spacing) * spacing,
+            Math.round(dy / spacing) * spacing,
+        )
     }
 
     /** The finger has lifted; the move is finished. */
     public fun endMove() {
         moveFrom = null
         moveAt = null
+        moveApplied = Vec2.ZERO
         rebuildSnapCandidates()
     }
 
@@ -867,6 +902,13 @@ public class EditorViewModel(
         val id = _state.value.selectedShapeId ?: return
         edit { s -> s.copy(shapes = s.shapes.filterNot { it.id == id }, selectedShapeId = null) }
         rebuildSnapCandidates()
+    }
+
+    /** A distance along a wall, rounded to the grid. */
+    private fun griddedAlong(millimetres: Double): Double {
+        val spacing = _state.value.gridSpacingMm
+        if (!_state.value.gridVisible || spacing <= 0.0) return millimetres
+        return Math.round(millimetres / spacing) * spacing
     }
 
     /** Sets the thickness the wall tool draws with, in millimetres. */

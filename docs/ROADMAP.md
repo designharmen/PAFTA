@@ -963,3 +963,90 @@ recently is the thing a tap means.** Two separate passes would have made
 whichever came second permanently untappable under whichever came first. Walls,
 columns and beams are all still found before either, because they are things you
 can see the edges of and a floor is not.
+
+---
+
+## The device, round three: a wall turned round behind our backs
+
+Three failures came back off yapım 39, and the first one was a correction that
+made things worse — which is the most useful kind of bug report there is.
+
+**"Daha fazla kaydı."** The doors in a filleted wall moved *further* than
+before the fix that was supposed to stop them moving. The cause was one line in
+`core:geometry` that had been right for two rounds and was never questioned:
+
+```kotlin
+first = Segment2(farEndFrom(corner, first), touchFirst)
+```
+
+`fillet` returns each arm with the corner end **last**, whichever way round it
+was drawn in. For half of all walls that is the user's wall handed back
+reversed. Nothing downstream noticed, because a reversed wall draws identically
+— but an opening holds how far it is from its wall's *start*, so reversing the
+wall silently moves every door in it to the other end. The previous round's fix
+then measured the "slide" against a direction that had flipped, and doubled the
+error instead of cancelling it.
+
+The tests that passed were passing for a reason worth recording: both walls in
+them happened to be drawn *into* the corner, which is the one orientation
+`fillet` does not reverse. `WallDirectionTest` now walks all four combinations
+of which end of each wall touches the corner, which is the test that should
+have been written first. Every two-shape edit now turns its result back the way
+that wall's own line runs before anything else is worked out.
+
+**Birleştir refused everything.** The collinearity tolerance was
+`JOIN_TOLERANCE_MM`, one millimetre — which is what two *identical* numbers are
+within, and nothing drawn with a finger on glass is ever that. The right
+tolerance comes from the walls themselves: half the thinner one's thickness,
+between a centimetre and fifteen. Inside that the two bands lie on top of each
+other along their whole length, which is exactly what "the same wall" looks
+like on a plan. Two pencil lines still get the centimetre, because a line has
+no thickness to hide a kink in.
+
+**Uzat refused a lot too**, for two separate reasons. It only ever stretched
+the wall picked first, so pointing at the pair in the other order got "zaten
+ulaşıyor" — it now tries the other way round before refusing, because which of
+two walls is short is obvious looking at the plan and not worth making anybody
+think about. And it reached only to the *centre line* of the wall it was aimed
+at, when a wall is reached to its face: the meeting may now land half a
+thickness past the end of the centre line.
+
+It was also giving the wrong reason. "It already reaches" was returned for
+every failure including "it would miss entirely", because the code inferred
+crossing from *neither direction working* — which is equally true of two walls
+that will never meet. `crosses` now asks the question directly, and
+`WOULD_MISS` says the thing that is actually wrong.
+
+## Everything moves in 10cm steps now
+
+The owner's rule: *"yeni eklenecek veya hareket ettirilecek her şey için
+referanslar 10 cm lik ızgaralar olacak."* Drawing and measuring already snapped;
+dragging and placing did not. Dragging now rounds the **whole distance dragged
+so far** to the grid and moves the shape by the difference — so a shape that
+started on the grid stays on it, one that did not keeps its own offset, and
+either way it moves by clean amounts rather than by whatever a thumb did. A
+door's position along its wall is rounded the same way: 1837mm along a wall is a
+door nobody can dimension. Turning the grid off gives the finger back, exactly
+as it does everywhere else.
+
+## The interface had no pictures in it
+
+*"Sistemde görsellik yok, her şey yazı."* Four wall materials and twenty floor
+finishes, each of them a line of Turkish and nothing else — and a material is a
+thing you recognise by looking at it.
+
+Every material and every finish now carries the mark a drawing gives it, drawn
+rather than fetched: brick as a running bond, concrete as aggregate over
+stippling, aerated block as big units with the diagonal, timber as grain;
+boards, tiles, a poured sheet and a pile for the four finish families, with the
+spacing and the overlay changing for each of the twenty so no two are drawn the
+same. **No new colours** — the brand palette allows none — so what separates
+them is pattern: direction, spacing, and what is laid over.
+
+The same idea runs at two sizes. The square beside the word in the settings
+strip and the panel is the same hatch that now fills the wall itself on the
+plan, clipped to the merged outline so it stops at the faces and inside every
+doorway. The hatch is measured in **pixels, not millimetres**, on purpose: it is
+a convention for reading the drawing rather than a thing in the building, so it
+stays the same weight at every zoom. Hatching in model units gives a solid block
+zoomed out and three lines zoomed in.

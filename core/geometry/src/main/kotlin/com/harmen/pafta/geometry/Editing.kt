@@ -217,7 +217,7 @@ public fun trim(segment: Segment2, boundary: Segment2, keep: Vec2): Segment2? {
  * however far the segment went, or when it already crosses the boundary — a
  * segment that is already there has nothing to extend.
  */
-public fun extend(segment: Segment2, boundary: Segment2): Segment2? {
+public fun extend(segment: Segment2, boundary: Segment2, beyondMm: Double = 0.0): Segment2? {
     val along = segment.b - segment.a
     if (along.length < 1e-9) return null
 
@@ -228,9 +228,12 @@ public fun extend(segment: Segment2, boundary: Segment2): Segment2? {
     val meeting = meetOf(segment.a, along.normalized(), boundary.a, boundaryAlong.normalized())
         ?: return null
 
-    // It has to land on the boundary itself, not somewhere out past its end.
+    // It has to land on the boundary itself, not somewhere out past its end —
+    // give or take [beyondMm], which is how a wall is reached to its face
+    // rather than to the pencil line up its middle.
+    val slack = if (boundaryAlong.length < 1e-9) 0.0 else beyondMm / boundaryAlong.length
     val onBoundary = ((meeting - boundary.a) dot boundaryAlong) / boundaryAlong.lengthSquared
-    if (onBoundary < -1e-9 || onBoundary > 1.0 + 1e-9) return null
+    if (onBoundary < -slack - 1e-9 || onBoundary > 1.0 + slack + 1e-9) return null
 
     val atMeeting = ((meeting - segment.a) dot along) / along.lengthSquared
     return when {

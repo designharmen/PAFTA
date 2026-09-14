@@ -162,6 +162,7 @@
     <string name="error_already_reaches">Bu duvar zaten oraya ulaşıyor, uzatacak yer yok.</string>
     <string name="error_not_in_line">Bu ikisi aynı hizada değil, tek duvar olamaz. Aynı doğrultuda, uç uca gelen iki duvar seç.</string>
     <string name="error_do_not_touch">Bu ikisinin arası açık. Birleştirmek için önce uçlarının değmesi gerekiyor.</string>
+    <string name="error_would_miss">Bu ikisi uzatılsa da buluşmuyor: biri diğerinin hizasını ıskalıyor. Duvarlardan birini kaydırıp tekrar dene.</string>
     <string name="error_cannot_mirror">Bu öğe aynalanamıyor. Duvar, çizgi, daire ve yay aynalanabilir; dikdörtgen, mahal, kapı ve pencere aynalanamaz.</string>
     <string name="error_not_enclosed">Burası kapalı bir oda değil. Mahal koyabilmem için duvarların çevreyi tam kapatması gerekiyor — açık kalan yeri tamamla, sonra tekrar dokun.</string>
     <string name="action_finish_chain">Bitir</string>

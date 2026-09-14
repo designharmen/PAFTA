@@ -254,6 +254,7 @@ public fun UiError.mesaj(): String = when (this) {
             EditRefusal.NOT_IN_LINE -> R.string.error_not_in_line
             EditRefusal.DO_NOT_TOUCH -> R.string.error_do_not_touch
             EditRefusal.CANNOT_MIRROR -> R.string.error_cannot_mirror
+            EditRefusal.WOULD_MISS -> R.string.error_would_miss
         },
     )
 }

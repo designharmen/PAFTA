@@ -47,6 +47,9 @@ public enum class EditRefusal {
 
     /** This is not something that can be reflected. */
     CANNOT_MIRROR,
+
+    /** Stretched as far as it goes, it would still miss. */
+    WOULD_MISS,
 }
 
 /** What a two-shape edit did, or why it did nothing. */
@@ -200,21 +203,65 @@ public fun List<DrawnShape>.trimmed(
     return EditOutcome.Done(withLines(targetId to cut))
 }
 
-/** [targetId] stretched until it reaches [boundaryId]. */
+/**
+ * [targetId] stretched until it reaches [boundaryId].
+ *
+ * If the first one picked is already long enough, the second one is stretched
+ * to *it* instead. Which of two walls is short is obvious looking at the plan
+ * and not worth making anybody think about: "make these two meet" is the whole
+ * of what the user means, and refusing because they pointed at them in the
+ * other order would be the tool being difficult for its own sake.
+ */
 public fun List<DrawnShape>.extended(targetId: String, boundaryId: String): EditOutcome {
     val target = shapeAndLine(targetId) ?: return refuse(EditRefusal.NOT_A_LINE)
     val boundary = shapeAndLine(boundaryId) ?: return refuse(EditRefusal.NOT_A_LINE)
     if (targetId == boundaryId) return refuse(EditRefusal.ALREADY_REACHES)
+    if (areParallel(target.second, boundary.second)) return refuse(EditRefusal.NO_CORNER)
 
-    val stretched = extend(target.second, boundary.second)
-        ?: return refuse(
-            if (areParallel(target.second, boundary.second)) {
-                EditRefusal.NO_CORNER
-            } else {
-                EditRefusal.ALREADY_REACHES
-            },
-        )
-    return EditOutcome.Done(withLines(targetId to stretched))
+    // A wall is reached to its face, not to the pencil line up its middle, so
+    // the meeting may land half a thickness past the end of the centre line and
+    // still be on the wall.
+    val reach = reachPast(boundary.first)
+    extend(target.second, boundary.second, beyondMm = reach)?.let {
+        return EditOutcome.Done(withLines(targetId to it))
+    }
+    extend(boundary.second, target.second, beyondMm = reachPast(target.first))?.let {
+        return EditOutcome.Done(withLines(boundaryId to it))
+    }
+
+    // Neither would reach: say which of the two things went wrong rather than
+    // always blaming the one the user picked first.
+    return refuse(
+        if (crosses(target.second, boundary.second)) {
+            EditRefusal.ALREADY_REACHES
+        } else {
+            EditRefusal.WOULD_MISS
+        },
+    )
+}
+
+/** How far past its own ends a shape may still be met: half a wall's thickness. */
+private fun reachPast(shape: DrawnShape): Double =
+    (shape as? DrawnShape.Wall)?.thicknessMm?.div(2.0) ?: 0.0
+
+/**
+ * True when the two already cross, so there is nothing to stretch.
+ *
+ * Asked directly, not inferred from "neither of them could be extended" — that
+ * is also true of two that would miss each other entirely, and answering
+ * "it already reaches" to a wall that does not reach is worse than saying
+ * nothing.
+ */
+private fun crosses(first: Segment2, second: Segment2): Boolean {
+    val u = first.b - first.a
+    val v = second.b - second.a
+    val denominator = u cross v
+    if (kotlin.math.abs(denominator) < 1e-9) return false
+
+    val between = second.a - first.a
+    val alongFirst = (between cross v) / denominator
+    val alongSecond = (between cross u) / denominator
+    return alongFirst in -1e-9..(1.0 + 1e-9) && alongSecond in -1e-9..(1.0 + 1e-9)
 }
 
 
@@ -308,11 +355,19 @@ public fun List<DrawnShape>.joined(firstId: String, secondId: String): EditOutco
 
     // Parallel is not enough: both ends of the second have to lie on the first
     // one's line, or the two are two walls of a corridor rather than one wall.
+    //
+    // How straight is straight enough comes from the walls themselves. A
+    // millimetre is what two *identical* numbers are within, and nothing drawn
+    // with a finger is ever that — the first attempt on the device refused
+    // every pair it was given. Half a wall's thickness is the honest answer:
+    // inside that the two bands lie on top of each other along their whole
+    // length, which is what "the same wall" looks like on a plan.
+    val slack = joinSlack(first.first, second.first)
     val unit = alongFirst / alongFirst.length
     val sideways = Vec2(-unit.y, unit.x)
     val off = listOf(second.second.a, second.second.b)
         .maxOf { kotlin.math.abs((it - first.second.a) dot sideways) }
-    if (off > JOIN_TOLERANCE_MM) return refuse(EditRefusal.NOT_IN_LINE)
+    if (off > slack) return refuse(EditRefusal.NOT_IN_LINE)
 
     // Measured along the shared line, the two must overlap or touch; a gap
     // between them would be filled in with wall that was never drawn.
@@ -322,7 +377,7 @@ public fun List<DrawnShape>.joined(firstId: String, secondId: String): EditOutco
     val secondSpan = minOf(ends[2], ends[3])..maxOf(ends[2], ends[3])
     val gap = maxOf(firstSpan.start, secondSpan.start) -
         minOf(firstSpan.endInclusive, secondSpan.endInclusive)
-    if (gap > JOIN_TOLERANCE_MM) return refuse(EditRefusal.DO_NOT_TOUCH)
+    if (gap > slack) return refuse(EditRefusal.DO_NOT_TOUCH)
 
     val from = minOf(firstSpan.start, secondSpan.start)
     val to = maxOf(firstSpan.endInclusive, secondSpan.endInclusive)
@@ -344,6 +399,24 @@ public fun List<DrawnShape>.joined(firstId: String, secondId: String): EditOutco
         .map { shape -> carried.firstOrNull { it.id == shape.id } ?: shape }
 
     return EditOutcome.Done(joinedList)
+}
+
+/**
+ * How far out of line two shapes may be and still be one shape.
+ *
+ * Half the thinner wall's thickness, between a centimetre and fifteen. Two
+ * pencil lines get the centimetre, because a line has no thickness to hide a
+ * kink in and joining two that are visibly not straight would straighten one of
+ * them without being asked.
+ */
+private fun joinSlack(first: DrawnShape, second: DrawnShape): Double {
+    val a = (first as? DrawnShape.Wall)?.thicknessMm
+    val b = (second as? DrawnShape.Wall)?.thicknessMm
+    val thinnest = when {
+        a != null && b != null -> kotlin.math.min(a, b)
+        else -> return 10.0
+    }
+    return (thinnest / 2.0).coerceIn(10.0, 150.0)
 }
 
 /** True when the two shapes the tool needs are both things it can work on. */
@@ -373,9 +446,25 @@ private fun List<DrawnShape>.shapeAndLine(id: String): Pair<DrawnShape, Segment2
  * opening in it is re-measured from the new start.
  */
 private fun List<DrawnShape>.withLines(vararg moved: Pair<String, Segment2>): List<DrawnShape> {
-    val lines = moved.toMap()
+    val lines = mutableMapOf<String, Segment2>()
     val slid = mutableMapOf<String, Double>()
     val lengths = mutableMapOf<String, Double>()
+
+    // `fillet` and `chamfer` hand back each arm with the corner end last,
+    // whichever way round it was drawn — so half the time the answer is the
+    // user's wall turned back to front. Left alone that swaps which end a door
+    // is measured from and which side it opens to, and rounding one corner then
+    // sent every door in the wall to the far end of it. Every result is turned
+    // back the way its own wall runs before anything else is worked out.
+    for ((id, line) in moved) {
+        val existing = firstOrNull { it.id == id }
+        val before = when (existing) {
+            is DrawnShape.Wall -> existing.centreLine()
+            is DrawnShape.Line -> Segment2(existing.a.toVec2(), existing.b.toVec2())
+            else -> null
+        }
+        lines[id] = if (before != null && facingBackwards(before, line)) line.reversed() else line
+    }
 
     for ((id, line) in lines) {
         val wall = firstOrNull { it.id == id } as? DrawnShape.Wall ?: continue
@@ -424,6 +513,17 @@ private fun DrawnShape.withLine(line: Segment2): DrawnShape = when (this) {
 
     else -> this
 }
+
+/** True when [after] runs the opposite way to [before]. */
+private fun facingBackwards(before: Segment2, after: Segment2): Boolean {
+    val was = before.b - before.a
+    val now = after.b - after.a
+    if (was.length < EPSILON_MM || now.length < EPSILON_MM) return false
+    return (was dot now) < 0.0
+}
+
+/** The same two ends, the other way round. */
+private fun Segment2.reversed(): Segment2 = Segment2(b, a)
 
 private fun areParallel(first: Segment2, second: Segment2): Boolean {
     val a = first.b - first.a

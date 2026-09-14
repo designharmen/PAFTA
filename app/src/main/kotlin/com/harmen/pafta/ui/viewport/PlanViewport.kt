@@ -24,6 +24,7 @@ import androidx.compose.ui.graphics.PathOperation
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.input.pointer.PointerId
 import androidx.compose.ui.input.pointer.PointerInputScope
 import androidx.compose.ui.input.pointer.pointerInput
@@ -48,6 +49,7 @@ import com.harmen.pafta.measure.label
 import com.harmen.pafta.project.LayerState
 import com.harmen.pafta.project.OpeningPlan
 import com.harmen.pafta.project.WallBand
+import com.harmen.pafta.project.WallMaterial
 import com.harmen.pafta.project.ZonePlan
 import com.harmen.pafta.ui.theme.HarmenColours
 import com.harmen.pafta.ui.theme.HarmenType
@@ -410,6 +412,13 @@ private fun DrawScope.drawWalls(
         }
 
         drawPath(merged, colour.copy(alpha = colour.alpha * 0.45f))
+        // The hatch a plan gives the material. Every wall on one layer is one
+        // material — the layer name is built from it — so the group answers for
+        // all of them, and the pattern is clipped to the merged outline so it
+        // stops at the wall's faces and inside every doorway.
+        bands.firstNotNullOfOrNull { it.material }?.let { material ->
+            clipPath(merged) { hatch(material, colour.copy(alpha = colour.alpha * 0.55f)) }
+        }
         if (mergedCleanly) {
             drawPath(merged, colour, style = Stroke(width = 1.2f, cap = StrokeCap.Round))
         }
@@ -423,6 +432,58 @@ private fun DrawScope.drawWalls(
                 HarmenColours.Accent,
                 style = Stroke(width = 1.6f, cap = StrokeCap.Round),
             )
+        }
+    }
+}
+
+/**
+ * The pattern a material is drawn with, laid across whatever is clipped.
+ *
+ * Measured in pixels rather than millimetres on purpose: a hatch is a
+ * convention for reading the drawing, not a thing in the building, so it stays
+ * the same weight however far the plan is zoomed in. Hatching in model units
+ * would give a solid block when zoomed out and three lines when zoomed in.
+ */
+private fun DrawScope.hatch(material: WallMaterial, colour: Color) {
+    val span = size.width + size.height
+    val step = 9f
+    val thin = 0.8f
+
+    /** Parallel lines across the whole clipped area, at 45 degrees one way. */
+    fun diagonal(down: Boolean, spacing: Float, from: Float = 0f) {
+        var at = -size.height + from
+        while (at < size.width + size.height) {
+            if (down) {
+                drawLine(colour, Offset(at, 0f), Offset(at + size.height, size.height), thin)
+            } else {
+                drawLine(colour, Offset(at, size.height), Offset(at + size.height, 0f), thin)
+            }
+            at += spacing
+        }
+    }
+
+    when (material) {
+        // Brick: the one everybody reads without being told.
+        WallMaterial.BRICK -> diagonal(down = true, spacing = step)
+
+        // Concrete: hatched both ways, which is the structural convention.
+        WallMaterial.CONCRETE -> {
+            diagonal(down = true, spacing = step * 1.6f)
+            diagonal(down = false, spacing = step * 1.6f)
+        }
+
+        // Aerated block: the same diagonal, opened out, so a block wall and a
+        // brick wall are not the same picture at a glance.
+        WallMaterial.AERATED -> diagonal(down = true, spacing = step * 2.2f)
+
+        // Timber: the grain, drawn upright so it cannot be confused with either
+        // diagonal.
+        WallMaterial.TIMBER -> {
+            var x = 0f
+            while (x < span) {
+                drawLine(colour, Offset(x, 0f), Offset(x, size.height), thin)
+                x += step * 1.3f
+            }
         }
     }
 }

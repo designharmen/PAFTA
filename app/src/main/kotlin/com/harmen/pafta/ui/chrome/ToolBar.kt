@@ -199,6 +199,10 @@ public fun ToolOptionsBar(
                                 text = material.adi(),
                                 selected = material == wallMaterial,
                                 onClick = { onWallMaterialSelected(material) },
+                                // The mark a drawing gives the material, beside
+                                // its name: four lines of Turkish that look
+                                // identical become four things you recognise.
+                                swatch = { MaterialSwatch(material, size = 16.dp) },
                             )
                         }
                     }
@@ -480,11 +484,16 @@ internal fun ToolButton(
     }
 }
 
-/** A small button in the settings strip. */
+/** A small button in the settings strip, with an optional drawn mark on it. */
 @Composable
-internal fun OptionChip(text: String, selected: Boolean, onClick: () -> Unit) {
-    Box(
-        contentAlignment = Alignment.Center,
+internal fun OptionChip(
+    text: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    swatch: (@Composable () -> Unit)? = null,
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .clip(RoundedCornerShape(metrics.cornerRadius))
             .background(if (selected) HarmenColours.SelectedWash else HarmenColours.PanelRaised)
@@ -495,6 +504,10 @@ internal fun OptionChip(text: String, selected: Boolean, onClick: () -> Unit) {
             .clickable(role = Role.Button, onClick = onClick)
             .padding(horizontal = 10.dp, vertical = 7.dp),
     ) {
+        if (swatch != null) {
+            swatch()
+            Spacer(Modifier.width(6.dp))
+        }
         Text(
             text = text,
             style = HarmenType.ToolLabel,
