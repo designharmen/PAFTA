@@ -29,6 +29,8 @@ it does so four minutes into a CI run. This catches them in a second:
   * a named argument that the function being called does not have — the app
     module cannot be compiled here, so a parameter renamed in one file and
     still passed from another is otherwise only found by CI, minutes later
+  * a Compose modifier used without its import — `Modifier.padding(...)` in a
+    file that never imported `padding` is four minutes of CI to learn one line
 
 Exits non-zero and prints the file and line on the first real problem found.
 """
@@ -367,6 +369,84 @@ UNCHECKABLE = {"copy", "require", "check", "listOf", "setOf", "mapOf"}
 IMPORT = re.compile(r"^\s*import\s+([\w.]+)", re.MULTILINE)
 
 
+# Compose modifiers and the import each one needs. Only names that are, in
+# practice, never anything else: a chain continuation reading `.padding(` is a
+# modifier, and `.map {` is not in this table so it is never looked at.
+MODIFIER_IMPORTS = {
+    # androidx.compose.foundation.layout
+    "padding": "androidx.compose.foundation.layout.padding",
+    "size": "androidx.compose.foundation.layout.size",
+    "width": "androidx.compose.foundation.layout.width",
+    "height": "androidx.compose.foundation.layout.height",
+    "widthIn": "androidx.compose.foundation.layout.widthIn",
+    "heightIn": "androidx.compose.foundation.layout.heightIn",
+    "sizeIn": "androidx.compose.foundation.layout.sizeIn",
+    "fillMaxWidth": "androidx.compose.foundation.layout.fillMaxWidth",
+    "fillMaxHeight": "androidx.compose.foundation.layout.fillMaxHeight",
+    "fillMaxSize": "androidx.compose.foundation.layout.fillMaxSize",
+    "offset": "androidx.compose.foundation.layout.offset",
+    "aspectRatio": "androidx.compose.foundation.layout.aspectRatio",
+    "defaultMinSize": "androidx.compose.foundation.layout.defaultMinSize",
+    "wrapContentWidth": "androidx.compose.foundation.layout.wrapContentWidth",
+    "wrapContentHeight": "androidx.compose.foundation.layout.wrapContentHeight",
+    # androidx.compose.foundation
+    "background": "androidx.compose.foundation.background",
+    "clickable": "androidx.compose.foundation.clickable",
+    "border": "androidx.compose.foundation.border",
+    "verticalScroll": "androidx.compose.foundation.verticalScroll",
+    "horizontalScroll": "androidx.compose.foundation.horizontalScroll",
+    # androidx.compose.ui.draw
+    "clip": "androidx.compose.ui.draw.clip",
+    "clipToBounds": "androidx.compose.ui.draw.clipToBounds",
+    "alpha": "androidx.compose.ui.draw.alpha",
+    "rotate": "androidx.compose.ui.draw.rotate",
+    "scale": "androidx.compose.ui.draw.scale",
+    "shadow": "androidx.compose.ui.draw.shadow",
+    "drawBehind": "androidx.compose.ui.draw.drawBehind",
+    "drawWithContent": "androidx.compose.ui.draw.drawWithContent",
+    # elsewhere
+    "onSizeChanged": "androidx.compose.ui.layout.onSizeChanged",
+    "onGloballyPositioned": "androidx.compose.ui.layout.onGloballyPositioned",
+    "pointerInput": "androidx.compose.ui.input.pointer.pointerInput",
+}
+
+CHAIN_STEP = re.compile(r"(?:\bModifier\s*)?\.(\w+)\s*\(")
+
+
+def check_modifier_imports() -> list[str]:
+    """Every Compose modifier used must be imported.
+
+    A modifier is an extension function, so a file that uses one it never
+    imported does not fail until the Android module is compiled — which cannot
+    happen in the development container, so it fails on CI four minutes later.
+    That is what this costs a build for: two lines of `.padding(...)` in a file
+    whose imports had everything else.
+
+    Only the names in [MODIFIER_IMPORTS] are looked at, and every one of them is
+    a word this project uses for nothing else, so an ordinary chain like
+    `.map { }` is never mistaken for a modifier.
+    """
+    problems = []
+    for directory in KOTLIN_DIRS:
+        if not directory.is_dir():
+            continue
+        for path in sorted(directory.rglob("*.kt")):
+            text = _without_comments_and_strings(path.read_text())
+            imported = {match.group(1) for match in IMPORT.finditer(text)}
+
+            for match in CHAIN_STEP.finditer(text):
+                name = match.group(1)
+                needed = MODIFIER_IMPORTS.get(name)
+                if needed is None or needed in imported:
+                    continue
+                line = text.count("\n", 0, match.start()) + 1
+                problems.append(
+                    f"{path.relative_to(ROOT)}:{line} — {name}() kullanılmış ama "
+                    f"`import {needed}` yok"
+                )
+    return problems
+
+
 def check_named_arguments() -> list[str]:
     """Named arguments must be parameters the called function actually has.
 
@@ -457,6 +537,7 @@ def main() -> int:
         + check_kotlin_usage()
         + check_fonts()
         + check_named_arguments()
+        + check_modifier_imports()
     )
 
     if problems:
