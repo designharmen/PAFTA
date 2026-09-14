@@ -106,7 +106,7 @@ public fun RightPanel(
      */
     canOffset: Boolean = false,
     onOffset: (Double) -> Unit = {},
-    onTurn: () -> Unit = {},
+    onTurn: (Double) -> Unit = {},
 ) {
     Column(
         modifier = modifier
@@ -205,7 +205,7 @@ public fun RightPanel(
                         onChanged = { distance = it },
                     )
                     PanelButton(R.string.action_offset) { onOffset(distance) }
-                    PanelButton(R.string.action_turn, onTurn)
+                    TurnChooser(onTurn)
                 }
             }
         }
@@ -394,6 +394,47 @@ private val DoorSwing.label: Int
         DoorSwing.RIGHT_IN -> R.string.swing_right_in
         DoorSwing.RIGHT_OUT -> R.string.swing_right_out
     }
+
+/**
+ * How far to turn the selected shape.
+ *
+ * Four angles rather than a box to type one in: these are the four a plan is
+ * actually drawn with — a right angle, the two halves of it, and the sixty
+ * degrees a hexagonal or three-way junction needs. Typing 90 into a field is
+ * slower than pointing at it, and nobody has ever wanted 37 degrees.
+ */
+@Composable
+private fun TurnChooser(onTurn: (Double) -> Unit) {
+    Text(
+        text = stringResource(R.string.action_turn),
+        style = HarmenType.PropertyKey,
+        color = HarmenColours.TextMuted,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 4.dp, end = 4.dp, top = 8.dp, bottom = 4.dp),
+    )
+    Row(Modifier.fillMaxWidth()) {
+        for (degrees in TURN_ANGLES) {
+            Text(
+                text = stringResource(R.string.turn_degrees, degrees),
+                style = HarmenType.PropertyKey,
+                color = HarmenColours.Text,
+                textAlign = TextAlign.Center,
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(horizontal = 2.dp, vertical = 3.dp)
+                    .clip(RoundedCornerShape(metrics.cornerRadius))
+                    .background(HarmenColours.PanelRaised)
+                    .clickable(role = Role.Button) { onTurn(degrees.toDouble()) }
+                    .height(44.dp)
+                    .padding(vertical = 13.dp),
+            )
+        }
+    }
+}
+
+/** The angles a plan is turned by, largest first. */
+private val TURN_ANGLES = listOf(90, 60, 45, 30)
 
 /** The Turkish word for a measurement. Never a literal in code. */
 private val ShapeDimension.label: Int

@@ -9,6 +9,7 @@ import com.harmen.pafta.measure.MeasurementKind
 import com.harmen.pafta.project.Annotation
 import com.harmen.pafta.project.DoorSwing
 import com.harmen.pafta.project.DrawnShape
+import com.harmen.pafta.project.EditRefusal
 import com.harmen.pafta.project.AnnotationKind
 import com.harmen.pafta.project.LayerState
 import com.harmen.pafta.project.MaterialOverride
@@ -43,6 +44,10 @@ public enum class Tool(
     DOOR(R.string.tool_door, ready = true),
     WINDOW(R.string.tool_window, ready = true),
     ZONE(R.string.tool_zone, ready = true),
+    FILLET(R.string.tool_fillet, ready = true),
+    CHAMFER(R.string.tool_chamfer, ready = true),
+    TRIM(R.string.tool_trim, ready = true),
+    EXTEND(R.string.tool_extend, ready = true),
     MEASURE(R.string.tool_measure, ready = true),
     GRID(R.string.tool_grid, ready = true),
     ARC(R.string.tool_arc),
@@ -69,6 +74,17 @@ public val DRAWING_TOOLS: Set<Tool> = setOf(Tool.WALL, Tool.LINE, Tool.RECTANGLE
  * true of a room, which is placed by tapping the floor it covers.
  */
 public val PLACING_TOOLS: Set<Tool> = setOf(Tool.DOOR, Tool.WINDOW, Tool.ZONE)
+
+/**
+ * Tools that need two shapes before they can do anything.
+ *
+ * Round this corner, cut that corner off, cut this back to that, stretch this
+ * until it reaches that — each one is a sentence with two nouns in it. They are
+ * worked the way AutoCAD has always worked them: pick the tool, tap one, tap
+ * the other.
+ */
+public val PAIRED_TOOLS: Set<Tool> =
+    setOf(Tool.FILLET, Tool.CHAMFER, Tool.TRIM, Tool.EXTEND)
 
 /** The tab group in the second row of the top bar. */
 public enum class ViewTab(@StringRes public val label: Int) {
@@ -137,6 +153,9 @@ public sealed interface UiError {
 
     /** The tap for a room did not land inside walls that close. */
     public data object NotEnclosed : UiError
+
+    /** A two-shape edit could not be done. Carries why, not a sentence. */
+    public data class EditRefused(val reason: EditRefusal) : UiError
 }
 
 /**
@@ -199,6 +218,18 @@ public data class EditorState(
     val windowWidthMm: Double = DrawnShape.DEFAULT_WINDOW_WIDTH_MM,
     /** Which jamb a placed door hangs on, and which way it opens. */
     val doorSwing: DoorSwing = DoorSwing.LEFT_IN,
+    /**
+     * The first shape a two-shape tool has been given, while it waits for the
+     * second.
+     *
+     * Kept apart from the selection so that picking a corner to round does not
+     * also change what the panel on the right is showing.
+     */
+    val firstPickId: String? = null,
+    /** The radius the round-off tool works with. */
+    val filletRadiusMm: Double = 300.0,
+    /** How far back along each side the chamfer tool cuts. */
+    val chamferMm: Double = 300.0,
     /** Preview of the last text the user typed, shown under the text tool. */
     val lastText: String = "",
     val gridVisible: Boolean = true,

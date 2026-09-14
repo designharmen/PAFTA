@@ -56,6 +56,10 @@
     <string name="tool_door">Kapı</string>
     <string name="tool_window">Pencere</string>
     <string name="tool_zone">Mahal</string>
+    <string name="tool_fillet">Yuvarlat</string>
+    <string name="tool_chamfer">Pah kır</string>
+    <string name="tool_trim">Buda</string>
+    <string name="tool_extend">Uzat</string>
 
     <!-- ===== Sağ panel bölüm başlıkları ===== -->
     <string name="panel_layers">Katman Paleti</string>
@@ -66,7 +70,8 @@
     <string name="action_duplicate">Kopyala</string>
     <string name="action_dismiss_note">TAMAM</string>
     <string name="action_offset">Paralel kopya</string>
-    <string name="action_turn">90° döndür</string>
+    <string name="action_turn">Döndür</string>
+    <string name="turn_degrees">%1$d°</string>
     <string name="panel_offset_distance">Uzaklık</string>
 
     <!-- ===== Seçili öğenin, kullanıcının yazabildiği ölçüleri ===== -->
@@ -94,6 +99,17 @@
     <string name="opening_window_word">pencere</string>
     <string name="error_no_wall_there">Oraya %1$s koyamam: dokunduğun yerde duvar yok. Önce duvarı çiz, sonra duvarın üstüne dokun.</string>
     <string name="error_opening_too_wide">Bu %1$s duvardan geniş. Ya daha dar bir ölçü seç ya da duvarı uzat.</string>
+    <string name="hint_pick_first">birinci duvara veya çizgiye dokun</string>
+    <string name="hint_pick_second">şimdi ikincisine dokun</string>
+    <string name="hint_trim_first">önce kesecek olana dokun</string>
+    <string name="hint_trim_second">şimdi atılacak parçaya dokun</string>
+    <string name="hint_extend_first">önce uzatılacak olana dokun</string>
+    <string name="hint_extend_second">şimdi ulaşacağı yere dokun</string>
+    <string name="error_not_a_line">Bu araç yalnızca duvar ve çizgiyle çalışır. Mahal, kapı, pencere ve daire seçilemez.</string>
+    <string name="error_no_corner">Bu ikisi birbirine paralel, aralarında köşe yok. Kesişen ya da kesişecek iki duvar seç.</string>
+    <string name="error_does_not_fit">Verdiğin ölçü bu iki duvara sığmıyor. Daha küçük bir ölçü ver ya da duvarları uzat.</string>
+    <string name="error_does_not_cross">Bu ikisi kesişmiyor, budayacak yer yok. Önce birbirini kesen iki duvar seç.</string>
+    <string name="error_already_reaches">Bu duvar zaten oraya ulaşıyor, uzatacak yer yok.</string>
     <string name="error_not_enclosed">Burası kapalı bir oda değil. Mahal koyabilmem için duvarların çevreyi tam kapatması gerekiyor — açık kalan yeri tamamla, sonra tekrar dokun.</string>
     <string name="action_finish_chain">Bitir</string>
     <string name="panel_annotations">Not Araçları</string>

@@ -182,6 +182,38 @@ public sealed interface DrawnShape {
     }
 
     /**
+     * An arc of a circle.
+     *
+     * Drawn by hand rarely and produced by `fillet` constantly: rounding a
+     * corner leaves two shortened walls and the arc between them, and the arc
+     * has to be a shape of its own or the corner is not really rounded.
+     *
+     * Angles are degrees anticlockwise from east, and the arc runs from start
+     * to end that way round — the same convention DXF uses, so exporting it is
+     * a copy rather than a conversion.
+     */
+    @Serializable
+    @SerialName("yay")
+    public data class Arc(
+        override val id: String,
+        @Serializable(with = Vec3Serializer::class) val centre: Vec3,
+        val radiusMm: Double,
+        val startDegrees: Double,
+        val endDegrees: Double,
+        override val layer: String = LAYER_DRAWING,
+    ) : DrawnShape {
+        override fun toEntities(): List<DxfEntity> =
+            if (radiusMm < EPSILON_MM) {
+                emptyList()
+            } else {
+                listOf(DxfEntity.Arc(layer, centre, radiusMm, startDegrees, endDegrees))
+            }
+
+        override fun translated(dx: Double, dy: Double): DrawnShape =
+            copy(centre = Vec3(centre.x + dx, centre.y + dy, centre.z))
+    }
+
+    /**
      * A door or a window, in a wall.
      *
      * It does not carry its own position on the sheet: it carries which wall it
@@ -300,6 +332,9 @@ public val DrawnShape.lengthMm: Double?
         is DrawnShape.Line -> a.toVec2().distanceTo(b.toVec2())
         is DrawnShape.Circle -> radiusMm * 2.0
         is DrawnShape.Opening -> widthMm
+        // An arc's length is its own curve, which is not what a length box is
+        // for; its radius is the number that describes it.
+        is DrawnShape.Arc -> null
         is DrawnShape.Rectangle, is DrawnShape.Zone -> null
     }
 
@@ -332,7 +367,7 @@ public fun DrawnShape.withLength(millimetres: Double): DrawnShape {
         is DrawnShape.Line -> copy(b = stretched(a, b))
         is DrawnShape.Circle -> copy(radiusMm = millimetres / 2.0)
         is DrawnShape.Opening -> copy(widthMm = millimetres)
-        is DrawnShape.Rectangle, is DrawnShape.Zone -> this
+        is DrawnShape.Arc, is DrawnShape.Rectangle, is DrawnShape.Zone -> this
     }
 }
 
@@ -364,6 +399,9 @@ public enum class ShapeDimension {
 
     /** How high above the floor a window starts. */
     SILL,
+
+    /** An arc, from its middle to its curve. */
+    RADIUS,
 }
 
 /**
@@ -403,6 +441,8 @@ public fun DrawnShape.dimensions(): Map<ShapeDimension, Double> = when (this) {
             ShapeDimension.SILL to sillMm,
         )
     }
+
+    is DrawnShape.Arc -> linkedMapOf(ShapeDimension.RADIUS to radiusMm)
 
     // A room is measured, not set: its size comes from the walls around it.
     is DrawnShape.Zone -> emptyMap()
@@ -461,6 +501,9 @@ public fun DrawnShape.withDimension(which: ShapeDimension, millimetres: Double):
             else -> this
         }
 
+        is DrawnShape.Arc ->
+            if (which == ShapeDimension.RADIUS) copy(radiusMm = millimetres) else this
+
         is DrawnShape.Zone -> this
     }
 }
@@ -478,6 +521,7 @@ public fun DrawnShape.withId(id: String): DrawnShape = when (this) {
     is DrawnShape.Rectangle -> copy(id = id)
     is DrawnShape.Circle -> copy(id = id)
     is DrawnShape.Opening -> copy(id = id)
+    is DrawnShape.Arc -> copy(id = id)
     is DrawnShape.Zone -> copy(id = id)
 }
 
@@ -501,6 +545,13 @@ public fun DrawnShape.snapSegments(): List<Segment2> = when (this) {
     is DrawnShape.Circle -> listOf(Segment2(centre.toVec2(), centre.toVec2()))
     // Neither is a thing to snap to: an opening is a hole in a wall that is
     // already offering its centre line, and a room is the space between them.
+    // An arc offers the two points it starts and ends at, which is what another
+    // wall would want to meet.
+    is DrawnShape.Arc -> {
+        val ends = toEntities().flatMap { it.outline(2) }
+        if (ends.size >= 2) listOf(Segment2(ends.first(), ends.last())) else emptyList()
+    }
+
     is DrawnShape.Opening, is DrawnShape.Zone -> emptyList()
 }
 
@@ -609,6 +660,11 @@ public fun List<DrawnShape>.pick(at: Vec2, toleranceMm: Double): DrawnShape? {
             // Both are picked through what they are drawn from — an opening
             // through its wall, a room through its outline — which needs the
             // whole drawing, not one shape. `pickResolved` does that.
+            is DrawnShape.Arc -> {
+                val curve = shape.toEntities().flatMap { it.outline(48) }
+                curve.any { it.distanceTo(at) <= toleranceMm }
+            }
+
             is DrawnShape.Opening, is DrawnShape.Zone -> false
         }
         if (hit) return shape

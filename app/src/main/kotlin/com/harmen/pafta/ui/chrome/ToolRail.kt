@@ -19,13 +19,17 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Architecture
 import androidx.compose.material.icons.outlined.Circle
+import androidx.compose.material.icons.outlined.ContentCut
 import androidx.compose.material.icons.outlined.Dashboard
+import androidx.compose.material.icons.outlined.Details
 import androidx.compose.material.icons.outlined.DoorFront
 import androidx.compose.material.icons.outlined.Crop169
 import androidx.compose.material.icons.outlined.GridOn
 import androidx.compose.material.icons.outlined.Layers
 import androidx.compose.material.icons.outlined.NearMe
+import androidx.compose.material.icons.outlined.OpenInFull
 import androidx.compose.material.icons.outlined.Palette
+import androidx.compose.material.icons.outlined.RoundedCorner
 import androidx.compose.material.icons.outlined.ShowChart
 import androidx.compose.material.icons.outlined.SquareFoot
 import androidx.compose.material.icons.outlined.Straighten
@@ -52,6 +56,7 @@ import com.harmen.pafta.measure.MeasurementKind
 import com.harmen.pafta.project.OpeningKind
 import com.harmen.pafta.project.WallMaterial
 import com.harmen.pafta.ui.adi
+import com.harmen.pafta.ui.state.PAIRED_TOOLS
 import com.harmen.pafta.ui.state.Tool
 import com.harmen.pafta.ui.theme.HarmenColours
 import com.harmen.pafta.ui.theme.HarmenType
@@ -90,6 +95,12 @@ public fun ToolRail(
     doorWidthMm: Double = 900.0,
     windowWidthMm: Double = 1200.0,
     onOpeningWidthSelected: (OpeningKind, Double) -> Unit = { _, _ -> },
+    /** Whether a two-shape tool already has its first shape. */
+    hasFirstPick: Boolean = false,
+    filletRadiusMm: Double = 300.0,
+    onFilletRadiusSelected: (Double) -> Unit = {},
+    chamferMm: Double = 300.0,
+    onChamferSizeSelected: (Double) -> Unit = {},
 ) {
     Column(
         modifier = modifier
@@ -156,6 +167,34 @@ public fun ToolRail(
                         )
                     }
                     RailNote(R.string.hint_place_on_wall)
+                }
+            }
+            // A two-shape tool is a sentence with two nouns in it, so the one
+            // thing it must always say is which noun it is waiting for.
+            if (tool == activeTool && tool in PAIRED_TOOLS && !compact) {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(3.dp),
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 5.dp, vertical = 4.dp),
+                ) {
+                    if (tool == Tool.FILLET) {
+                        for (radius in CORNER_SIZES_MM) {
+                            RailChip(
+                                text = formatLength(radius),
+                                selected = radius == filletRadiusMm,
+                                onClick = { onFilletRadiusSelected(radius) },
+                            )
+                        }
+                    }
+                    if (tool == Tool.CHAMFER) {
+                        for (size in CORNER_SIZES_MM) {
+                            RailChip(
+                                text = formatLength(size),
+                                selected = size == chamferMm,
+                                onClick = { onChamferSizeSelected(size) },
+                            )
+                        }
+                    }
+                    RailNote(tool.hint(hasFirstPick))
                 }
             }
             // The room tool has nothing to set, only somewhere to tap.
@@ -377,6 +416,10 @@ private fun Tool.icon(): ImageVector = when (this) {
     Tool.DOOR -> Icons.Outlined.DoorFront
     Tool.WINDOW -> Icons.Outlined.Window
     Tool.ZONE -> Icons.Outlined.Dashboard
+    Tool.FILLET -> Icons.Outlined.RoundedCorner
+    Tool.CHAMFER -> Icons.Outlined.Details
+    Tool.TRIM -> Icons.Outlined.ContentCut
+    Tool.EXTEND -> Icons.Outlined.OpenInFull
     Tool.MEASURE -> Icons.Outlined.SquareFoot
     Tool.GRID -> Icons.Outlined.GridOn
     Tool.ARC -> Icons.Outlined.Architecture
@@ -394,6 +437,26 @@ private val WALL_THICKNESSES_MM = listOf(100.0, 200.0, 300.0)
 
 /** Tools that put an opening in a wall. */
 private val OPENING_TOOLS = setOf(Tool.DOOR, Tool.WINDOW)
+
+/** Corner sizes, for rounding off and for cutting off. */
+private val CORNER_SIZES_MM = listOf(100.0, 200.0, 300.0, 500.0)
+
+/**
+ * What a two-shape tool is waiting for.
+ *
+ * Worded for the tool rather than in general, because "tap the second one"
+ * tells you nothing about which one is which, and for trim and extend the two
+ * are not interchangeable: one cuts and one is cut.
+ */
+@StringRes
+private fun Tool.hint(hasFirstPick: Boolean): Int = when (this) {
+    Tool.TRIM ->
+        if (hasFirstPick) R.string.hint_trim_second else R.string.hint_trim_first
+    Tool.EXTEND ->
+        if (hasFirstPick) R.string.hint_extend_second else R.string.hint_extend_first
+    else ->
+        if (hasFirstPick) R.string.hint_pick_second else R.string.hint_pick_first
+}
 
 /** Door leaf widths as they are actually ordered. */
 private val DOOR_WIDTHS_MM = listOf(700.0, 800.0, 900.0, 1000.0)

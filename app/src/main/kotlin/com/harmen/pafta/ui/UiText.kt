@@ -11,6 +11,7 @@ import com.harmen.pafta.data.UpdateFailure
 import com.harmen.pafta.project.StoreFailure
 import com.harmen.pafta.project.WallMaterial
 import com.harmen.pafta.project.UnreadableReason
+import com.harmen.pafta.project.EditRefusal
 import com.harmen.pafta.project.OpeningKind
 import com.harmen.pafta.ui.state.UiError
 
@@ -190,6 +191,15 @@ public fun UiError.mesaj(): String = when (this) {
     is UiError.NothingToPlaceOn -> stringResource(R.string.error_no_wall_there, kind.adi())
     is UiError.OpeningTooWide -> stringResource(R.string.error_opening_too_wide, kind.adi())
     UiError.NotEnclosed -> stringResource(R.string.error_not_enclosed)
+    is UiError.EditRefused -> stringResource(
+        when (reason) {
+            EditRefusal.NOT_A_LINE -> R.string.error_not_a_line
+            EditRefusal.NO_CORNER -> R.string.error_no_corner
+            EditRefusal.DOES_NOT_FIT -> R.string.error_does_not_fit
+            EditRefusal.DOES_NOT_CROSS -> R.string.error_does_not_cross
+            EditRefusal.ALREADY_REACHES -> R.string.error_already_reaches
+        },
+    )
 }
 
 /** "kapı" or "pencere", for a sentence that needs the word. */

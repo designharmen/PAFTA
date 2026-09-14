@@ -20,6 +20,8 @@ import com.harmen.pafta.project.AutoSavePolicy
 import com.harmen.pafta.project.DoorSwing
 import com.harmen.pafta.project.DrawingDocument
 import com.harmen.pafta.project.DrawnShape
+import com.harmen.pafta.project.EditOutcome
+import com.harmen.pafta.project.EditRefusal
 import com.harmen.pafta.project.LayerState
 import com.harmen.pafta.project.OpeningKind
 import com.harmen.pafta.project.PaftaProject
@@ -28,12 +30,17 @@ import com.harmen.pafta.project.StoreResult
 import com.harmen.pafta.project.StoredMeasurement
 import com.harmen.pafta.project.UndoStack
 import com.harmen.pafta.project.WallMaterial
+import com.harmen.pafta.project.chamfered
+import com.harmen.pafta.project.extended
+import com.harmen.pafta.project.filleted
+import com.harmen.pafta.project.isLine
 import com.harmen.pafta.project.moving
 import com.harmen.pafta.project.offsetBy
 import com.harmen.pafta.project.pickResolved
 import com.harmen.pafta.project.replacing
 import com.harmen.pafta.project.snapSegments
 import com.harmen.pafta.project.toEntities
+import com.harmen.pafta.project.trimmed
 import com.harmen.pafta.project.turnedBy
 import com.harmen.pafta.project.withDimension
 import com.harmen.pafta.project.withId
@@ -152,7 +159,9 @@ public class EditorViewModel(
         // Leaving a tool abandons whatever it had half-finished, rather than
         // leaving stray points waiting on the drawing.
         if (tool != Tool.MEASURE) engine.cancel()
-        _state.update { it.copy(pendingPicks = emptyList()) }
+        // The half of a two-shape edit goes with it: a corner picked for
+        // rounding must not still be waiting when the wall tool is chosen.
+        _state.update { it.copy(pendingPicks = emptyList(), firstPickId = null) }
         if (tool != Tool.SELECT) _state.update { it.copy(selectedShapeId = null) }
         _state.update {
             it.copy(
@@ -283,6 +292,7 @@ public class EditorViewModel(
             Tool.DOOR -> placeOpening(point, toleranceMm, OpeningKind.DOOR)
             Tool.WINDOW -> placeOpening(point, toleranceMm, OpeningKind.WINDOW)
             Tool.ZONE -> placeZone(point)
+            in PAIRED_TOOLS -> pairedPick(point, toleranceMm)
             in DRAWING_TOOLS -> drawPick(point, toleranceMm)
             else -> Unit
         }
@@ -521,6 +531,69 @@ public class EditorViewModel(
         // joined to it rather than tearing the room open.
         edit { s -> s.copy(shapes = s.shapes.replacing(id, turned)) }
         rebuildSnapCandidates()
+    }
+
+    /**
+     * A tap for one of the tools that needs two shapes.
+     *
+     * The first tap remembers; the second does the work and forgets. Tapping
+     * nothing forgets too, which is how a tool started by mistake is got out
+     * of without having to find a cancel button.
+     */
+    private fun pairedPick(point: Vec2, toleranceMm: Double) {
+        val hit = _state.value.shapes.pickResolved(point, toleranceMm)
+        if (hit == null) {
+            _state.update { it.copy(firstPickId = null) }
+            return
+        }
+        if (!hit.isLine()) {
+            _state.update { it.copy(firstPickId = null) }
+            _error.value = UiError.EditRefused(EditRefusal.NOT_A_LINE)
+            return
+        }
+
+        val first = _state.value.firstPickId
+        if (first == null || first == hit.id) {
+            _state.update { it.copy(firstPickId = hit.id) }
+            return
+        }
+
+        val shapes = _state.value.shapes
+        val outcome = when (_state.value.activeTool) {
+            Tool.FILLET -> shapes.filleted(first, hit.id, _state.value.filletRadiusMm)
+            Tool.CHAMFER -> shapes.chamfered(first, hit.id, _state.value.chamferMm)
+            // The order reads the way the tool is used: the first tap is the
+            // one doing the cutting, the second lands on what goes.
+            Tool.TRIM -> shapes.trimmed(hit.id, first, at = point)
+            Tool.EXTEND -> shapes.extended(first, hit.id)
+            else -> return
+        }
+
+        _state.update { it.copy(firstPickId = null) }
+        when (outcome) {
+            is EditOutcome.Refused -> _error.value = UiError.EditRefused(outcome.reason)
+            is EditOutcome.Done -> {
+                edit { s ->
+                    s.copy(
+                        shapes = outcome.shapes,
+                        layers = outcome.shapes.fold(s.layers) { palette, shape ->
+                            palette.including(shape.layer)
+                        },
+                    )
+                }
+                rebuildSnapCandidates()
+            }
+        }
+    }
+
+    /** Sets the radius the round-off tool works with. */
+    public fun setFilletRadius(millimetres: Double) {
+        _state.update { it.copy(filletRadiusMm = millimetres, activeTool = Tool.FILLET) }
+    }
+
+    /** Sets how far back the chamfer tool cuts. */
+    public fun setChamferSize(millimetres: Double) {
+        _state.update { it.copy(chamferMm = millimetres, activeTool = Tool.CHAMFER) }
     }
 
     /** Sets the name of the selected room. */

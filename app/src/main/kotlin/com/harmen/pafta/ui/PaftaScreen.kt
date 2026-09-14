@@ -127,6 +127,11 @@ public fun PaftaScreen(
                         doorWidthMm = state.doorWidthMm,
                         windowWidthMm = state.windowWidthMm,
                         onOpeningWidthSelected = viewModel::setOpeningWidth,
+                        hasFirstPick = state.firstPickId != null,
+                        filletRadiusMm = state.filletRadiusMm,
+                        onFilletRadiusSelected = viewModel::setFilletRadius,
+                        chamferMm = state.chamferMm,
+                        onChamferSizeSelected = viewModel::setChamferSize,
                     )
                     VerticalHairline(Modifier.fillMaxHeight())
 
@@ -181,10 +186,14 @@ public fun PaftaScreen(
                                 )
                             }
                         },
-                        highlightedWallId = state.selectedShapeId,
+                        // The shape a two-shape tool is holding is shown picked
+                        // out just as a selection is: otherwise the first tap
+                        // of the pair looks like nothing happened.
+                        highlightedWallId = state.firstPickId ?: state.selectedShapeId,
                         highlighted = state.shapes
                             .firstOrNull {
-                                it.id == state.selectedShapeId && it !is DrawnShape.Wall
+                                it.id == (state.firstPickId ?: state.selectedShapeId) &&
+                                    it !is DrawnShape.Wall
                             }
                             ?.toEntities()
                             .orEmpty(),
@@ -222,7 +231,7 @@ public fun PaftaScreen(
                                 ?.let { it is DrawnShape.Wall || it is DrawnShape.Line }
                                 ?: false,
                             onOffset = viewModel::offsetSelected,
-                            onTurn = { viewModel.turnSelected(QUARTER_TURN_DEGREES) },
+                            onTurn = viewModel::turnSelected,
                         )
                     }
                 }
@@ -277,9 +286,6 @@ private fun EditorNote(text: String, onDismiss: () -> Unit, modifier: Modifier =
         )
     }
 }
-
-/** One quarter turn, which is the turn a plan asks for nine times in ten. */
-private const val QUARTER_TURN_DEGREES = 90.0
 
 /** Below this width the tool rail drops its captions. */
 private val COMPACT_WIDTH = 720.dp
