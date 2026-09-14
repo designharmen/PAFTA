@@ -1,17 +1,26 @@
 package com.harmen.pafta.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.harmen.pafta.R
@@ -36,7 +45,9 @@ import com.harmen.pafta.ui.state.DRAWING_TOOLS
 import com.harmen.pafta.ui.state.EditorState
 import com.harmen.pafta.ui.state.EditorViewModel
 import com.harmen.pafta.ui.state.TopMenu
+import com.harmen.pafta.ui.state.UiError
 import com.harmen.pafta.ui.theme.HarmenColours
+import com.harmen.pafta.ui.theme.HarmenType
 import com.harmen.pafta.ui.theme.LocalCompactLayout
 import com.harmen.pafta.ui.viewport.PlanViewport
 import com.harmen.pafta.ui.viewport.RoomLabel
@@ -56,6 +67,9 @@ public fun PaftaScreen(
     drawing: DxfDrawing,
     /** What the opening view is framed around; the drawing's own extent if null. */
     fitBounds: Aabb? = null,
+    /** Something the editor has to tell the user, or null. */
+    error: UiError? = null,
+    onDismissError: () -> Unit = {},
     roomLabels: List<RoomLabel> = emptyList(),
     onBack: (() -> Unit)? = null,
     onShare: () -> Unit = {},
@@ -137,6 +151,9 @@ public fun PaftaScreen(
                         onDrawMove = viewModel::updateDrag,
                         onDrawEnd = viewModel::endDrag,
                         onDrawCancel = viewModel::cancelDrag,
+                        onGrab = viewModel::beginMove,
+                        onMoveTo = viewModel::updateMove,
+                        onMoveEnd = viewModel::endMove,
                         preview = state.preview?.toEntities().orEmpty(),
                         previewLabel = state.preview?.lengthMm?.let {
                             formatLength(it, state.display.lengthFormat)
@@ -204,7 +221,53 @@ public fun PaftaScreen(
                 }
                 HairlineDivider()
             }
+
+            // Over the plan rather than beside it: the answer to "why did
+            // nothing happen when I tapped there" has to appear where the user
+            // was looking, which is the drawing.
+            if (error != null) {
+                EditorNote(
+                    text = error.mesaj(),
+                    onDismiss = onDismissError,
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(start = 16.dp, end = 16.dp, bottom = 24.dp),
+                )
+            }
         }
+    }
+}
+
+/**
+ * What the editor has to say, said over the drawing.
+ *
+ * It stays until it is tapped rather than fading on a timer: the sentences here
+ * tell the user what to do differently, and one that disappears while it is
+ * being read is worse than none.
+ */
+@Composable
+private fun EditorNote(text: String, onDismiss: () -> Unit, modifier: Modifier = Modifier) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = modifier
+            .widthIn(max = 560.dp)
+            .clip(RoundedCornerShape(10.dp))
+            .background(HarmenColours.PanelRaised)
+            .clickable(role = Role.Button, onClick = onDismiss)
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+    ) {
+        Text(
+            text = text,
+            style = HarmenType.Body,
+            color = HarmenColours.Text,
+            modifier = Modifier.weight(1f),
+        )
+        Spacer(Modifier.width(12.dp))
+        Text(
+            text = stringResource(R.string.action_dismiss_note),
+            style = HarmenType.PropertyKey,
+            color = HarmenColours.Accent,
+        )
     }
 }
 

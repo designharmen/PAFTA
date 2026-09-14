@@ -157,6 +157,19 @@ public fun PlanViewport(
     onDrawEnd: () -> Unit = {},
     /** The drag became a pinch, or ended without going anywhere. */
     onDrawCancel: () -> Unit = {},
+    /**
+     * Takes hold of whatever is under the finger, answering whether it caught
+     * anything.
+     *
+     * The viewport cannot know: it has pixels, and what is under them is the
+     * drawing's business. So it asks, and moves the shape when the answer is
+     * yes and the view when it is no.
+     */
+    onGrab: (Vec2, Double) -> Boolean = { _, _ -> false },
+    /** The held shape follows the finger. */
+    onMoveTo: (Vec2) -> Unit = {},
+    /** The finger lifted, so the move is done. */
+    onMoveEnd: () -> Unit = {},
 ) {
     val measurer = rememberTextMeasurer()
     var surface by remember { mutableStateOf(IntSize.Zero) }
@@ -230,6 +243,9 @@ public fun PlanViewport(
                     onDrawMove = { move -> at(move)?.let { (p, t) -> onDrawMove(p, t) } },
                     onDrawEnd = onDrawEnd,
                     onDrawCancel = onDrawCancel,
+                    onGrab = { down -> at(down)?.let { (p, t) -> onGrab(p, t) } ?: false },
+                    onMoveTo = { move -> at(move)?.let { (p, _) -> onMoveTo(p) } },
+                    onMoveEnd = onMoveEnd,
                 )
             },
     ) {
@@ -938,7 +954,8 @@ private fun CompassCorner(modifier: Modifier = Modifier) {
  *
  * The rules it implements:
  *  - one finger, drawing tool active  → draw, following the finger
- *  - one finger, any other tool       → move the view
+ *  - one finger on a shape            → drag the shape
+ *  - one finger on bare paper         → move the view
  *  - two fingers, always              → move and zoom the view
  *  - a press that never moves         → a tap, wherever it happened
  */
@@ -950,12 +967,16 @@ private suspend fun PointerInputScope.planGestures(
     onDrawMove: (Offset) -> Unit,
     onDrawEnd: () -> Unit,
     onDrawCancel: () -> Unit,
+    onGrab: (Offset) -> Boolean,
+    onMoveTo: (Offset) -> Unit,
+    onMoveEnd: () -> Unit,
 ) {
     awaitEachGesture {
         val down = awaitFirstDown(requireUnconsumed = false)
         val slop = viewConfiguration.touchSlop
         var travelled = 0f
         var drawing = false
+        var moving = false
         var pinched = false
         var last = down.position
         var previous: Map<PointerId, Offset> = mapOf(down.id to down.position)
@@ -963,6 +984,10 @@ private suspend fun PointerInputScope.planGestures(
         if (drawEnabled) {
             drawing = true
             onDrawBegin(down.position)
+        } else {
+            // Nothing is moved yet — this only asks what is under the finger,
+            // and selects it. The move itself starts when the finger does.
+            moving = onGrab(down.position)
         }
 
         while (true) {
@@ -970,13 +995,15 @@ private suspend fun PointerInputScope.planGestures(
             val pressed = event.changes.filter { it.pressed }
             if (pressed.isEmpty()) break
 
-            if (pressed.size > 1 && drawing) {
-                // A second finger means "move the view", not "draw": the
-                // half-drawn shape is taken back rather than left stretched
-                // across the screen by the pinch.
+            if (pressed.size > 1 && (drawing || moving)) {
+                // A second finger means "move the view", not "draw" and not
+                // "drag this": the half-drawn shape is taken back rather than
+                // left stretched across the screen by the pinch.
+                if (drawing) onDrawCancel()
+                if (moving) onMoveEnd()
                 drawing = false
+                moving = false
                 pinched = true
-                onDrawCancel()
             }
 
             val current = pressed.associate { it.id to it.position }
@@ -990,6 +1017,12 @@ private suspend fun PointerInputScope.planGestures(
                 if (drawing) {
                     last = after
                     onDrawMove(after)
+                    pressed.forEach { it.consume() }
+                } else if (moving) {
+                    last = after
+                    // Only once the finger has really set off: without the
+                    // slop a tap that wobbles by a pixel nudges the wall.
+                    if ((after - down.position).getDistance() > slop) onMoveTo(after)
                     pressed.forEach { it.consume() }
                 } else if (travelled > slop) {
                     // Zoom is how far apart the fingers are now against how far
@@ -1021,6 +1054,12 @@ private suspend fun PointerInputScope.planGestures(
                 onDrawCancel()
                 onTap(down.position)
             }
+        } else if (moving) {
+            onMoveEnd()
+            // A press on a shape that never moved is still a tap: it should
+            // reach the tool, so measuring and placing keep working on top of
+            // something already drawn.
+            if ((last - down.position).getDistance() <= slop) onTap(down.position)
         } else if (!pinched && travelled <= slop) {
             onTap(down.position)
         }

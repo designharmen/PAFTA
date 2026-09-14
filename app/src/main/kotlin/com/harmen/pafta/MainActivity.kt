@@ -151,6 +151,11 @@ private fun PaftaApp(modifier: Modifier = Modifier) {
             viewModel = editorViewModel,
             drawing = opened.drawing,
             fitBounds = opened.bounds,
+            // While a project is open the editor says what went wrong, over the
+            // drawing. Sending it to the library would mean closing the project
+            // to read why a door could not be placed.
+            error = editorError,
+            onDismissError = editorViewModel::dismissError,
             onBack = {
                 editorViewModel.close { openPath = null }
                 libraryViewModel.refresh()

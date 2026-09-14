@@ -29,6 +29,7 @@ import com.harmen.pafta.project.StoredMeasurement
 import com.harmen.pafta.project.UndoStack
 import com.harmen.pafta.project.WallMaterial
 import com.harmen.pafta.project.pickResolved
+import com.harmen.pafta.project.replacing
 import com.harmen.pafta.project.snapSegments
 import com.harmen.pafta.project.toEntities
 import com.harmen.pafta.project.withDimension
@@ -529,6 +530,84 @@ public class EditorViewModel(
         rebuildSnapCandidates()
     }
 
+    // --- Moving by dragging --------------------------------------------------
+
+    /** Where the finger was when the move began, and where it has reached. */
+    private var moveFrom: Vec2? = null
+    private var moveAt: Vec2? = null
+
+    /**
+     * Takes hold of whatever is under the finger, so it can be dragged.
+     *
+     * Answers whether it caught anything, because the viewport has to know: a
+     * finger that caught a wall drags the wall, and a finger that caught bare
+     * paper moves the view. The shape is selected at the same moment, so
+     * dragging something works without selecting it first.
+     *
+     * @return true when something was taken hold of.
+     */
+    public fun beginMove(point: Vec2, toleranceMm: Double): Boolean {
+        // Only the Seç tool drags. With any other tool a finger on a wall means
+        // what that tool means — measuring from it, putting a door in it — and
+        // a wall that slid away under the finger would be a trap.
+        if (_state.value.activeTool != Tool.SELECT) return false
+
+        dragStepRecorded = false
+        val hit = _state.value.shapes.pickResolved(point, toleranceMm) ?: return false
+        // A room is the floor under everything else; dragging the floor would
+        // mean dragging the whole plan by accident. Its outline comes from the
+        // walls anyway, so there is nothing of it to move.
+        if (hit is DrawnShape.Zone) {
+            _state.update { it.copy(selectedShapeId = hit.id) }
+            return false
+        }
+
+        moveFrom = point
+        moveAt = point
+        _state.update { it.copy(selectedShapeId = hit.id) }
+        return true
+    }
+
+    /** The finger has moved; the shape goes with it. */
+    public fun updateMove(point: Vec2) {
+        val previous = moveAt ?: return
+        moveAt = point
+        moveBy(point.x - previous.x, point.y - previous.y)
+    }
+
+    /** The finger has lifted; the move is finished. */
+    public fun endMove() {
+        moveFrom = null
+        moveAt = null
+        rebuildSnapCandidates()
+    }
+
+    /**
+     * Moves the selected shape, merging into the step already in progress.
+     *
+     * A drag is dozens of small movements and one thing the user did, so it has
+     * to be one step in the history: without this, undo would take a wall back
+     * to where it was a fiftieth of a second earlier, fifty times over.
+     */
+    private fun moveBy(dx: Double, dy: Double) {
+        val id = _state.value.selectedShapeId ?: return
+        val moved = _state.value.copy(
+            shapes = _state.value.shapes.map {
+                if (it.id == id) it.translated(dx, dy) else it
+            },
+        )
+        if (moveFrom != null && dragStepRecorded) {
+            _state.value = moved.copy(canUndo = true, canRedo = false, dirty = true)
+            markEdited()
+        } else {
+            dragStepRecorded = true
+            edit { moved }
+        }
+    }
+
+    /** Whether this drag has already put a step in the history. */
+    private var dragStepRecorded = false
+
     /** Deletes the selected shape. Recorded, so it can be undone. */
     public fun deleteSelected() {
         val id = _state.value.selectedShapeId ?: return
@@ -607,9 +686,11 @@ public class EditorViewModel(
     public fun setSelectedDimension(which: ShapeDimension, millimetres: Double) {
         val id = _state.value.selectedShapeId ?: return
         edit { s ->
-            val shapes = s.shapes.map {
-                if (it.id == id) it.withDimension(which, millimetres) else it
-            }
+            val target = s.shapes.firstOrNull { it.id == id } ?: return@edit s
+            // `replacing`, not a plain swap: a corner belongs to both walls that
+            // meet there, so a wall made shorter has to take its neighbours with
+            // it or the room it was part of falls open.
+            val shapes = s.shapes.replacing(id, target.withDimension(which, millimetres))
             // A thickness change moves the wall to another layer, which that
             // layer has to exist for.
             s.copy(

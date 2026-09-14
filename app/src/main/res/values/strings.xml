@@ -64,6 +64,7 @@
     <string name="panel_selected">Seçili Öğe</string>
     <string name="unit_millimetre">mm</string>
     <string name="action_duplicate">Kopyala</string>
+    <string name="action_dismiss_note">TAMAM</string>
 
     <!-- ===== Seçili öğenin, kullanıcının yazabildiği ölçüleri ===== -->
     <string name="dimension_length">Uzunluk</string>

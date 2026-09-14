@@ -107,6 +107,94 @@ public fun List<DrawnShape>.zonePlans(): List<ZonePlan> {
 }
 
 /**
+ * This list with one shape replaced, and the walls joined to it brought along.
+ *
+ * A corner belongs to both walls that meet there. Moving one wall's end without
+ * the other leaves the room hanging open — which is exactly what happened when
+ * a wall of a finished room was made shorter: the wall obeyed, its neighbour
+ * stayed where it was, and the room reported that its walls no longer closed.
+ *
+ * Two things can happen to a wall whose corner moves, and which one is right
+ * depends on the direction:
+ *
+ *  - the corner slides **along** that wall, so the wall simply gets longer or
+ *    shorter and its far end stays put;
+ *  - the corner moves **across** it, so the whole wall travels — otherwise it
+ *    would be left leaning over at an angle. Its far end has then moved too,
+ *    and whatever is joined there follows in turn.
+ *
+ * That second rule is what keeps a rectangular room rectangular: shortening one
+ * side carries the two beside it and shortens the one opposite. Each wall is
+ * carried at most once, so a closed ring of walls settles rather than going
+ * round for ever.
+ */
+public fun List<DrawnShape>.replacing(id: String, changed: DrawnShape): List<DrawnShape> {
+    val original = firstOrNull { it.id == id }
+    if (original !is DrawnShape.Wall || changed !is DrawnShape.Wall) {
+        return map { if (it.id == id) changed else it }
+    }
+
+    val walls = filterIsInstance<DrawnShape.Wall>()
+    val result = HashMap<String, DrawnShape.Wall>()
+    val carried = hashSetOf(id)
+
+    val pending = ArrayDeque<Pair<Vec2, Vec2>>()
+    fun offer(from: Vec3, to: Vec3) {
+        if (from.toVec2().distanceTo(to.toVec2()) > JOIN_TOLERANCE_MM) {
+            pending.addLast(from.toVec2() to to.toVec2())
+        }
+    }
+    offer(original.a, changed.a)
+    offer(original.b, changed.b)
+
+    while (pending.isNotEmpty()) {
+        val (from, to) = pending.removeFirst()
+        val shift = to - from
+
+        for (wall in walls) {
+            if (wall.id in carried) continue
+            val atStart = wall.a.toVec2().distanceTo(from) <= JOIN_TOLERANCE_MM
+            val atEnd = wall.b.toVec2().distanceTo(from) <= JOIN_TOLERANCE_MM
+            if (!atStart && !atEnd) continue
+
+            carried += wall.id
+            val direction = wall.centreLine().let { it.b - it.a }
+            if (direction.length < JOIN_TOLERANCE_MM) continue
+
+            // Along the wall, or across it? Along means stretch; across means
+            // carry, because a wall left pinned at one end would lean over.
+            val slidesAlong = kotlin.math.abs(shift.normalized() dot direction.normalized()) > 0.5
+
+            if (slidesAlong) {
+                result[wall.id] = if (atStart) {
+                    wall.copy(a = Vec3(to.x, to.y, wall.a.z))
+                } else {
+                    wall.copy(b = Vec3(to.x, to.y, wall.b.z))
+                }
+            } else {
+                val moved = wall.copy(
+                    a = Vec3(wall.a.x + shift.x, wall.a.y + shift.y, wall.a.z),
+                    b = Vec3(wall.b.x + shift.x, wall.b.y + shift.y, wall.b.z),
+                )
+                result[wall.id] = moved
+                // Its far end has moved as well, so whatever meets it there
+                // has to come too.
+                val far = if (atStart) wall.b else wall.a
+                val movedFar = if (atStart) moved.b else moved.a
+                offer(far, movedFar)
+            }
+        }
+    }
+
+    return map { shape ->
+        when {
+            shape.id == id -> changed
+            else -> result[shape.id] ?: shape
+        }
+    }
+}
+
+/**
  * The shape under a tap, openings and rooms included.
  *
  * Later shapes win, as in [pick], but a room is always beaten by anything drawn

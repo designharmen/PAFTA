@@ -282,6 +282,87 @@ class ZoneTest {
     }
 
     @Test
+    fun `shortening one wall of a room carries the others, and the room stays closed`() {
+        val shapes = room() + zone()
+        val south = assertIs<DrawnShape.Wall>(shapes.first { it.id == "w1" })
+
+        // 4m becomes 3m. Before this, the wall obeyed on its own and the room
+        // fell open: its neighbour was left standing a metre away.
+        val shorter = assertIs<DrawnShape.Wall>(south.withDimension(ShapeDimension.LENGTH, 3000.0))
+        val after = shapes.replacing("w1", shorter)
+
+        val plan = after.zonePlans().single()
+        assertTrue(!plan.isOpen, "the room fell open when a wall was shortened")
+        // A 3m x 3m room, to the wall faces: 2800 x 2800.
+        assertEquals(2800.0 * 2800.0, plan.areaMm2, 1.0)
+    }
+
+    @Test
+    fun `the wall opposite is shortened too, so the room stays square`() {
+        val shapes = room()
+        val south = assertIs<DrawnShape.Wall>(shapes.first { it.id == "w1" })
+        val after = shapes.replacing(
+            "w1",
+            assertIs<DrawnShape.Wall>(south.withDimension(ShapeDimension.LENGTH, 3000.0)),
+        )
+
+        fun wall(id: String) = assertIs<DrawnShape.Wall>(after.first { it.id == id })
+
+        // The east wall travelled a metre west rather than leaning over.
+        assertEquals(3000.0, wall("w2").a.x, 1e-6)
+        assertEquals(3000.0, wall("w2").b.x, 1e-6)
+        // The north wall was pulled in at that end and is now 3m as well.
+        assertEquals(3000.0, wall("w3").a.distanceTo(wall("w3").b), 1e-6)
+        // The west wall, which the change never reached, is where it was.
+        assertEquals(shapes.first { it.id == "w4" }, wall("w4"))
+    }
+
+    @Test
+    fun `a wall the corner slides along is stretched, not carried`() {
+        // Two walls in a line, meeting at (4000, 0). Pulling the corner further
+        // east must make the first longer and the second shorter, not shift the
+        // second bodily along itself.
+        val shapes = listOf(
+            DrawnShape.Wall("a", Vec3(0.0, 0.0, 0.0), Vec3(4000.0, 0.0, 0.0)),
+            DrawnShape.Wall("b", Vec3(4000.0, 0.0, 0.0), Vec3(8000.0, 0.0, 0.0)),
+        )
+        val longer = assertIs<DrawnShape.Wall>(
+            shapes[0].withDimension(ShapeDimension.LENGTH, 5000.0),
+        )
+        val after = shapes.replacing("a", longer)
+
+        val second = assertIs<DrawnShape.Wall>(after.first { it.id == "b" })
+        assertEquals(5000.0, second.a.x, 1e-6)
+        assertEquals(8000.0, second.b.x, 1e-6, "the far end should not have moved")
+    }
+
+    @Test
+    fun `a wall that touches nothing is changed on its own`() {
+        val shapes = listOf(
+            DrawnShape.Wall("a", Vec3(0.0, 0.0, 0.0), Vec3(4000.0, 0.0, 0.0)),
+            DrawnShape.Wall("far", Vec3(0.0, 9000.0, 0.0), Vec3(4000.0, 9000.0, 0.0)),
+        )
+        val after = shapes.replacing(
+            "a",
+            assertIs<DrawnShape.Wall>(shapes[0].withDimension(ShapeDimension.LENGTH, 1000.0)),
+        )
+
+        assertEquals(shapes[1], after.first { it.id == "far" })
+    }
+
+    @Test
+    fun `changing something that is not a wall changes only itself`() {
+        val shapes = room() + DrawnShape.Circle("c1", Vec3(2000.0, 1500.0, 0.0), 250.0)
+        val after = shapes.replacing(
+            "c1",
+            assertIs<DrawnShape.Circle>(shapes.last()).copy(radiusMm = 500.0),
+        )
+
+        assertEquals(room(), after.dropLast(1))
+        assertEquals(500.0, assertIs<DrawnShape.Circle>(after.last()).radiusMm, 1e-6)
+    }
+
+    @Test
     fun `openings and rooms survive being saved and read back`() {
         val shapes = room() + listOf(
             DrawnShape.Opening(
