@@ -446,6 +446,7 @@ private val ShapeDimension.label: Int
         ShapeDimension.DEPTH -> R.string.dimension_depth
         ShapeDimension.DIAMETER -> R.string.dimension_diameter
         ShapeDimension.SILL -> R.string.dimension_sill
+        ShapeDimension.RADIUS -> R.string.dimension_radius
     }
 
 /** A full-width action inside a panel section. */

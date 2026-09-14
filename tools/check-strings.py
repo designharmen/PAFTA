@@ -31,6 +31,9 @@ it does so four minutes into a CI run. This catches them in a second:
     still passed from another is otherwise only found by CI, minutes later
   * a Compose modifier used without its import — `Modifier.padding(...)` in a
     file that never imported `padding` is four minutes of CI to learn one line
+  * a `when` over one of this project's own enums that has forgotten a value —
+    adding a case in `core/` and not handling it in the interface compiles
+    everywhere except the module that cannot be compiled here
 
 Exits non-zero and prints the file and line on the first real problem found.
 """
@@ -413,6 +416,87 @@ MODIFIER_IMPORTS = {
 CHAIN_STEP = re.compile(r"(?:\bModifier\s*)?\.(\w+)\s*\(")
 
 
+ENUM_DECLARATION = re.compile(r"\benum\s+class\s+(\w+)")
+WHEN_START = re.compile(r"\bwhen\s*\(")
+BRANCH_LABEL = re.compile(r"(?<![\w.])(\w+)\.(\w+)\s*(?=->|,)")
+ELSE_BRANCH = re.compile(r"(?<![\w.])else\s*->")
+
+
+def _enum_values(text: str, at: int) -> set[str]:
+    """The names of the values of the enum whose body starts after [at]."""
+    opening = text.find("{", at)
+    if opening < 0:
+        return set()
+    body, _ = _balanced(text, opening)
+    # A value may carry arguments, and the body may carry members after a `;`.
+    body = body.split(";", 1)[0]
+    values = set()
+    for piece in _split_arguments(body):
+        found = re.match(r"\s*(?:@\w+\s*)*([A-Z][A-Z0-9_]*)\b", piece)
+        if found:
+            values.add(found.group(1))
+    return values
+
+
+def check_enum_branches() -> list[str]:
+    """A `when` over one of PAFTA's own enums must name every one of its values.
+
+    This is the compiler's own rule, checked here because the module it keeps
+    failing in — the interface — cannot be compiled in the development
+    container. Adding a value in `core/` and forgetting the interface compiles
+    the core, passes every test, and then stops CI four minutes later.
+
+    Only a `when` whose branches are all written as `Enum.VALUE` is looked at,
+    and only when it has no `else`. A `when` with an `else` has said what it
+    wants to do about the rest.
+    """
+    sources = []
+    for directory in ALL_KOTLIN_DIRS:
+        if directory.is_dir():
+            sources.extend(sorted(directory.rglob("*.kt")))
+
+    cleaned = {path: _without_comments_and_strings(path.read_text()) for path in sources}
+
+    values: dict[str, set[str]] = {}
+    for text in cleaned.values():
+        for match in ENUM_DECLARATION.finditer(text):
+            found = _enum_values(text, match.end())
+            if found:
+                values.setdefault(match.group(1), set()).update(found)
+
+    problems = []
+    for path, text in cleaned.items():
+        for match in WHEN_START.finditer(text):
+            opening = text.find("{", match.end())
+            if opening < 0:
+                continue
+            body, _ = _balanced(text, opening)
+            if ELSE_BRANCH.search(body):
+                continue
+
+            named: dict[str, set[str]] = {}
+            for label in BRANCH_LABEL.finditer(body):
+                owner, value = label.group(1), label.group(2)
+                if owner in values and value in values[owner]:
+                    named.setdefault(owner, set()).add(value)
+
+            # Exactly one enum, or there is no single set of values to be
+            # complete about.
+            if len(named) != 1:
+                continue
+            enum, used = next(iter(named.items()))
+            missing = values[enum] - used
+            if not missing:
+                continue
+
+            line = text.count("\n", 0, match.start()) + 1
+            problems.append(
+                f"{path.relative_to(ROOT)}:{line} — {enum} üzerindeki `when` "
+                f"eksik: {', '.join(sorted(missing))} yok (ve `else` de yok)"
+            )
+    return problems
+
+
 def check_modifier_imports() -> list[str]:
     """Every Compose modifier used must be imported.
 
@@ -538,6 +622,7 @@ def main() -> int:
         + check_fonts()
         + check_named_arguments()
         + check_modifier_imports()
+        + check_enum_branches()
     )
 
     if problems:

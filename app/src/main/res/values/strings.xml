@@ -82,6 +82,7 @@
     <string name="dimension_depth">Derinlik</string>
     <string name="dimension_diameter">Çap</string>
     <string name="dimension_sill">Denizlik</string>
+    <string name="dimension_radius">Yarıçap</string>
 
     <!-- ===== Kapı ve pencere ===== -->
     <string name="panel_zone_name">Mahal adı</string>
