@@ -65,6 +65,9 @@
     <string name="unit_millimetre">mm</string>
     <string name="action_duplicate">Kopyala</string>
     <string name="action_dismiss_note">TAMAM</string>
+    <string name="action_offset">Paralel kopya</string>
+    <string name="action_turn">90° döndür</string>
+    <string name="panel_offset_distance">Uzaklık</string>
 
     <!-- ===== Seçili öğenin, kullanıcının yazabildiği ölçüleri ===== -->
     <string name="dimension_length">Uzunluk</string>

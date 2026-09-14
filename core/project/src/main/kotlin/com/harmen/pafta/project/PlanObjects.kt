@@ -10,6 +10,8 @@ import com.harmen.pafta.geometry.centroid
 import com.harmen.pafta.geometry.containsPoint
 import com.harmen.pafta.geometry.faceContaining
 import com.harmen.pafta.geometry.insetPolygon
+import com.harmen.pafta.geometry.offset
+import com.harmen.pafta.geometry.rotated
 import kotlin.math.atan2
 
 /**
@@ -104,6 +106,89 @@ public fun List<DrawnShape>.zonePlans(): List<ZonePlan> {
             anchor = if (outline.size >= 3) centroid(outline) else seed,
         )
     }
+}
+
+/**
+ * A parallel copy of this shape, [millimetres] to one side of it.
+ *
+ * The commonest edit on a plan: the second skin of a cavity wall, the far side
+ * of a corridor, a setback line. A positive distance goes to the left of the
+ * way the shape was drawn and a negative one to the right, so which side you
+ * get is predictable rather than something you find out.
+ *
+ * Only a wall or a line has a side to be offset to; anything else answers null,
+ * and the interface then does not offer it.
+ */
+public fun DrawnShape.offsetBy(millimetres: Double, id: String): DrawnShape? {
+    if (millimetres == 0.0) return null
+    return when (this) {
+        is DrawnShape.Wall -> offset(centreLine(), millimetres)?.let {
+            copy(id = id, a = Vec3(it.a.x, it.a.y, a.z), b = Vec3(it.b.x, it.b.y, b.z))
+        }
+
+        is DrawnShape.Line -> offset(Segment2(a.toVec2(), b.toVec2()), millimetres)?.let {
+            copy(id = id, a = Vec3(it.a.x, it.a.y, a.z), b = Vec3(it.b.x, it.b.y, b.z))
+        }
+
+        else -> null
+    }
+}
+
+/**
+ * This shape turned about its own middle.
+ *
+ * Turning a wall where it stands is what "this one should run the other way"
+ * means, and doing it about the middle keeps it in the room it was in. A
+ * circle looks the same afterwards and a rectangle has no way to be drawn at an
+ * angle yet, so neither is offered it.
+ */
+public fun DrawnShape.turnedBy(degrees: Double): DrawnShape? = when (this) {
+    is DrawnShape.Wall -> {
+        val turned = rotated(listOf(a.toVec2(), b.toVec2()), centreLine().midpoint, degrees)
+        copy(a = Vec3(turned[0].x, turned[0].y, a.z), b = Vec3(turned[1].x, turned[1].y, b.z))
+    }
+
+    is DrawnShape.Line -> {
+        val middle = (a.toVec2() + b.toVec2()) * 0.5
+        val turned = rotated(listOf(a.toVec2(), b.toVec2()), middle, degrees)
+        copy(a = Vec3(turned[0].x, turned[0].y, a.z), b = Vec3(turned[1].x, turned[1].y, b.z))
+    }
+
+    else -> null
+}
+
+/**
+ * This list with one shape dragged, each shape moving the way it is able to.
+ *
+ * Most things go wherever the finger takes them. A door does not: it is a hole
+ * in a wall, and a hole that left its wall would be a hole in the air. So it
+ * slides **along** its wall instead, taking only the part of the movement that
+ * runs that way and stopping at each end rather than sliding off. Dragging a
+ * door across its wall does nothing, which is the truth about doors.
+ *
+ * A wall carries its own doors and windows without anything being done here:
+ * they hold a distance from its start, not a place on the sheet.
+ */
+public fun List<DrawnShape>.moving(id: String, dx: Double, dy: Double): List<DrawnShape> {
+    val target = firstOrNull { it.id == id } ?: return this
+    if (target !is DrawnShape.Opening) {
+        return map { if (it.id == id) it.translated(dx, dy) else it }
+    }
+
+    val wall = filterIsInstance<DrawnShape.Wall>().firstOrNull { it.id == target.wallId }
+        ?: return this
+    val along = wall.b.toVec2() - wall.a.toVec2()
+    val length = along.length
+    if (length < 1.0) return this
+
+    val slid = Vec2(dx, dy) dot (along / length)
+    val half = target.widthMm / 2.0
+    // Kept inside the wall, and never past the point where the two limits meet
+    // — a wall barely wider than its own door has one place the door can be.
+    val limit = (length - half).coerceAtLeast(half)
+    val moved = (target.alongMm + slid).coerceIn(half.coerceAtMost(limit), limit)
+
+    return map { if (it.id == id) target.copy(alongMm = moved) else it }
 }
 
 /**

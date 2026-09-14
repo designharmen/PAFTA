@@ -28,10 +28,13 @@ import com.harmen.pafta.project.StoreResult
 import com.harmen.pafta.project.StoredMeasurement
 import com.harmen.pafta.project.UndoStack
 import com.harmen.pafta.project.WallMaterial
+import com.harmen.pafta.project.moving
+import com.harmen.pafta.project.offsetBy
 import com.harmen.pafta.project.pickResolved
 import com.harmen.pafta.project.replacing
 import com.harmen.pafta.project.snapSegments
 import com.harmen.pafta.project.toEntities
+import com.harmen.pafta.project.turnedBy
 import com.harmen.pafta.project.withDimension
 import com.harmen.pafta.project.withId
 import com.harmen.pafta.project.zonePlans
@@ -486,6 +489,40 @@ public class EditorViewModel(
      */
     public var defaultZoneName: String = ""
 
+    /**
+     * Lays a parallel copy of the selected shape beside it.
+     *
+     * The commonest edit on a plan — the other side of a corridor, the inner
+     * skin of a cavity wall — and the one AutoCAD spells OFFSET. The copy is
+     * selected straight away, so its own numbers can be corrected from there.
+     */
+    public fun offsetSelected(millimetres: Double) {
+        val id = _state.value.selectedShapeId ?: return
+        val original = _state.value.shapes.firstOrNull { it.id == id } ?: return
+        val copy = original.offsetBy(millimetres, id = newShapeId()) ?: return
+
+        edit { s ->
+            s.copy(
+                shapes = s.shapes + copy,
+                layers = s.layers.including(copy.layer),
+                selectedShapeId = copy.id,
+            )
+        }
+        rebuildSnapCandidates()
+    }
+
+    /** Turns the selected shape about its own middle, so it stays where it is. */
+    public fun turnSelected(degrees: Double) {
+        val id = _state.value.selectedShapeId ?: return
+        val original = _state.value.shapes.firstOrNull { it.id == id } ?: return
+        val turned = original.turnedBy(degrees) ?: return
+
+        // Through `replacing`, so a wall turned at a corner takes what is
+        // joined to it rather than tearing the room open.
+        edit { s -> s.copy(shapes = s.shapes.replacing(id, turned)) }
+        rebuildSnapCandidates()
+    }
+
     /** Sets the name of the selected room. */
     public fun setSelectedName(name: String) {
         val id = _state.value.selectedShapeId ?: return
@@ -519,15 +556,6 @@ public class EditorViewModel(
                 OpeningKind.WINDOW -> it.copy(windowWidthMm = millimetres, activeTool = Tool.WINDOW)
             }
         }
-    }
-
-    /** Moves the selected shape by a drawing-millimetre offset. */
-    public fun moveSelected(dx: Double, dy: Double) {
-        val id = _state.value.selectedShapeId ?: return
-        edit { s ->
-            s.copy(shapes = s.shapes.map { if (it.id == id) it.translated(dx, dy) else it })
-        }
-        rebuildSnapCandidates()
     }
 
     // --- Moving by dragging --------------------------------------------------
@@ -591,11 +619,10 @@ public class EditorViewModel(
      */
     private fun moveBy(dx: Double, dy: Double) {
         val id = _state.value.selectedShapeId ?: return
-        val moved = _state.value.copy(
-            shapes = _state.value.shapes.map {
-                if (it.id == id) it.translated(dx, dy) else it
-            },
-        )
+        // `moving`, not a plain translate: a door cannot leave its wall, so it
+        // takes only the part of the drag that runs along it. Asking the shape
+        // on its own gave a door that refused to move at all.
+        val moved = _state.value.copy(shapes = _state.value.shapes.moving(id, dx, dy))
         if (moveFrom != null && dragStepRecorded) {
             _state.value = moved.copy(canUndo = true, canRedo = false, dirty = true)
             markEdited()

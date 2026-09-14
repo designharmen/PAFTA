@@ -97,6 +97,16 @@ public fun RightPanel(
     /** Which way the selected door opens; null when what is selected is not a door. */
     selectedSwing: DoorSwing? = null,
     onSwingSelected: (DoorSwing) -> Unit = {},
+    /**
+     * Whether the selected shape has a side to be offset to, and can be turned.
+     *
+     * A circle looks the same turned and has no side, so it is offered neither
+     * — and it is offered them by not being shown them, rather than by being
+     * shown a button that does nothing.
+     */
+    canOffset: Boolean = false,
+    onOffset: (Double) -> Unit = {},
+    onTurn: () -> Unit = {},
 ) {
     Column(
         modifier = modifier
@@ -185,6 +195,18 @@ public fun RightPanel(
                 }
 
                 PanelButton(R.string.action_duplicate, onDuplicateSelected)
+
+                if (canOffset) {
+                    var distance by remember(selectedShapeId) { mutableStateOf(300.0) }
+                    MeasurementField(
+                        key = selectedShapeId + "offset",
+                        label = R.string.panel_offset_distance,
+                        millimetres = distance,
+                        onChanged = { distance = it },
+                    )
+                    PanelButton(R.string.action_offset) { onOffset(distance) }
+                    PanelButton(R.string.action_turn, onTurn)
+                }
             }
         }
 

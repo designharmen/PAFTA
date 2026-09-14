@@ -143,6 +143,95 @@ class OpeningTest {
     }
 
     @Test
+    fun `a wall can be copied parallel to itself, either side`() {
+        val left = assertIs<DrawnShape.Wall>(assertNotNull(wall().offsetBy(300.0, id = "w2")))
+        assertEquals("w2", left.id)
+        assertEquals(300.0, left.a.y, 1e-6)
+        assertEquals(300.0, left.b.y, 1e-6)
+        // Same wall, moved: same length, same thickness, same layer.
+        assertEquals(4000.0, left.a.distanceTo(left.b), 1e-6)
+        assertEquals(wall().thicknessMm, left.thicknessMm, 1e-6)
+
+        val right = assertIs<DrawnShape.Wall>(assertNotNull(wall().offsetBy(-300.0, id = "w3")))
+        assertEquals(-300.0, right.a.y, 1e-6)
+    }
+
+    @Test
+    fun `only things with a side to move to can be offset`() {
+        assertNull(DrawnShape.Circle("c1", Vec3(0.0, 0.0, 0.0), 250.0).offsetBy(100.0, id = "c2"))
+        assertNull(door().offsetBy(100.0, id = "d2"))
+        // Nowhere is not a side.
+        assertNull(wall().offsetBy(0.0, id = "w2"))
+    }
+
+    @Test
+    fun `turning a wall keeps it where it stands`() {
+        val turned = assertIs<DrawnShape.Wall>(assertNotNull(wall().turnedBy(90.0)))
+
+        // The middle of a 4m wall running east from the origin is (2000, 0);
+        // turned a quarter turn it runs north through the same point.
+        assertEquals(2000.0, turned.a.x, 1e-6)
+        assertEquals(-2000.0, turned.a.y, 1e-6)
+        assertEquals(2000.0, turned.b.x, 1e-6)
+        assertEquals(2000.0, turned.b.y, 1e-6)
+        assertEquals(4000.0, turned.a.distanceTo(turned.b), 1e-6)
+    }
+
+    @Test
+    fun `four quarter turns put a wall back`() {
+        var turned: DrawnShape = wall()
+        repeat(4) { turned = assertNotNull(turned.turnedBy(90.0)) }
+        val back = assertIs<DrawnShape.Wall>(turned)
+
+        assertTrue(back.a.toVec2().distanceTo(wall().a.toVec2()) < 1e-6)
+        assertTrue(back.b.toVec2().distanceTo(wall().b.toVec2()) < 1e-6)
+    }
+
+    @Test
+    fun `a circle looks the same turned, so it is not offered the turn`() {
+        assertNull(DrawnShape.Circle("c1", Vec3(0.0, 0.0, 0.0), 250.0).turnedBy(90.0))
+    }
+
+    @Test
+    fun `dragging a door slides it along its wall`() {
+        val shapes = listOf(wall(), door(alongMm = 2000.0))
+
+        // Dragged 500mm east, along a wall that runs east.
+        val after = shapes.moving("d1", 500.0, 0.0)
+        assertEquals(2500.0, assertIs<DrawnShape.Opening>(after.last()).alongMm, 1e-6)
+        assertEquals(2500.0, after.openingPlans().single().cut.map { it.x }.average(), 1e-6)
+    }
+
+    @Test
+    fun `dragging a door across its wall does not take it out of the wall`() {
+        val shapes = listOf(wall(), door(alongMm = 2000.0))
+
+        // Straight up, square to the wall: nothing about that is a place a door
+        // could go, so the door stays where it is.
+        val after = shapes.moving("d1", 0.0, 900.0)
+        assertEquals(2000.0, assertIs<DrawnShape.Opening>(after.last()).alongMm, 1e-6)
+    }
+
+    @Test
+    fun `a door dragged past the end of its wall stops at the end`() {
+        val shapes = listOf(wall(), door(alongMm = 2000.0))
+
+        val after = shapes.moving("d1", 9000.0, 0.0)
+        // A 900mm door in a 4000mm wall reaches 3550mm and no further.
+        assertEquals(3550.0, assertIs<DrawnShape.Opening>(after.last()).alongMm, 1e-6)
+    }
+
+    @Test
+    fun `everything that is not an opening is simply dragged`() {
+        val line = DrawnShape.Line("l1", Vec3(0.0, 0.0, 0.0), Vec3(1000.0, 0.0, 0.0))
+        val after = assertIs<DrawnShape.Line>(listOf(line).moving("l1", 100.0, 200.0).single())
+
+        assertEquals(100.0, after.a.x, 1e-6)
+        assertEquals(200.0, after.a.y, 1e-6)
+        assertEquals(1100.0, after.b.x, 1e-6)
+    }
+
+    @Test
     fun `a door offers a width and a height, and a window a sill as well`() {
         assertEquals(
             listOf(ShapeDimension.WIDTH, ShapeDimension.HEIGHT),

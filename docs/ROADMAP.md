@@ -673,3 +673,96 @@ generation and tracing run on paid services.
 An architect can stand in a room with a tablet, draw the room, place its door,
 name it, read its area, and email a PDF — without a desktop anywhere in the
 process.
+
+---
+
+## The tool specification, and what it changes
+
+The owner supplied an analysis of AutoCAD's editing commands, Revit's element
+tools, twenty wall types and twenty floor finishes, with the instruction to
+build every one of them into PAFTA. This section records what that means for
+the plan. Nothing in the fourteen phases is dropped; the specification mostly
+*fills them in*, and in two places it changes the order.
+
+### The distinction the specification makes, and PAFTA already keeps
+
+Its first point is that the list is two different kinds of thing:
+
+* **Editing commands** — fillet, chamfer, offset, trim, extend, copy, move,
+  rotate, mirror, line, circle, rectangle, layer, text, hatch, dimension.
+  Low-level vector work on PAFTA's own drawn geometry.
+* **Building elements** — wall, door, window, floor, roof, column, beam, stair.
+  Parametric objects with properties, hosts and schedules.
+
+PAFTA has kept them apart from the beginning, and for the same reason: the
+imported file is never rewritten. `DrawnShape` is PAFTA's own layer, the payload
+is the architect's file, and the two are merged only to draw and to export. The
+specification's warning — that editing a DWG's own geometry needs a paid SDK —
+therefore describes a line PAFTA already sits on the right side of.
+
+### Walls: one object, four axes, not twenty types
+
+The twenty wall types are four different questions wearing one hat: what it is
+made of, how it is built up, what it does, and whether it is a system. Twenty
+separate types would be twenty places to fix the same bug. One wall carrying
+four properties is the right shape, and it is the one the specification
+recommends:
+
+| The question | On the wall | Covers |
+| --- | --- | --- |
+| What is it made of | `material` — **built** | Brick, Stone, Concrete, Timber |
+| What does it do | `function` | Partition, Drywall; Load-Bearing, Shear; Retaining, Gabion; Parapet |
+| How is it built up | `layers[]` of material and thickness | Cavity, Precast, Cladding |
+| How does it perform | `fireRating`, `acousticRating` | Fire Wall, Soundproof Wall |
+
+Three of the twenty are not walls at all and should not pretend to be: a Green
+Wall is planting, a Boundary Wall is the edge of the site, and Curtain and Glass
+Walls are facade systems with a grid of their own. The first two belong to a
+site layer; the third is the hardest item on the whole list and goes last.
+
+### Floors: the twenty are finishes, not floors
+
+The twenty floor types are what the floor is *covered with*. The floor itself is
+a slab: an outline, a thickness and a level. So they are two things —
+`FloorSlab { boundary, thickness, level, finish }` and a catalogue of finishes in
+four families (timber, stone and ceramic, resilient, textile). The catalogue
+feeds the material palette that is already in the interface, which means a floor
+read out of an imported file can be given a finish and a colour **without the
+file being touched** — which is the whole point.
+
+### What this adds to the phases
+
+| Phase | Was | Now also carries |
+| --- | --- | --- |
+| **C — Editing** | copy, rotate, scale, offset, trim, join, multi-select | fillet, chamfer, extend, mirror — all **built and tested in `core:geometry`**; the ones needing two shapes wait on multi-select |
+| **D — Library** | place blocks | the twenty wall types and twenty floor finishes as ready-made catalogue entries |
+| **E — Styles and layers** | weights, colours, hatches | hatch patterns as material representation in plan and section |
+| **G — Properties and tables** | schedules | fire and acoustic ratings, wall function, floor finish — the properties the schedules are made of |
+
+And it adds one phase that was not there, between B and C:
+
+| **B2 — Building elements beyond the wall** | column, beam, floor slab, flat roof — each an object with a profile, a level and a material. Structural walls are not a new type: a shear wall is a wall whose function says so. |
+
+Stairs, pitched and hipped roofs, curtain walling and the constraint system that
+`ALIGN` needs are the four hardest items on the list, and they are placed last
+within their phases rather than first. A stair is parametric generation with a
+building-regulation rule set behind it; a hipped roof is a geometry problem in
+its own right. Neither is a good place to be while the wall is still settling.
+
+### What is built already
+
+Phase C's arithmetic landed early, because the specification puts it first and
+because it is pure geometry that can be proved on this machine rather than
+guessed at on a tablet. `core/geometry/Editing.kt`: fillet with its tangent
+arc, chamfer with two distances, offset for a segment and for a run of them with
+its corners closed, trim against a boundary keeping the side pointed at, extend
+to a boundary from whichever end is nearer, and rotate, mirror and scale. Every
+one has tests, including the ones that must refuse: a radius that will not fit,
+a boundary the segment would miss, an inset that would turn a shape inside out.
+
+The two that need only one shape — **offset** and **turn** — are in the
+interface now. Fillet, chamfer, trim and extend each need the user to pick
+**two** shapes, and PAFTA has no way to hold two selections yet. They stay out
+of the interface until it does, rather than appearing as buttons that do
+nothing, which this project has a rule against.
+
