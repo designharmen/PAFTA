@@ -891,3 +891,75 @@ inventing wall nobody drew.
 50, 75, 150, 200. It scales about the shape's own middle, so the thing stays
 where it was pointed at rather than flying across the sheet, which is the
 behaviour that makes `SCALE` frightening in the programs that have it.
+
+---
+
+## Phase B2 — the building elements that are not walls
+
+Column, beam, floor slab, flat roof. The phase the tool specification added
+between B and C, and the four things the element column down the right-hand side
+was promising but could not yet do.
+
+### Each one is the shape of the question it answers
+
+**Kolon** is a point with a profile. Square, rectangular or round — the three
+that get poured — and it is **filled solid**, because that is what a column is
+where the plan cuts through it and a plan that outlines one is drawing a hole.
+A round column is filled as a thirty-six-sided polygon so that the band list
+stays one kind of thing, but it still exports as a single `CIRCLE` record: how
+something is drawn and what it is are different questions. Placing one goes
+through the same snapping a wall end does, because columns land on grid
+intersections and wall corners far more often than anywhere else.
+
+**Kiriş** is a line with a width, and it is the one element deliberately **not**
+filled. A plan is a horizontal cut about a metre off the floor; a beam is over
+your head. Drawing it as an outline when everything else in the building is
+drawn solid is what tells you at a glance that it is above you. (The convention
+is a dashed outline. Dashes wait for the line styles of phase E; an outline says
+the same thing today without inventing machinery for it.)
+
+**Döşeme** does not carry its own outline, and this is the whole design. Like a
+room, it carries *where the user tapped*, and the walls decide the rest. A slab
+whose boundary had been frozen at the moment it was placed would stop matching
+the room the first time a wall moved, and the plan would then be lying about the
+building. A test pulls a wall in by a metre and checks the slab simply measures
+less.
+
+It is measured to the **middle** of the walls, where a room is measured to their
+faces. A slab is poured under the walls, not between them, so the two numbers
+are different and both are right: the structural area and the usable area. That
+is also why the slab writes its note a quarter of the room's height below the
+centre — the room above it writes its name at the centre, and two labels on the
+same point are two labels nobody can read.
+
+**Teras çatı** is not a fifth element. It is a slab with `kind = ROOF` at a
+different level, which is what a flat roof is in the building too: a deck with
+nothing on top of it. Making it a separate tool would have put a seventh button
+in the right-hand column saying nearly the same word as the sixth, which rule 6b
+forbids. It is a choice in the slab's settings strip instead.
+
+### The twenty floor finishes
+
+The specification's twenty "floor types" are in, as `FloorFinish` — twenty
+entries in four families, on one property of the slab. The specification's own
+reading was right: they are not twenty kinds of floor, they are what the floor
+is *covered with*. Keeping them as a catalogue means the twenty-first is a line
+of code rather than a class, and it means a floor read out of somebody else's
+DXF can be given a finish **without their file being touched**, which is the
+point of PAFTA's whole overlay design.
+
+The panel shows them in their four groups — ahşap, taş ve seramik, esnek ve
+dökme, tekstil — because twenty in one list is a list nobody reads, and four
+short lists are four lists where the one you want is in the group you already
+had in mind. Each finish carries an ASCII code as well as its Turkish name,
+because the code travels into exported DXF material and layer names and `Ş`
+does not survive that journey.
+
+### What a tap means when two things share a floor
+
+A room and the slab under it fill exactly the same outline, so the rule already
+written down for everything else now covers them both: **the thing put down most
+recently is the thing a tap means.** Two separate passes would have made
+whichever came second permanently untappable under whichever came first. Walls,
+columns and beams are all still found before either, because they are things you
+can see the edges of and a floor is not.

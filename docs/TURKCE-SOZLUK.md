@@ -28,7 +28,9 @@ gerçekten çalışan çizim araçları aldı.
 | Door | **Kapı** |
 | Window | **Pencere** |
 | Room / Space | **Mahal** |
-| Floor / Slab | **Döşeme** (henüz hazır değil, soluk) |
+| Floor / Slab | **Döşeme** |
+| Column | **Kolon** |
+| Beam | **Kiriş** |
 | Furniture | **Mobilya** (henüz hazır değil, soluk) |
 | Elements | **Yapı** (sütun başlığı) |
 | Open / Close panel | **Paneli aç** / **Paneli kapat** |
@@ -43,6 +45,19 @@ gerçekten çalışan çizim araçları aldı.
 | Fillet radius | **Yuvarlatma yarıçapı** |
 | Chamfer distance | **Pah ölçüsü** |
 | Measure what | **Ne ölçülecek** |
+| Column size | **Kolon ölçüsü** |
+| Shape | **Biçim** → **Kare** / **Yuvarlak** |
+| Beam width | **Kiriş genişliği** |
+| Slab thickness | **Döşeme kalınlığı** |
+| What it is | **Ne olacak** → **Kat döşemesi** / **Teras çatı** |
+
+## Döşeme kaplamaları (şartnamedeki yirmi kaplama)
+
+Dört aile: **Ahşap** · **Taş ve seramik** · **Esnek ve dökme** · **Tekstil**
+
+Masif ahşap · Lamine parke · Laminat · Parke · Bambu · Seramik · Porselen ·
+Mermer · Granit · Traverten · Karo mozaik · Arduvaz · PVC · Linolyum · Kauçuk ·
+Epoksi · Perdahlı beton · Şap · Halı · Karo halı
 
 ## Üstteki çizim araçları
 

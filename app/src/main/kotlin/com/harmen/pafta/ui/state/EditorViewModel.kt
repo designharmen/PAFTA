@@ -20,6 +20,9 @@ import com.harmen.pafta.project.AutoSavePolicy
 import com.harmen.pafta.project.DoorSwing
 import com.harmen.pafta.project.DrawingDocument
 import com.harmen.pafta.project.DrawnShape
+import com.harmen.pafta.project.FloorFinish
+import com.harmen.pafta.project.SlabKind
+import com.harmen.pafta.project.slabPlans
 import com.harmen.pafta.project.EditOutcome
 import com.harmen.pafta.project.EditRefusal
 import com.harmen.pafta.project.LayerState
@@ -285,6 +288,8 @@ public class EditorViewModel(
             Tool.DOOR -> placeOpening(point, toleranceMm, OpeningKind.DOOR)
             Tool.WINDOW -> placeOpening(point, toleranceMm, OpeningKind.WINDOW)
             Tool.ZONE -> placeZone(point)
+            Tool.SLAB -> placeSlab(point)
+            Tool.COLUMN -> placeColumn(point, toleranceMm)
             in PAIRED_TOOLS -> pairedPick(point, toleranceMm)
             in DRAWING_TOOLS -> drawPick(point, toleranceMm)
             else -> Unit
@@ -372,6 +377,13 @@ public class EditorViewModel(
                 )
             }
             Tool.LINE -> DrawnShape.Line(id, a, b)
+            Tool.BEAM -> DrawnShape.Beam(
+                id = id,
+                a = a,
+                b = b,
+                widthMm = _state.value.beamWidthMm,
+                depthMm = _state.value.beamDepthMm,
+            )
             Tool.RECTANGLE -> DrawnShape.Rectangle(id, a, b)
             Tool.CIRCLE -> DrawnShape.Circle(id, a, from.distanceTo(to))
             else -> return null
@@ -479,6 +491,130 @@ public class EditorViewModel(
                 shapes = s.shapes + zone,
                 layers = s.layers.including(zone.layer),
                 selectedShapeId = zone.id,
+            )
+        }
+    }
+
+    /**
+     * A floor slab, under the room the user tapped in.
+     *
+     * Refused the same way a room is when the walls do not close: a slab that
+     * measures nothing is a mis-tap, and one sitting on the plan saying nothing
+     * is worse than being told the walls are open.
+     */
+    private fun placeSlab(point: Vec2) {
+        val slab = DrawnShape.Slab(
+            id = newShapeId(),
+            seed = Vec3(point.x, point.y, 0.0),
+            thicknessMm = _state.value.slabThicknessMm,
+            kind = _state.value.slabKind,
+        )
+
+        val measured = (_state.value.shapes + slab).slabPlans().first { it.id == slab.id }
+        if (measured.isOpen) {
+            _error.value = UiError.NotEnclosed
+            return
+        }
+
+        edit { s ->
+            s.copy(
+                shapes = s.shapes + slab,
+                layers = s.layers.including(slab.layer),
+                selectedShapeId = slab.id,
+            )
+        }
+    }
+
+    /**
+     * A column where the user tapped, pulled onto whatever is near.
+     *
+     * Columns land on grid intersections and wall corners far more often than
+     * anywhere else, so the tap goes through the same snapping a wall end does
+     * rather than landing wherever the finger happened to be.
+     */
+    private fun placeColumn(point: Vec2, toleranceMm: Double) {
+        val landed = snap(
+            pick = point,
+            segments = snapCandidates.near(point, toleranceMm),
+            tolerance = toleranceMm,
+            gridSpacing = if (_state.value.gridVisible) _state.value.gridSpacingMm else null,
+        ).point
+
+        val size = _state.value.columnSizeMm
+        val column = DrawnShape.Column(
+            id = newShapeId(),
+            centre = Vec3(landed.x, landed.y, 0.0),
+            widthMm = size,
+            depthMm = size,
+            round = _state.value.columnRound,
+        )
+
+        edit { s ->
+            s.copy(
+                shapes = s.shapes + column,
+                layers = s.layers.including(column.layer),
+                selectedShapeId = column.id,
+            )
+        }
+        rebuildSnapCandidates()
+    }
+
+    /** What the column tool places with. */
+    public fun selectColumnSize(millimetres: Double) {
+        _state.update { it.copy(columnSizeMm = millimetres, activeTool = Tool.COLUMN) }
+    }
+
+    public fun selectColumnRound(round: Boolean) {
+        _state.update { it.copy(columnRound = round, activeTool = Tool.COLUMN) }
+    }
+
+    /** What the beam tool draws with. */
+    public fun selectBeamWidth(millimetres: Double) {
+        _state.update { it.copy(beamWidthMm = millimetres, activeTool = Tool.BEAM) }
+    }
+
+    /** What the slab tool places with. */
+    public fun selectSlabThickness(millimetres: Double) {
+        _state.update { it.copy(slabThicknessMm = millimetres, activeTool = Tool.SLAB) }
+    }
+
+    /** Floor or flat roof: the same object, at a different level. */
+    public fun selectSlabKind(kind: SlabKind) {
+        _state.update { it.copy(slabKind = kind, activeTool = Tool.SLAB) }
+    }
+
+    /** Changes what the selected slab is covered with. */
+    public fun setSelectedFinish(finish: FloorFinish) {
+        val id = _state.value.selectedShapeId ?: return
+        edit { s ->
+            s.copy(
+                shapes = s.shapes.map {
+                    if (it.id == id && it is DrawnShape.Slab) it.copy(finish = finish) else it
+                },
+            )
+        }
+    }
+
+    /** Changes whether the selected slab is a floor or a flat roof. */
+    public fun setSelectedSlabKind(kind: SlabKind) {
+        val id = _state.value.selectedShapeId ?: return
+        edit { s ->
+            s.copy(
+                shapes = s.shapes.map {
+                    if (it.id == id && it is DrawnShape.Slab) it.copy(kind = kind) else it
+                },
+            )
+        }
+    }
+
+    /** Turns the selected column between square and round. */
+    public fun setSelectedColumnRound(round: Boolean) {
+        val id = _state.value.selectedShapeId ?: return
+        edit { s ->
+            s.copy(
+                shapes = s.shapes.map {
+                    if (it.id == id && it is DrawnShape.Column) it.copy(round = round) else it
+                },
             )
         }
     }

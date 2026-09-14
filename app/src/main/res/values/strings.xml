@@ -54,6 +54,8 @@
     <string name="tool_mirror">Aynala</string>
     <string name="tool_join">Birleştir</string>
     <string name="tool_slab">Döşeme</string>
+    <string name="tool_column">Kolon</string>
+    <string name="tool_beam">Kiriş</string>
     <string name="tool_furniture">Mobilya</string>
 
     <!-- ===== Sağ panel bölüm başlıkları ===== -->
@@ -97,6 +99,46 @@
     <string name="option_radius">Yuvarlatma yarıçapı</string>
     <string name="option_chamfer">Pah ölçüsü</string>
     <string name="option_measure">Ne ölçülecek</string>
+    <string name="option_column_size">Kolon ölçüsü</string>
+    <string name="option_column_shape">Biçim</string>
+    <string name="column_square">Kare</string>
+    <string name="column_round">Yuvarlak</string>
+    <string name="option_beam_width">Kiriş genişliği</string>
+    <string name="option_slab_thickness">Döşeme kalınlığı</string>
+    <string name="option_slab_kind">Ne olacak</string>
+    <string name="slab_floor">Kat döşemesi</string>
+    <string name="slab_roof">Teras çatı</string>
+
+    <!-- ===== Döşeme kaplamaları (şartnamedeki yirmi kaplama) ===== -->
+    <string name="finish_family_timber">Ahşap</string>
+    <string name="finish_family_stone">Taş ve seramik</string>
+    <string name="finish_family_resilient">Esnek ve dökme</string>
+    <string name="finish_family_textile">Tekstil</string>
+    <string name="finish_solid_timber">Masif ahşap</string>
+    <string name="finish_engineered_timber">Lamine parke</string>
+    <string name="finish_laminate">Laminat</string>
+    <string name="finish_parquet">Parke</string>
+    <string name="finish_bamboo">Bambu</string>
+    <string name="finish_ceramic">Seramik</string>
+    <string name="finish_porcelain">Porselen</string>
+    <string name="finish_marble">Mermer</string>
+    <string name="finish_granite">Granit</string>
+    <string name="finish_travertine">Traverten</string>
+    <string name="finish_terrazzo">Karo mozaik</string>
+    <string name="finish_slate">Arduvaz</string>
+    <string name="finish_vinyl">PVC</string>
+    <string name="finish_linoleum">Linolyum</string>
+    <string name="finish_rubber">Kauçuk</string>
+    <string name="finish_epoxy">Epoksi</string>
+    <string name="finish_polished_concrete">Perdahlı beton</string>
+    <string name="finish_screed">Şap</string>
+    <string name="finish_carpet">Halı</string>
+    <string name="finish_carpet_tile">Karo halı</string>
+    <string name="panel_slab">Döşeme</string>
+    <string name="panel_finish">Kaplama</string>
+    <string name="hint_place_column">kolonun geleceği yere dokun</string>
+    <string name="hint_place_slab">döşemenin olacağı odanın içine dokun</string>
+    <string name="hint_draw_beam">kirişin bir ucundan diğerine sürükle</string>
     <string name="hint_place_on_wall">açıklığı koymak için bir duvara dokun</string>
     <string name="hint_place_in_room">alanı ölçmek için odanın içine dokun</string>
     <string name="opening_door_word">kapı</string>

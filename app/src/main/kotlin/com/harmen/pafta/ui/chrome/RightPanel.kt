@@ -53,6 +53,10 @@ import androidx.compose.ui.unit.dp
 import com.harmen.pafta.R
 import com.harmen.pafta.project.AnnotationKind
 import com.harmen.pafta.project.DoorSwing
+import com.harmen.pafta.project.DrawnShape
+import com.harmen.pafta.project.FinishFamily
+import com.harmen.pafta.project.FloorFinish
+import com.harmen.pafta.project.SlabKind
 import com.harmen.pafta.project.LayerState
 import com.harmen.pafta.project.ShapeDimension
 import com.harmen.pafta.project.ZonePlan
@@ -109,6 +113,13 @@ public fun RightPanel(
     onTurn: (Double) -> Unit = {},
     /** Makes the selected shape bigger or smaller about its own middle. */
     onScale: (Double) -> Unit = {},
+    /** The selected floor slab, when one is selected. */
+    selectedSlab: DrawnShape.Slab? = null,
+    onSlabKindChanged: (SlabKind) -> Unit = {},
+    onFinishChanged: (FloorFinish) -> Unit = {},
+    /** The selected column, when one is selected, so it can be made round. */
+    selectedColumn: DrawnShape.Column? = null,
+    onColumnRoundChanged: (Boolean) -> Unit = {},
 ) {
     Column(
         modifier = modifier
@@ -196,6 +207,10 @@ public fun RightPanel(
                     SwingChooser(selectedSwing, onSwingSelected)
                 }
 
+                if (selectedColumn != null) {
+                    ShapeChooser(selectedColumn.round, onColumnRoundChanged)
+                }
+
                 PanelButton(R.string.action_duplicate, onDuplicateSelected)
 
                 if (canOffset) {
@@ -210,6 +225,13 @@ public fun RightPanel(
                     TurnChooser(onTurn)
                     ScaleChooser(onScale)
                 }
+            }
+        }
+
+        if (selectedSlab != null) {
+            Section(R.string.panel_slab) {
+                SlabKindChooser(selectedSlab.kind, onSlabKindChanged)
+                FinishChooser(selectedSlab.finish, onFinishChanged)
             }
         }
 
@@ -434,6 +456,112 @@ private fun TurnChooser(onTurn: (Double) -> Unit) {
             )
         }
     }
+}
+
+/** Floor or flat roof: the same slab, at a different level. */
+@Composable
+private fun SlabKindChooser(kind: SlabKind, onChanged: (SlabKind) -> Unit) {
+    Row(Modifier.fillMaxWidth()) {
+        for (choice in SlabKind.entries) {
+            ChoiceCell(
+                text = choice.adi(),
+                selected = choice == kind,
+                onClick = { onChanged(choice) },
+                modifier = Modifier.weight(1f),
+            )
+        }
+    }
+}
+
+/** Square or round, for a column. */
+@Composable
+private fun ShapeChooser(round: Boolean, onChanged: (Boolean) -> Unit) {
+    Text(
+        text = stringResource(R.string.option_column_shape),
+        style = HarmenType.PropertyKey,
+        color = HarmenColours.TextMuted,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 4.dp, end = 4.dp, top = 8.dp, bottom = 4.dp),
+    )
+    Row(Modifier.fillMaxWidth()) {
+        ChoiceCell(
+            text = stringResource(R.string.column_square),
+            selected = !round,
+            onClick = { onChanged(false) },
+            modifier = Modifier.weight(1f),
+        )
+        ChoiceCell(
+            text = stringResource(R.string.column_round),
+            selected = round,
+            onClick = { onChanged(true) },
+            modifier = Modifier.weight(1f),
+        )
+    }
+}
+
+/**
+ * What the floor is covered with, as twenty choices in four groups.
+ *
+ * Twenty in one list is a list nobody reads. In four named groups — ahşap, taş
+ * ve seramik, esnek ve dökme, tekstil — it is four short lists, and the one you
+ * want is in the group you already had in mind.
+ */
+@Composable
+private fun FinishChooser(finish: FloorFinish, onChanged: (FloorFinish) -> Unit) {
+    Text(
+        text = stringResource(R.string.panel_finish),
+        style = HarmenType.PropertyKey,
+        color = HarmenColours.TextMuted,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 4.dp, end = 4.dp, top = 8.dp, bottom = 4.dp),
+    )
+    for (family in FinishFamily.entries) {
+        Text(
+            text = family.adi(),
+            style = HarmenType.Status,
+            color = HarmenColours.TextFaint,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 4.dp, end = 4.dp, top = 6.dp, bottom = 2.dp),
+        )
+        for (choice in FloorFinish.entries.filter { it.family == family }) {
+            ChoiceCell(
+                text = choice.adi(),
+                selected = choice == finish,
+                onClick = { onChanged(choice) },
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+    }
+}
+
+/** One tappable choice in a panel row. */
+@Composable
+private fun ChoiceCell(
+    text: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Text(
+        text = text,
+        style = HarmenType.PropertyKey,
+        color = if (selected) HarmenColours.Text else HarmenColours.TextMuted,
+        textAlign = TextAlign.Center,
+        modifier = modifier
+            .padding(horizontal = 2.dp, vertical = 2.dp)
+            .clip(RoundedCornerShape(metrics.cornerRadius))
+            .background(if (selected) HarmenColours.SelectedWash else HarmenColours.PanelRaised)
+            .drawBehind {
+                if (!selected) return@drawBehind
+                drawRect(color = HarmenColours.Accent, style = Stroke(width = 1.dp.toPx()))
+            }
+            .clickable(role = Role.Button, onClick = onClick)
+            .height(44.dp)
+            .padding(vertical = 13.dp),
+    )
 }
 
 /** The angles a plan is turned by, largest first. */

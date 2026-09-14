@@ -136,6 +136,53 @@ public fun List<DrawnShape>.zonePlans(): List<ZonePlan> {
 }
 
 /**
+ * The floor slabs among these shapes, each measured from the walls around it.
+ *
+ * Exactly the same question a room asks — which walls enclose the point that was
+ * tapped — and deliberately the same answer, because a floor and the room above
+ * it are the same outline. What differs is what is done with it: a room reports
+ * its name and its area, a slab reports what it is made of and how thick it is.
+ *
+ * Measured to the middle of the walls rather than to their faces, unlike a room:
+ * a slab is poured under the walls, not between them, so its area is the
+ * structural area and a room's is the usable one. They are different numbers
+ * and they are both right.
+ */
+public fun List<DrawnShape>.slabPlans(): List<ZonePlan> {
+    val slabs = filterIsInstance<DrawnShape.Slab>()
+    if (slabs.isEmpty()) return emptyList()
+
+    val centreLines = wallPieces().map { it.first }
+
+    return slabs.map { slab ->
+        val seed = slab.seed.toVec2()
+        val face = faceContaining(centreLines, seed, tolerance = JOIN_TOLERANCE_MM)
+        val outline = face?.map { it.a }.orEmpty()
+
+        ZonePlan(
+            id = slab.id,
+            layer = slab.layer,
+            name = "",
+            outline = outline,
+            areaMm2 = if (outline.size >= 3) area(outline) else 0.0,
+            // Below the middle, not in it. The room above the slab covers the
+            // same floor and writes its name at the centroid, so two labels
+            // would land on each other and neither would be readable. A quarter
+            // of the room's height down keeps them apart at every zoom, and
+            // noting the floor finish low on the room is what a drawing does
+            // anyway.
+            anchor = if (outline.size >= 3) {
+                val middle = centroid(outline)
+                val height = outline.maxOf { it.y } - outline.minOf { it.y }
+                Vec2(middle.x, middle.y - height * 0.25)
+            } else {
+                seed
+            },
+        )
+    }
+}
+
+/**
  * A parallel copy of this shape, [millimetres] to one side of it.
  *
  * The commonest edit on a plan: the second skin of a cavity wall, the far side
@@ -364,12 +411,20 @@ public fun List<DrawnShape>.pickResolved(at: Vec2, toleranceMm: Double): DrawnSh
 
     pick(at, toleranceMm)?.let { return it }
 
+    // A room and the slab under it fill the same floor, so one pass over both,
+    // latest first. That keeps the rule the rest of this function follows — the
+    // thing put down most recently is the thing a tap means — and it is what
+    // makes a slab reachable at all: two separate passes would have made
+    // whichever came second permanently untappable under whichever came first.
     val rooms = zonePlans().associateBy { it.id }
+    val slabs = slabPlans().associateBy { it.id }
     for (shape in asReversed()) {
-        if (shape is DrawnShape.Zone) {
-            val plan = rooms[shape.id] ?: continue
-            if (plan.outline.size >= 3 && containsPoint(plan.outline, at)) return shape
-        }
+        val plan = when (shape) {
+            is DrawnShape.Zone -> rooms[shape.id]
+            is DrawnShape.Slab -> slabs[shape.id]
+            else -> null
+        } ?: continue
+        if (plan.outline.size >= 3 && containsPoint(plan.outline, at)) return shape
     }
     return null
 }

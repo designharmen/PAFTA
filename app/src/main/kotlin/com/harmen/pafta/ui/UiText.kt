@@ -12,7 +12,10 @@ import com.harmen.pafta.project.StoreFailure
 import com.harmen.pafta.project.WallMaterial
 import com.harmen.pafta.project.UnreadableReason
 import com.harmen.pafta.project.EditRefusal
+import com.harmen.pafta.project.FinishFamily
+import com.harmen.pafta.project.FloorFinish
 import com.harmen.pafta.project.OpeningKind
+import com.harmen.pafta.project.SlabKind
 import com.harmen.pafta.ui.state.UiError
 
 /**
@@ -162,6 +165,56 @@ public fun WallMaterial.adi(): String = stringResource(
         WallMaterial.CONCRETE -> R.string.material_concrete
         WallMaterial.AERATED -> R.string.material_aerated
         WallMaterial.TIMBER -> R.string.material_timber
+    },
+)
+
+/** The Turkish name of a floor finish, from the catalogue of twenty. */
+@Composable
+@ReadOnlyComposable
+public fun FloorFinish.adi(): String = stringResource(
+    when (this) {
+        FloorFinish.SOLID_TIMBER -> R.string.finish_solid_timber
+        FloorFinish.ENGINEERED_TIMBER -> R.string.finish_engineered_timber
+        FloorFinish.LAMINATE -> R.string.finish_laminate
+        FloorFinish.PARQUET -> R.string.finish_parquet
+        FloorFinish.BAMBOO -> R.string.finish_bamboo
+        FloorFinish.CERAMIC -> R.string.finish_ceramic
+        FloorFinish.PORCELAIN -> R.string.finish_porcelain
+        FloorFinish.MARBLE -> R.string.finish_marble
+        FloorFinish.GRANITE -> R.string.finish_granite
+        FloorFinish.TRAVERTINE -> R.string.finish_travertine
+        FloorFinish.TERRAZZO -> R.string.finish_terrazzo
+        FloorFinish.SLATE -> R.string.finish_slate
+        FloorFinish.VINYL -> R.string.finish_vinyl
+        FloorFinish.LINOLEUM -> R.string.finish_linoleum
+        FloorFinish.RUBBER -> R.string.finish_rubber
+        FloorFinish.EPOXY -> R.string.finish_epoxy
+        FloorFinish.POLISHED_CONCRETE -> R.string.finish_polished_concrete
+        FloorFinish.SCREED -> R.string.finish_screed
+        FloorFinish.CARPET -> R.string.finish_carpet
+        FloorFinish.CARPET_TILE -> R.string.finish_carpet_tile
+    },
+)
+
+/** The Turkish name of a finish family, which is how twenty become readable. */
+@Composable
+@ReadOnlyComposable
+public fun FinishFamily.adi(): String = stringResource(
+    when (this) {
+        FinishFamily.TIMBER -> R.string.finish_family_timber
+        FinishFamily.STONE -> R.string.finish_family_stone
+        FinishFamily.RESILIENT -> R.string.finish_family_resilient
+        FinishFamily.TEXTILE -> R.string.finish_family_textile
+    },
+)
+
+/** A floor, or a flat roof. */
+@Composable
+@ReadOnlyComposable
+public fun SlabKind.adi(): String = stringResource(
+    when (this) {
+        SlabKind.FLOOR -> R.string.slab_floor
+        SlabKind.ROOF -> R.string.slab_roof
     },
 )
 

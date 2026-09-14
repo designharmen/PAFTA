@@ -37,6 +37,7 @@ import com.harmen.pafta.project.dimensions
 import com.harmen.pafta.project.isBand
 import com.harmen.pafta.project.lengthMm
 import com.harmen.pafta.project.openingPlans
+import com.harmen.pafta.project.slabPlans
 import com.harmen.pafta.project.wallBands
 import com.harmen.pafta.project.zonePlans
 import com.harmen.pafta.ui.chrome.DrawingToolBar
@@ -139,6 +140,16 @@ public fun PaftaScreen(
                     selectedShapeId = state.selectedShapeId,
                     onDeleteSelected = viewModel::deleteSelected,
                     onFinishChain = viewModel::finishChain,
+                    columnSizeMm = state.columnSizeMm,
+                    onColumnSizeSelected = viewModel::selectColumnSize,
+                    columnRound = state.columnRound,
+                    onColumnRoundSelected = viewModel::selectColumnRound,
+                    beamWidthMm = state.beamWidthMm,
+                    onBeamWidthSelected = viewModel::selectBeamWidth,
+                    slabThicknessMm = state.slabThicknessMm,
+                    onSlabThicknessSelected = viewModel::selectSlabThickness,
+                    slabKind = state.slabKind,
+                    onSlabKindSelected = viewModel::selectSlabKind,
                 )
                 HairlineDivider()
 
@@ -146,6 +157,19 @@ public fun PaftaScreen(
                     // Worked out once per change and used by both the drawing and
                     // the panel, so the two can never disagree about a room.
                     val zones = remember(state.shapes) { state.shapes.zonePlans() }
+                    // Slabs go first in the list, so they are drawn under
+                    // everything: a floor covers the whole room, and one drawn
+                    // over the room would hide it.
+                    val slabs = remember(state.shapes) { state.shapes.slabPlans() }
+                    // The Turkish is worked out here and not inside the label
+                    // lambda: that lambda runs inside the canvas, where there is
+                    // no composition and so no way to read `strings.xml`. Every
+                    // word the plan shows has to be resolved before it gets
+                    // there.
+                    val slabLabels = mutableMapOf<String, List<String>>()
+                    for (slab in state.shapes.filterIsInstance<DrawnShape.Slab>()) {
+                        slabLabels[slab.id] = listOf(slab.kind.adi(), slab.finish.adi())
+                    }
 
                     PlanViewport(
                         drawing = drawing,
@@ -183,9 +207,12 @@ public fun PaftaScreen(
                         },
                         walls = remember(state.shapes) { state.shapes.wallBands() },
                         openings = remember(state.shapes) { state.shapes.openingPlans() },
-                        zones = zones,
+                        zones = slabs + zones,
+                        // A slab says what it is and what it is covered with;
+                        // the room above it says its name and how big it is. Two
+                        // different questions, two answers, one outline.
                         zoneLabel = { plan ->
-                            buildList {
+                            slabLabels[plan.id] ?: buildList {
                                 if (plan.name.isNotBlank()) add(plan.name)
                                 add(
                                     if (plan.isOpen) {
@@ -244,6 +271,15 @@ public fun PaftaScreen(
                                 onOffset = viewModel::offsetSelected,
                                 onTurn = viewModel::turnSelected,
                                 onScale = viewModel::scaleSelected,
+                                selectedSlab = state.shapes
+                                    .firstOrNull { it.id == state.selectedShapeId }
+                                        as? DrawnShape.Slab,
+                                onSlabKindChanged = viewModel::setSelectedSlabKind,
+                                onFinishChanged = viewModel::setSelectedFinish,
+                                selectedColumn = state.shapes
+                                    .firstOrNull { it.id == state.selectedShapeId }
+                                        as? DrawnShape.Column,
+                                onColumnRoundChanged = viewModel::setSelectedColumnRound,
                             )
                         }
                     }

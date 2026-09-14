@@ -29,6 +29,7 @@ import androidx.compose.material.icons.outlined.Details
 import androidx.compose.material.icons.outlined.DoorFront
 import androidx.compose.material.icons.outlined.Flip
 import androidx.compose.material.icons.outlined.GridOn
+import androidx.compose.material.icons.outlined.HorizontalRule
 import androidx.compose.material.icons.outlined.Layers
 import androidx.compose.material.icons.outlined.NearMe
 import androidx.compose.material.icons.outlined.OpenInFull
@@ -38,6 +39,7 @@ import androidx.compose.material.icons.outlined.SquareFoot
 import androidx.compose.material.icons.outlined.Straighten
 import androidx.compose.material.icons.outlined.TextFields
 import androidx.compose.material.icons.outlined.Texture
+import androidx.compose.material.icons.outlined.ViewColumn
 import androidx.compose.material.icons.outlined.Window
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -57,6 +59,7 @@ import androidx.compose.ui.unit.dp
 import com.harmen.pafta.R
 import com.harmen.pafta.measure.MeasurementKind
 import com.harmen.pafta.project.OpeningKind
+import com.harmen.pafta.project.SlabKind
 import com.harmen.pafta.project.WallMaterial
 import com.harmen.pafta.ui.adi
 import com.harmen.pafta.ui.state.PAIRED_TOOLS
@@ -142,12 +145,22 @@ public fun ToolOptionsBar(
     selectedShapeId: String? = null,
     onDeleteSelected: () -> Unit = {},
     onFinishChain: () -> Unit = {},
+    columnSizeMm: Double = 300.0,
+    onColumnSizeSelected: (Double) -> Unit = {},
+    columnRound: Boolean = false,
+    onColumnRoundSelected: (Boolean) -> Unit = {},
+    beamWidthMm: Double = 250.0,
+    onBeamWidthSelected: (Double) -> Unit = {},
+    slabThicknessMm: Double = 150.0,
+    onSlabThicknessSelected: (Double) -> Unit = {},
+    slabKind: SlabKind = SlabKind.FLOOR,
+    onSlabKindSelected: (SlabKind) -> Unit = {},
 ) {
     val chainable = activeTool in CHAINABLE && pendingPickCount > 0
     val hasSomethingToSay = when (activeTool) {
         Tool.WALL -> true
         Tool.DOOR, Tool.WINDOW -> true
-        Tool.ZONE -> true
+        Tool.ZONE, Tool.SLAB, Tool.COLUMN, Tool.BEAM -> true
         Tool.MEASURE -> true
         Tool.SELECT -> selectedShapeId != null
         in PAIRED_TOOLS -> true
@@ -210,6 +223,72 @@ public fun ToolOptionsBar(
                 }
 
                 Tool.ZONE -> BarNote(R.string.hint_place_in_room)
+
+                Tool.SLAB -> {
+                    OptionGroup(R.string.option_slab_thickness) {
+                        for (thickness in SLAB_THICKNESSES_MM) {
+                            OptionChip(
+                                text = formatLength(thickness),
+                                selected = thickness == slabThicknessMm,
+                                onClick = { onSlabThicknessSelected(thickness) },
+                            )
+                        }
+                    }
+                    // A flat roof is the same object at a different level, so it
+                    // is the same tool with a different answer — not a seventh
+                    // button down the right-hand side saying nearly the same word.
+                    OptionGroup(R.string.option_slab_kind) {
+                        OptionChip(
+                            text = stringResource(R.string.slab_floor),
+                            selected = slabKind == SlabKind.FLOOR,
+                            onClick = { onSlabKindSelected(SlabKind.FLOOR) },
+                        )
+                        OptionChip(
+                            text = stringResource(R.string.slab_roof),
+                            selected = slabKind == SlabKind.ROOF,
+                            onClick = { onSlabKindSelected(SlabKind.ROOF) },
+                        )
+                    }
+                    BarNote(R.string.hint_place_slab)
+                }
+
+                Tool.COLUMN -> {
+                    OptionGroup(R.string.option_column_size) {
+                        for (size in COLUMN_SIZES_MM) {
+                            OptionChip(
+                                text = formatLength(size),
+                                selected = size == columnSizeMm,
+                                onClick = { onColumnSizeSelected(size) },
+                            )
+                        }
+                    }
+                    OptionGroup(R.string.option_column_shape) {
+                        OptionChip(
+                            text = stringResource(R.string.column_square),
+                            selected = !columnRound,
+                            onClick = { onColumnRoundSelected(false) },
+                        )
+                        OptionChip(
+                            text = stringResource(R.string.column_round),
+                            selected = columnRound,
+                            onClick = { onColumnRoundSelected(true) },
+                        )
+                    }
+                    BarNote(R.string.hint_place_column)
+                }
+
+                Tool.BEAM -> {
+                    OptionGroup(R.string.option_beam_width) {
+                        for (width in BEAM_WIDTHS_MM) {
+                            OptionChip(
+                                text = formatLength(width),
+                                selected = width == beamWidthMm,
+                                onClick = { onBeamWidthSelected(width) },
+                            )
+                        }
+                    }
+                    BarNote(R.string.hint_draw_beam)
+                }
 
                 Tool.FILLET -> {
                     OptionGroup(R.string.option_radius) {
@@ -469,6 +548,8 @@ internal fun Tool.icon(): ImageVector = when (this) {
     Tool.HATCH -> Icons.Outlined.Texture
     Tool.TEXT -> Icons.Outlined.TextFields
     Tool.SLAB -> Icons.Outlined.Layers
+    Tool.COLUMN -> Icons.Outlined.ViewColumn
+    Tool.BEAM -> Icons.Outlined.HorizontalRule
     Tool.FURNITURE -> Icons.Outlined.Chair
 }
 
@@ -507,3 +588,12 @@ private val DOOR_WIDTHS_MM = listOf(700.0, 800.0, 900.0, 1000.0)
 
 /** Window widths, the same way. */
 private val WINDOW_WIDTHS_MM = listOf(600.0, 900.0, 1200.0, 1800.0)
+
+/** Column sizes as a concrete frame is actually poured. */
+private val COLUMN_SIZES_MM = listOf(250.0, 300.0, 400.0, 500.0)
+
+/** Beam widths, which follow the columns they sit on. */
+private val BEAM_WIDTHS_MM = listOf(200.0, 250.0, 300.0, 400.0)
+
+/** Slab thicknesses for a domestic reinforced concrete floor. */
+private val SLAB_THICKNESSES_MM = listOf(120.0, 150.0, 180.0, 200.0)

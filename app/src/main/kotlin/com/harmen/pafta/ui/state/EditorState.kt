@@ -14,6 +14,7 @@ import com.harmen.pafta.project.AnnotationKind
 import com.harmen.pafta.project.LayerState
 import com.harmen.pafta.project.MaterialOverride
 import com.harmen.pafta.project.OpeningKind
+import com.harmen.pafta.project.SlabKind
 import com.harmen.pafta.project.StoreFailure
 import com.harmen.pafta.project.WallMaterial
 
@@ -52,10 +53,12 @@ public enum class Tool(
     JOIN(R.string.tool_join, ready = true),
     MEASURE(R.string.tool_measure, ready = true),
     GRID(R.string.tool_grid, ready = true),
+    SLAB(R.string.tool_slab, ready = true),
+    COLUMN(R.string.tool_column, ready = true),
+    BEAM(R.string.tool_beam, ready = true),
     ARC(R.string.tool_arc),
     HATCH(R.string.tool_hatch),
     TEXT(R.string.tool_text),
-    SLAB(R.string.tool_slab),
     FURNITURE(R.string.tool_furniture),
 }
 
@@ -98,6 +101,8 @@ public val ELEMENT_TOOLS: List<Tool> = listOf(
     Tool.WINDOW,
     Tool.ZONE,
     Tool.SLAB,
+    Tool.COLUMN,
+    Tool.BEAM,
     Tool.FURNITURE,
 )
 
@@ -108,7 +113,8 @@ public val ELEMENT_TOOLS: List<Tool> = listOf(
  * single finger draws instead of panning, and the viewport is the only place
  * that sees the finger.
  */
-public val DRAWING_TOOLS: Set<Tool> = setOf(Tool.WALL, Tool.LINE, Tool.RECTANGLE, Tool.CIRCLE)
+public val DRAWING_TOOLS: Set<Tool> =
+    setOf(Tool.WALL, Tool.LINE, Tool.RECTANGLE, Tool.CIRCLE, Tool.BEAM)
 
 /**
  * Tools that put an object somewhere rather than draw a shape.
@@ -117,7 +123,8 @@ public val DRAWING_TOOLS: Set<Tool> = setOf(Tool.WALL, Tool.LINE, Tool.RECTANGLE
  * one tap on the wall it belongs in and then given its numbers. The same is
  * true of a room, which is placed by tapping the floor it covers.
  */
-public val PLACING_TOOLS: Set<Tool> = setOf(Tool.DOOR, Tool.WINDOW, Tool.ZONE)
+public val PLACING_TOOLS: Set<Tool> =
+    setOf(Tool.DOOR, Tool.WINDOW, Tool.ZONE, Tool.SLAB, Tool.COLUMN)
 
 /**
  * Tools that need two shapes before they can do anything.
@@ -256,6 +263,22 @@ public data class EditorState(
      * also change what the panel on the right is showing.
      */
     val firstPickId: String? = null,
+    /** How big across the column tool places, in millimetres. */
+    val columnSizeMm: Double = DrawnShape.DEFAULT_COLUMN_SIZE_MM,
+
+    /** Whether the column tool places a round column rather than a square one. */
+    val columnRound: Boolean = false,
+
+    /** How wide and how deep the beam tool draws. */
+    val beamWidthMm: Double = DrawnShape.DEFAULT_BEAM_WIDTH_MM,
+    val beamDepthMm: Double = DrawnShape.DEFAULT_BEAM_DEPTH_MM,
+
+    /** How thick the slab tool places. */
+    val slabThicknessMm: Double = DrawnShape.DEFAULT_SLAB_THICKNESS_MM,
+
+    /** Whether the slab tool places a floor or a flat roof. */
+    val slabKind: SlabKind = SlabKind.FLOOR,
+
     /** The radius the round-off tool works with. */
     val filletRadiusMm: Double = 300.0,
     /** How far back along each side the chamfer tool cuts. */

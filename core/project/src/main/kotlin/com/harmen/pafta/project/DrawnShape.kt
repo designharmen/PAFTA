@@ -2,6 +2,7 @@ package com.harmen.pafta.project
 
 import com.harmen.pafta.dxf.DxfEntity
 import com.harmen.pafta.geometry.Segment2
+import com.harmen.pafta.geometry.containsPoint
 import com.harmen.pafta.geometry.Vec2
 import com.harmen.pafta.geometry.Vec3
 import kotlinx.serialization.SerialName
@@ -38,6 +39,63 @@ public enum class WallMaterial(public val code: String) {
 /** What an opening in a wall is. */
 @Serializable
 public enum class OpeningKind { DOOR, WINDOW }
+
+/**
+ * A deck with rooms above it, or a deck with the sky above it.
+ *
+ * The same object either way — an outline, a thickness and a level — which is
+ * what it is in the building too. A flat roof is not a different kind of thing
+ * from a floor; it is a floor with nothing on top.
+ */
+@Serializable
+public enum class SlabKind { FLOOR, ROOF }
+
+/**
+ * What a floor is covered with.
+ *
+ * The specification listed twenty "floor types". They are not twenty kinds of
+ * floor: the floor is a slab, and these are what is laid on it. Keeping them as
+ * a catalogue on one property means adding the twenty-first is a line here
+ * rather than a new class — and it means a floor read out of somebody else's
+ * file can be given a finish without their file being touched.
+ *
+ * The code is ASCII because it travels into exported DXF layer and material
+ * names; the Turkish the user reads is composed at the interface.
+ */
+@Serializable
+public enum class FloorFinish(public val code: String, public val family: FinishFamily) {
+    // Timber and wood-based.
+    SOLID_TIMBER("MASIF-AHSAP", FinishFamily.TIMBER),
+    ENGINEERED_TIMBER("LAMINE-PARKE", FinishFamily.TIMBER),
+    LAMINATE("LAMINAT", FinishFamily.TIMBER),
+    PARQUET("PARKE", FinishFamily.TIMBER),
+    BAMBOO("BAMBU", FinishFamily.TIMBER),
+
+    // Stone and fired.
+    CERAMIC("SERAMIK", FinishFamily.STONE),
+    PORCELAIN("PORSELEN", FinishFamily.STONE),
+    MARBLE("MERMER", FinishFamily.STONE),
+    GRANITE("GRANIT", FinishFamily.STONE),
+    TRAVERTINE("TRAVERTEN", FinishFamily.STONE),
+    TERRAZZO("KARO-MOZAIK", FinishFamily.STONE),
+    SLATE("ARDUVAZ", FinishFamily.STONE),
+
+    // Resilient and poured.
+    VINYL("PVC", FinishFamily.RESILIENT),
+    LINOLEUM("LINOLYUM", FinishFamily.RESILIENT),
+    RUBBER("KAUCUK", FinishFamily.RESILIENT),
+    EPOXY("EPOKSI", FinishFamily.RESILIENT),
+    POLISHED_CONCRETE("PERDAHLI-BETON", FinishFamily.RESILIENT),
+    SCREED("SAP", FinishFamily.RESILIENT),
+
+    // Textile.
+    CARPET("HALI", FinishFamily.TEXTILE),
+    CARPET_TILE("KARO-HALI", FinishFamily.TEXTILE),
+}
+
+/** The four families the finishes fall into, so twenty is a list you can read. */
+@Serializable
+public enum class FinishFamily { TIMBER, STONE, RESILIENT, TEXTILE }
 
 /**
  * Which jamb a door is hinged on, and which side of the wall it opens to.
@@ -287,6 +345,138 @@ public sealed interface DrawnShape {
             copy(seed = Vec3(seed.x + dx, seed.y + dy, seed.z))
     }
 
+    /**
+     * A column: a post through the building, at one point on the plan.
+     *
+     * Drawn solid, because that is what a column is where the plan cuts
+     * through it, and a plan that draws one as an outline is drawing a hole.
+     * Square, rectangular and round are the three that get built; anything
+     * else is a shape a structural engineer draws by hand.
+     */
+    @Serializable
+    @SerialName("kolon")
+    public data class Column(
+        override val id: String,
+        @Serializable(with = Vec3Serializer::class) val centre: Vec3,
+        val widthMm: Double = DEFAULT_COLUMN_SIZE_MM,
+        val depthMm: Double = DEFAULT_COLUMN_SIZE_MM,
+        val heightMm: Double = DEFAULT_WALL_HEIGHT_MM,
+        /** True for a round column, where [widthMm] is its diameter. */
+        val round: Boolean = false,
+        /** Which way the rectangle faces, degrees anticlockwise from east. */
+        val rotationDegrees: Double = 0.0,
+        val material: WallMaterial = WallMaterial.CONCRETE,
+        override val layer: String = LAYER_COLUMN,
+    ) : DrawnShape {
+
+        /** The four corners of a rectangular column; empty for a round one. */
+        public fun outline(): List<Vec2> {
+            if (round || widthMm < EPSILON_MM || depthMm < EPSILON_MM) return emptyList()
+            val radians = Math.toRadians(rotationDegrees)
+            val alongX = Vec2(kotlin.math.cos(radians), kotlin.math.sin(radians)) * (widthMm / 2.0)
+            val alongY = Vec2(-kotlin.math.sin(radians), kotlin.math.cos(radians)) * (depthMm / 2.0)
+            val middle = centre.toVec2()
+            return listOf(
+                middle + alongX + alongY,
+                middle - alongX + alongY,
+                middle - alongX - alongY,
+                middle + alongX - alongY,
+            )
+        }
+
+        override fun toEntities(): List<DxfEntity> = when {
+            round && widthMm >= EPSILON_MM ->
+                listOf(DxfEntity.Circle(layer, centre, widthMm / 2.0))
+
+            else -> outline().let {
+                if (it.size < 4) emptyList() else listOf(DxfEntity.Polyline(layer, it, closed = true))
+            }
+        }
+
+        override fun translated(dx: Double, dy: Double): DrawnShape =
+            copy(centre = Vec3(centre.x + dx, centre.y + dy, centre.z))
+    }
+
+    /**
+     * A beam: a spanning member, above the plan rather than in it.
+     *
+     * A plan is a horizontal cut about a metre off the floor, and a beam is
+     * over your head — so it is drawn as an outline rather than filled in.
+     * Nothing else on the sheet is drawn that way, which is what tells you at a
+     * glance that it is above you.
+     */
+    @Serializable
+    @SerialName("kiris")
+    public data class Beam(
+        override val id: String,
+        @Serializable(with = Vec3Serializer::class) val a: Vec3,
+        @Serializable(with = Vec3Serializer::class) val b: Vec3,
+        val widthMm: Double = DEFAULT_BEAM_WIDTH_MM,
+        /** How deep the beam hangs below the slab. */
+        val depthMm: Double = DEFAULT_BEAM_DEPTH_MM,
+        val material: WallMaterial = WallMaterial.CONCRETE,
+        override val layer: String = LAYER_BEAM,
+    ) : DrawnShape {
+
+        public fun centreLine(): Segment2 = Segment2(a.toVec2(), b.toVec2())
+
+        /** The four corners of the beam as seen from below. */
+        public fun outline(): List<Vec2> {
+            val start = a.toVec2()
+            val end = b.toVec2()
+            val along = end - start
+            val length = hypot(along.x, along.y)
+            if (length < EPSILON_MM || widthMm < EPSILON_MM) return emptyList()
+
+            val half = widthMm / 2.0
+            val n = Vec2(-along.y / length * half, along.x / length * half)
+            return listOf(start + n, end + n, end - n, start - n)
+        }
+
+        override fun toEntities(): List<DxfEntity> {
+            val corners = outline()
+            if (corners.size < 4) return emptyList()
+            return listOf(DxfEntity.Polyline(layer, corners, closed = true))
+        }
+
+        override fun translated(dx: Double, dy: Double): DrawnShape = copy(
+            a = Vec3(a.x + dx, a.y + dy, a.z),
+            b = Vec3(b.x + dx, b.y + dy, b.z),
+        )
+    }
+
+    /**
+     * A floor slab, or a flat roof: the deck the room sits on.
+     *
+     * Like a room, it does not carry its own outline — it carries where the
+     * user tapped, and the walls decide the rest. A slab whose boundary was
+     * frozen at the moment it was placed would stop matching the room the first
+     * time a wall moved, and the plan would be lying about the building.
+     *
+     * A flat roof is the same object at a different level, which is what it is
+     * in the building too: a deck with nothing on top of it.
+     */
+    @Serializable
+    @SerialName("doseme")
+    public data class Slab(
+        override val id: String,
+        /** Where the user tapped inside the room. */
+        @Serializable(with = Vec3Serializer::class) val seed: Vec3,
+        val thicknessMm: Double = DEFAULT_SLAB_THICKNESS_MM,
+        /** Height of the top of the slab above the storey datum. */
+        val levelMm: Double = 0.0,
+        val kind: SlabKind = SlabKind.FLOOR,
+        val finish: FloorFinish = FloorFinish.SCREED,
+        override val layer: String = LAYER_SLAB,
+    ) : DrawnShape {
+
+        /** Derived from the walls, like a room's outline. See `slabPlans`. */
+        override fun toEntities(): List<DxfEntity> = emptyList()
+
+        override fun translated(dx: Double, dy: Double): DrawnShape =
+            copy(seed = Vec3(seed.x + dx, seed.y + dy, seed.z))
+    }
+
     public companion object {
         /** A 20cm interior wall: the thickness most plans start from. */
         public const val DEFAULT_WALL_THICKNESS_MM: Double = 200.0
@@ -297,6 +487,16 @@ public sealed interface DrawnShape {
         /** A room door. */
         public const val DEFAULT_DOOR_WIDTH_MM: Double = 900.0
         public const val DEFAULT_DOOR_HEIGHT_MM: Double = 2100.0
+
+        /** A 30x30 column: the one a small concrete frame is built from. */
+        public const val DEFAULT_COLUMN_SIZE_MM: Double = 300.0
+
+        /** A beam over a domestic span: 25cm wide, hanging 50cm. */
+        public const val DEFAULT_BEAM_WIDTH_MM: Double = 250.0
+        public const val DEFAULT_BEAM_DEPTH_MM: Double = 500.0
+
+        /** A reinforced concrete floor slab. */
+        public const val DEFAULT_SLAB_THICKNESS_MM: Double = 150.0
 
         /** A room window, and how high off the floor it starts. */
         public const val DEFAULT_WINDOW_WIDTH_MM: Double = 1200.0
@@ -316,6 +516,9 @@ public sealed interface DrawnShape {
         public const val LAYER_DOOR: String = "KAPI"
         public const val LAYER_WINDOW: String = "PENCERE"
         public const val LAYER_ZONE: String = "MAHAL"
+        public const val LAYER_COLUMN: String = "KOLON"
+        public const val LAYER_BEAM: String = "KIRIS"
+        public const val LAYER_SLAB: String = "DOSEME"
 
         /**
          * The layer a wall belongs on, e.g. `DUVAR-TUGLA-200`.
@@ -352,7 +555,11 @@ public val DrawnShape.lengthMm: Double?
         // An arc's length is its own curve, which is not what a length box is
         // for; its radius is the number that describes it.
         is DrawnShape.Arc -> null
+        is DrawnShape.Beam -> a.toVec2().distanceTo(b.toVec2())
+        // A column is a point and a slab is whatever the walls leave, so
+        // neither has a length anybody would type in.
         is DrawnShape.Rectangle, is DrawnShape.Zone -> null
+        is DrawnShape.Column, is DrawnShape.Slab -> null
     }
 
 /**
@@ -384,7 +591,9 @@ public fun DrawnShape.withLength(millimetres: Double): DrawnShape {
         is DrawnShape.Line -> copy(b = stretched(a, b))
         is DrawnShape.Circle -> copy(radiusMm = millimetres / 2.0)
         is DrawnShape.Opening -> copy(widthMm = millimetres)
+        is DrawnShape.Beam -> copy(b = stretched(a, b))
         is DrawnShape.Arc, is DrawnShape.Rectangle, is DrawnShape.Zone -> this
+        is DrawnShape.Column, is DrawnShape.Slab -> this
     }
 }
 
@@ -445,6 +654,33 @@ public fun DrawnShape.dimensions(): Map<ShapeDimension, Double> = when (this) {
 
     is DrawnShape.Circle -> linkedMapOf(ShapeDimension.DIAMETER to radiusMm * 2.0)
 
+    // A round column is one number across and one up; a rectangular one is two
+    // and one. Offering a depth box on a round column would be a box that does
+    // nothing.
+    is DrawnShape.Column ->
+        if (round) {
+            linkedMapOf(
+                ShapeDimension.DIAMETER to widthMm,
+                ShapeDimension.HEIGHT to heightMm,
+            )
+        } else {
+            linkedMapOf(
+                ShapeDimension.WIDTH to widthMm,
+                ShapeDimension.DEPTH to depthMm,
+                ShapeDimension.HEIGHT to heightMm,
+            )
+        }
+
+    is DrawnShape.Beam -> linkedMapOf(
+        ShapeDimension.LENGTH to a.toVec2().distanceTo(b.toVec2()),
+        ShapeDimension.WIDTH to widthMm,
+        ShapeDimension.DEPTH to depthMm,
+    )
+
+    is DrawnShape.Slab -> linkedMapOf(
+        ShapeDimension.THICKNESS to thicknessMm,
+    )
+
     // A door has no sill, so it is not offered one: floor level is not a
     // setting, it is where doors are.
     is DrawnShape.Opening -> when (kind) {
@@ -493,6 +729,26 @@ public fun DrawnShape.withDimension(which: ShapeDimension, millimetres: Double):
         is DrawnShape.Line ->
             if (which == ShapeDimension.LENGTH) withLength(millimetres) else this
 
+        is DrawnShape.Column -> when (which) {
+            // A round column has one measurement across it, so typing a
+            // diameter sets both sides and it stays round.
+            ShapeDimension.DIAMETER -> copy(widthMm = millimetres, depthMm = millimetres)
+            ShapeDimension.WIDTH -> copy(widthMm = millimetres)
+            ShapeDimension.DEPTH -> copy(depthMm = millimetres)
+            ShapeDimension.HEIGHT -> copy(heightMm = millimetres)
+            else -> this
+        }
+
+        is DrawnShape.Beam -> when (which) {
+            ShapeDimension.LENGTH -> withLength(millimetres)
+            ShapeDimension.WIDTH -> copy(widthMm = millimetres)
+            ShapeDimension.DEPTH -> copy(depthMm = millimetres)
+            else -> this
+        }
+
+        is DrawnShape.Slab ->
+            if (which == ShapeDimension.THICKNESS) copy(thicknessMm = millimetres) else this
+
         is DrawnShape.Rectangle -> {
             // The corner the user drew from stays put and the opposite one
             // moves, on the side it was already on — a rectangle made wider
@@ -540,6 +796,9 @@ public fun DrawnShape.withId(id: String): DrawnShape = when (this) {
     is DrawnShape.Opening -> copy(id = id)
     is DrawnShape.Arc -> copy(id = id)
     is DrawnShape.Zone -> copy(id = id)
+    is DrawnShape.Column -> copy(id = id)
+    is DrawnShape.Beam -> copy(id = id)
+    is DrawnShape.Slab -> copy(id = id)
 }
 
 /**
@@ -569,7 +828,17 @@ public fun DrawnShape.snapSegments(): List<Segment2> = when (this) {
         if (ends.size >= 2) listOf(Segment2(ends.first(), ends.last())) else emptyList()
     }
 
-    is DrawnShape.Opening, is DrawnShape.Zone -> emptyList()
+    // A column offers its corners, which is what a wall run up to one wants to
+    // land on; a beam offers the line up its middle, like a wall.
+    is DrawnShape.Column -> outline().let { c ->
+        c.indices.map { Segment2(c[it], c[(it + 1) % c.size]) }
+    }
+
+    is DrawnShape.Beam ->
+        if (centreLine().length > 0.0) listOf(centreLine()) else emptyList()
+
+    // A slab is the space between walls that are already offering themselves.
+    is DrawnShape.Opening, is DrawnShape.Zone, is DrawnShape.Slab -> emptyList()
 }
 
 /**
@@ -601,8 +870,15 @@ public data class WallBand(
  * what made every corner of a room show a pale patch. Anything here must
  * therefore be kept out of the plain-linework list, or it is drawn twice.
  */
-public fun DrawnShape.isBand(): Boolean =
-    this is DrawnShape.Wall || (this is DrawnShape.Arc && thicknessMm >= EPSILON_MM)
+public fun DrawnShape.isBand(): Boolean = when (this) {
+    is DrawnShape.Wall -> true
+    is DrawnShape.Arc -> thicknessMm >= EPSILON_MM
+    // A column is solid where the plan cuts through it. A beam is not: it is
+    // over your head, so it is drawn as an outline, and that is what tells you
+    // at a glance which of the two you are looking at.
+    is DrawnShape.Column -> true
+    else -> false
+}
 
 /**
  * The arc's centre line, as a run of short straight pieces.
@@ -671,7 +947,8 @@ private fun DrawnShape.Arc.ends(): List<Vec2> =
 public fun List<DrawnShape>.wallBands(): List<WallBand> {
     val walls = filterIsInstance<DrawnShape.Wall>()
     val curves = filterIsInstance<DrawnShape.Arc>().filter { it.thicknessMm >= EPSILON_MM }
-    if (walls.isEmpty() && curves.isEmpty()) return emptyList()
+    val columns = filterIsInstance<DrawnShape.Column>()
+    if (walls.isEmpty() && curves.isEmpty() && columns.isEmpty()) return emptyList()
 
     /** Half the thickness of the thickest other wall that ends at [point]. */
     fun reachAt(self: DrawnShape.Wall, point: Vec2): Double {
@@ -719,6 +996,25 @@ public fun List<DrawnShape>.wallBands(): List<WallBand> {
     } + curves.mapNotNull { curve ->
         val corners = curve.bandCorners()
         if (corners.size < 3) null else WallBand(curve.id, curve.layer, corners)
+    } + columns.mapNotNull { column ->
+        // A round column is filled as a many-sided polygon rather than as a
+        // circle, because the band list is polygons and one shape of thing is
+        // easier to get right than two.
+        val corners = if (column.round) column.roundCorners() else column.outline()
+        if (corners.size < 3) null else WallBand(column.id, column.layer, corners)
+    }
+}
+
+/** A round column's edge, as a polygon fine enough not to show its corners. */
+private fun DrawnShape.Column.roundCorners(): List<Vec2> {
+    val radius = widthMm / 2.0
+    if (radius < EPSILON_MM) return emptyList()
+    return (0 until 36).map { i ->
+        val radians = Math.toRadians(i * 10.0)
+        Vec2(
+            centre.x + radius * kotlin.math.cos(radians),
+            centre.y + radius * kotlin.math.sin(radians),
+        )
     }
 }
 
@@ -775,7 +1071,31 @@ public fun List<DrawnShape>.pick(at: Vec2, toleranceMm: Double): DrawnShape? {
                 shape.toEntities().flatMap { it.outline(48) }.any { it.distanceTo(at) <= reach }
             }
 
-            is DrawnShape.Opening, is DrawnShape.Zone -> false
+            // A column and a beam are picked anywhere on their body, like a
+            // wall: aiming at a 1px outline on a tablet is not a thing anybody
+            // can do, and the body is what the user sees.
+            is DrawnShape.Column ->
+                if (shape.round) {
+                    shape.centre.toVec2().distanceTo(at) <= shape.widthMm / 2.0 + toleranceMm
+                } else {
+                    containsPoint(shape.outline(), at) ||
+                        shape.outline().let { c ->
+                            c.indices.any { i ->
+                                Segment2(c[i], c[(i + 1) % c.size])
+                                    .closestPointTo(at).distanceTo(at) <= toleranceMm
+                            }
+                        }
+                }
+
+            is DrawnShape.Beam ->
+                shape.centreLine().closestPointTo(at).distanceTo(at) <=
+                    shape.widthMm / 2.0 + toleranceMm
+
+            // All three are picked through what they are drawn from — an
+            // opening through its wall, a room and a slab through the outline
+            // the walls leave — which needs the whole drawing, not one shape.
+            // `pickResolved` does that.
+            is DrawnShape.Opening, is DrawnShape.Zone, is DrawnShape.Slab -> false
         }
         if (hit) return shape
     }
