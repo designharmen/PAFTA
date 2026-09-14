@@ -1,5 +1,7 @@
 package com.harmen.pafta.project
 
+import com.harmen.pafta.dxf.DxfDrawing
+import com.harmen.pafta.dxf.DxfWriter
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -208,3 +210,34 @@ public fun newProject(
     ),
     payload = payload,
 )
+
+/**
+ * Builds a project with nothing in it, for someone starting a drawing here.
+ *
+ * The payload is a valid but empty DXF, so a project started in PAFTA is the
+ * same kind of file as one imported from AutoCAD — it opens through the same
+ * reader, saves through the same writer, and can be handed back out as DXF
+ * without a special case anywhere.
+ */
+public fun newBlankProject(
+    projectName: String,
+    nowEpochMs: Long,
+    units: UnitPreferences = UnitPreferences(),
+): PaftaProject {
+    val payload = DxfWriter.writeToString(DxfDrawing()).toByteArray(Charsets.UTF_8)
+    return PaftaProject(
+        manifest = PaftaManifest(
+            projectName = projectName,
+            source = SourceRef(
+                fileName = "$projectName.${FileFormat.DXF.extension}",
+                format = FileFormat.DXF.extension,
+                sizeBytes = payload.size.toLong(),
+            ),
+            units = units,
+            createdAtEpochMs = nowEpochMs,
+            modifiedAtEpochMs = nowEpochMs,
+            blank = true,
+        ),
+        payload = payload,
+    )
+}

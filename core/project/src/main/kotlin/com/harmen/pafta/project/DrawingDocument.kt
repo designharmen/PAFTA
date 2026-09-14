@@ -3,6 +3,7 @@ package com.harmen.pafta.project
 import com.harmen.pafta.dxf.DxfDrawing
 import com.harmen.pafta.dxf.DxfReader
 import com.harmen.pafta.geometry.Aabb
+import com.harmen.pafta.geometry.Vec3
 
 /**
  * A project opened as a 2D drawing: the parsed geometry, the layer palette, and
@@ -74,7 +75,7 @@ public fun PaftaProject.openAsDrawing(): StoreResult<DrawingDocument> {
     // either. The failure carries the file's own inventory, so the screen can
     // name what is in there instead of leaving the user in front of an empty
     // canvas, or worse, with the import refused and the file gone.
-    if (merged.entities.isEmpty()) {
+    if (merged.entities.isEmpty() && !manifest.blank) {
         return StoreResult.Failure(
             StoreFailure.Unreadable(
                 FileFormat.DXF,
@@ -94,12 +95,26 @@ public fun PaftaProject.openAsDrawing(): StoreResult<DrawingDocument> {
             drawing = drawing,
             layers = mergeLayers(merged, layers),
             // Both, so opening a project frames what was drawn as well as what
-            // was imported.
-            bounds = merged.bounds,
+            // was imported. A project with nothing in it yet has no extent to
+            // frame, so it gets a sheet to start on instead of a view zoomed so
+            // far in that a metre fills the screen.
+            bounds = if (merged.bounds.isEmpty) BLANK_SHEET else merged.bounds,
             unsupportedEntityTypes = merged.unsupportedEntityTypes,
         ),
     )
 }
+
+/**
+ * The sheet a brand-new project opens on: twenty metres by fifteen.
+ *
+ * Wide enough that a flat or a small house is drawn without zooming out first,
+ * and near enough to a real sheet that the 10cm grid is still readable on a
+ * tablet.
+ */
+internal val BLANK_SHEET: Aabb = Aabb(
+    Vec3(0.0, 0.0, 0.0),
+    Vec3(20_000.0, 15_000.0, 0.0),
+)
 
 /**
  * Reconciles the layers in the file with the visibility and opacity the user

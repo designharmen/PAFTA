@@ -12,25 +12,39 @@ Değiştirmek istediğiniz bir kelime varsa söyleyin — tek tek değiştirileb
 
 | Referanstaki | PAFTA'da |
 | --- | --- |
-| FILE | **DOSYA** |
-| EDIT (menü) | **DÜZENLE** |
-| SHARE | **PAYLAŞ** |
-| EDIT (mod) | **DÜZENLE** |
-| VIEW (mod) | **GÖRÜNÜM** |
 | Undo / Redo | **Geri al** / **Yeniden yap** |
-| — | **PROJELER** (kütüphaneye dönüş) |
+| — | **Projelere dön** (P işaretine dokununca) |
 
-## Sekme grubu
+DOSYA, DÜZENLE, PAYLAŞ, DÜZENLE/GÖRÜNÜM modları ve Aktif · Notlar · Mobilya ·
+Duvarlar · Izgara sekmeleri **kaldırıldı**: hiçbiri çizimde bir şeyi
+değiştirmiyordu, yani dokunup hiçbir şey olmayan beş ayrı düğmeydi. Yerlerini
+gerçekten çalışan çizim araçları aldı.
+
+## Yapı elemanları sütunu (en sağ)
 
 | Referanstaki | PAFTA'da |
 | --- | --- |
-| Active | **Aktif** |
-| Annotations | **Notlar** |
-| Furniture | **Mobilya** |
-| Walls | **Duvarlar** |
-| Grid | **Izgara** |
+| Wall | **Duvar** |
+| Door | **Kapı** |
+| Window | **Pencere** |
+| Room / Space | **Mahal** |
+| Floor / Slab | **Döşeme** (henüz hazır değil, soluk) |
+| Furniture | **Mobilya** (henüz hazır değil, soluk) |
+| Elements | **Yapı** (sütun başlığı) |
+| Open / Close panel | **Paneli aç** / **Paneli kapat** |
 
-## Sol araç paneli
+## Araç ayarları şeridi
+
+| Referanstaki | PAFTA'da |
+| --- | --- |
+| Thickness | **Kalınlık** |
+| Material | **Malzeme** |
+| Width | **Genişlik** |
+| Fillet radius | **Yuvarlatma yarıçapı** |
+| Chamfer distance | **Pah ölçüsü** |
+| Measure what | **Ne ölçülecek** |
+
+## Üstteki çizim araçları
 
 | Referanstaki | PAFTA'da |
 | --- | --- |
@@ -44,8 +58,13 @@ Değiştirmek istediğiniz bir kelime varsa söyleyin — tek tek değiştirileb
 | Text | **Metin** |
 | Grid | **Izgara** |
 | Measure | **Ölç** |
-| Palette | **Palet** |
-| Layers | **Katmanlar** |
+| Layers | **Katmanlar** (sağdaki paneli açıp kapatan düğme) |
+| Fillet | **Yuvarlat** |
+| Chamfer | **Pah kır** |
+| Trim | **Buda** |
+| Extend | **Uzat** |
+
+"Palet" kaldırıldı: hiçbir zaman bir işe bağlanmamıştı.
 
 ## Sağ panel başlıkları
 
@@ -99,8 +118,11 @@ Sıva · Meşe · Beton · Pirinç · Arduvaz · Cam
 
 ## Proje kütüphanesi
 
-PROJELER · İÇE AKTAR · KAPAT · Okunamayan ·
-"henüz proje yok" · "başlamak için bir DXF çizimi içe aktarın"
+PROJELER · YENİ PROJE · İÇE AKTAR · GÜNCELLE · KAPAT · Okunamayan ·
+"henüz proje yok" · "boş bir proje oluştur, ya da elindeki DXF çizimini içe aktar"
+
+Yeni proje sorusu: **Yeni proje** · **Projenin adı** · **OLUŞTUR** · **VAZGEÇ** ·
+"Boş bir sayfa açılacak, çizmeye hemen başlayabilirsin."
 
 ## Hata mesajları
 

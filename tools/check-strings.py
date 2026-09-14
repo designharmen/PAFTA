@@ -34,6 +34,10 @@ it does so four minutes into a CI run. This catches them in a second:
   * a `when` over one of this project's own enums that has forgotten a value —
     adding a case in `core/` and not handling it in the interface compiles
     everywhere except the module that cannot be compiled here
+  * a tool that is in the `Tool` enum but on neither of the two lists the
+    interface draws from — this one compiles perfectly and simply leaves the
+    tool off the screen, which is worse than a build failure because nothing
+    reports it
 
 Exits non-zero and prints the file and line on the first real problem found.
 """
@@ -595,6 +599,54 @@ def check_named_arguments() -> list[str]:
     return problems
 
 
+def check_tool_placement() -> list[str]:
+    """Every tool must be somewhere the user can reach it.
+
+    PAFTA draws its tools from two lists — `TOOLBAR_TOOLS` along the top and
+    `ELEMENT_TOOLS` down the right — rather than from the enum itself, because
+    the two rows are ordered differently from each other. The cost of that is
+    that adding a value to the enum and forgetting the list compiles cleanly and
+    puts the tool nowhere. There is no error, no test failure and nothing on the
+    screen: the tool simply does not exist. So it is checked here.
+    """
+    source = ROOT / "app/src/main/kotlin/com/harmen/pafta/ui/state/EditorState.kt"
+    if not source.exists():
+        return [f"{source.name} bulunamadı"]
+
+    text = _without_comments_and_strings(source.read_text())
+
+    at = text.find("enum class Tool")
+    if at < 0:
+        return [f"{source.name}: Tool listesi bulunamadı"]
+    values = _enum_values(text, at)
+    if not values:
+        return [f"{source.name}: Tool listesi okunamadı"]
+
+    placed: set[str] = set()
+    for name in ("TOOLBAR_TOOLS", "ELEMENT_TOOLS"):
+        start = text.find(f"val {name}")
+        if start < 0:
+            return [f"{source.name}: {name} bulunamadı"]
+        opening = text.find("(", start)
+        if opening < 0:
+            return [f"{source.name}: {name} okunamadı"]
+        body, _ = _balanced(text, opening)
+        placed |= set(re.findall(r"Tool\.([A-Z][A-Z0-9_]*)", body))
+
+    missing = sorted(values - placed)
+    if missing:
+        return [
+            f"{source.name}: bu araç(lar) hiçbir araç çubuğunda yok, yani "
+            f"ekranda görünmeyecek: {', '.join(missing)}"
+        ]
+
+    stray = sorted(placed - values)
+    if stray:
+        return [f"{source.name}: araç çubuğunda tanımsız araç var: {', '.join(stray)}"]
+
+    return []
+
+
 def main() -> int:
     if not STRINGS.exists():
         fail(f"{STRINGS} bulunamadı")
@@ -623,6 +675,7 @@ def main() -> int:
         + check_named_arguments()
         + check_modifier_imports()
         + check_enum_branches()
+        + check_tool_placement()
     )
 
     if problems:

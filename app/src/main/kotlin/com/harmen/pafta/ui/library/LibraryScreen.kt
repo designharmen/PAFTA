@@ -16,6 +16,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Description
@@ -25,12 +28,18 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.ReadOnlyComposable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -70,15 +79,27 @@ public fun LibraryScreen(
     updateState: UpdateState = UpdateState.Idle,
     onUpdate: () -> Unit = {},
     onDismissUpdate: () -> Unit = {},
+    /** Asks for a name for a project started here rather than imported. */
+    onBeginNewProject: () -> Unit = {},
+    onCancelNewProject: () -> Unit = {},
+    onCreateProject: (String) -> Unit = {},
 ) {
     Column(modifier.fillMaxSize().background(HarmenColours.Ground)) {
         LibraryBar(
             onImport = onImport,
+            onNewProject = onBeginNewProject,
             importing = state.importing,
             updateState = updateState,
             onUpdate = onUpdate,
         )
         HairlineDivider()
+
+        // The name is asked for in place, at the top of the list, rather than in
+        // a box over it: on a tablet a dialog puts the keyboard over the thing
+        // it is asking about, and there is nothing behind this one worth seeing.
+        if (state.naming) {
+            NewProjectSheet(onCreate = onCreateProject, onCancel = onCancelNewProject)
+        }
 
         if (updateState !is UpdateState.Idle) {
             UpdateBanner(updateState, onDismissUpdate)
@@ -89,7 +110,8 @@ public fun LibraryScreen(
         when {
             state.loading -> CentredNote { Spinner() }
 
-            state.projects.isEmpty() && state.unreadable.isEmpty() -> EmptyLibrary(onImport)
+            state.projects.isEmpty() && state.unreadable.isEmpty() ->
+                EmptyLibrary(onImport = onImport, onNewProject = onBeginNewProject)
 
             else -> LazyColumn(Modifier.fillMaxSize()) {
                 items(state.projects, key = { it.file.path }) { entry ->
@@ -126,6 +148,7 @@ public fun LibraryScreen(
 @Composable
 private fun LibraryBar(
     onImport: () -> Unit,
+    onNewProject: () -> Unit,
     importing: Boolean,
     updateState: UpdateState,
     onUpdate: () -> Unit,
@@ -163,6 +186,10 @@ private fun LibraryBar(
             Spacer(Modifier.width(metrics.gutterTight))
         }
         OutlinedAction(text = R.string.library_import, enabled = !importing, onClick = onImport)
+        Spacer(Modifier.width(metrics.gutterTight))
+        // Starting a drawing here is the first thing most people want, so it is
+        // the last thing on the row — nearest the thumb on a held tablet.
+        OutlinedAction(text = R.string.library_new, enabled = !importing, onClick = onNewProject)
     }
 }
 
@@ -302,7 +329,7 @@ private fun UnreadableRow(fileName: String) {
 }
 
 @Composable
-private fun EmptyLibrary(onImport: () -> Unit) {
+private fun EmptyLibrary(onImport: () -> Unit, onNewProject: () -> Unit) {
     CentredNote {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -327,9 +354,91 @@ private fun EmptyLibrary(onImport: () -> Unit) {
                 color = HarmenColours.TextFaint,
             )
             Spacer(Modifier.height(metrics.gutter))
-            OutlinedAction(text = R.string.library_import, enabled = true, onClick = onImport)
+            Row {
+                OutlinedAction(
+                    text = R.string.library_new,
+                    enabled = true,
+                    onClick = onNewProject,
+                )
+                Spacer(Modifier.width(metrics.gutterTight))
+                OutlinedAction(text = R.string.library_import, enabled = true, onClick = onImport)
+            }
         }
     }
+}
+
+/**
+ * Asks what the new project is called.
+ *
+ * One field and two buttons. The name is filled in already, so somebody who
+ * does not want to think about it can tap OLUŞTUR and be drawing a second
+ * later; somebody who does can select it and type over it.
+ */
+@Composable
+private fun NewProjectSheet(onCreate: (String) -> Unit, onCancel: () -> Unit) {
+    val suggested = stringResource(R.string.new_project_default)
+    var name by remember(suggested) { mutableStateOf(suggested) }
+    val create = { if (name.isNotBlank()) onCreate(name.trim()) }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(HarmenColours.PanelRaised)
+            .padding(horizontal = metrics.gutter, vertical = metrics.gutter),
+    ) {
+        Text(
+            text = stringResource(R.string.new_project_title),
+            style = HarmenType.SectionTitle,
+            color = HarmenColours.Text,
+        )
+        Spacer(Modifier.height(2.dp))
+        Text(
+            text = stringResource(R.string.new_project_hint),
+            style = HarmenType.Status,
+            color = HarmenColours.TextFaint,
+        )
+        Spacer(Modifier.height(metrics.gutter))
+
+        Text(
+            text = stringResource(R.string.new_project_name),
+            style = HarmenType.PropertyKey,
+            color = HarmenColours.TextMuted,
+        )
+        Spacer(Modifier.height(4.dp))
+        BasicTextField(
+            value = name,
+            onValueChange = { name = it },
+            singleLine = true,
+            textStyle = HarmenType.Body.copy(color = HarmenColours.Text),
+            cursorBrush = SolidColor(HarmenColours.Accent),
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+            keyboardActions = KeyboardActions(onDone = { create() }),
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(metrics.cornerRadius))
+                .background(HarmenColours.Panel)
+                .drawBehind {
+                    drawRect(color = HarmenColours.Hairline, style = Stroke(width = 1.dp.toPx()))
+                }
+                .padding(horizontal = 10.dp, vertical = 12.dp),
+        )
+
+        Spacer(Modifier.height(metrics.gutter))
+        Row {
+            OutlinedAction(
+                text = R.string.new_project_create,
+                enabled = name.isNotBlank(),
+                onClick = create,
+            )
+            Spacer(Modifier.width(metrics.gutterTight))
+            OutlinedAction(
+                text = R.string.new_project_cancel,
+                enabled = true,
+                onClick = onCancel,
+            )
+        }
+    }
+    HairlineDivider()
 }
 
 /**

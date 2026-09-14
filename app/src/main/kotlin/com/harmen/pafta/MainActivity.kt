@@ -98,7 +98,8 @@ private fun PaftaApp(modifier: Modifier = Modifier) {
         ActivityResultContracts.OpenDocument(),
     ) { uri -> if (uri != null) libraryViewModel.import(uri) }
 
-    // Opening straight after an import is what the user means by "import".
+    // Opening straight after making a project — imported or started empty — is
+    // what the user means by both buttons.
     LaunchedEffect(libraryState.justImported) {
         libraryState.justImported?.let { entry ->
             openPath = entry.file.path
@@ -140,6 +141,9 @@ private fun PaftaApp(modifier: Modifier = Modifier) {
                 }
             },
             onDismissUpdate = { updateViewModel.dismiss() },
+            onBeginNewProject = { libraryViewModel.beginNewProject() },
+            onCancelNewProject = { libraryViewModel.cancelNewProject() },
+            onCreateProject = { libraryViewModel.createProject(it) },
         )
         // A failed open must not leave the app stuck pointing at a dead project.
         LaunchedEffect(editorError) {

@@ -12,23 +12,15 @@
     <string name="app_name">PAFTA</string>
 
     <!-- ===== Üst bar ===== -->
-    <string name="menu_file">DOSYA</string>
-    <string name="menu_edit">DÜZENLE</string>
-    <string name="action_share">PAYLAŞ</string>
-    <string name="mode_edit">DÜZENLE</string>
-    <string name="mode_view">GÖRÜNÜM</string>
-    <string name="nav_projects">PROJELER</string>
     <string name="nav_back_to_projects">Projelere dön</string>
     <string name="action_undo">Geri al</string>
     <string name="action_redo">Yeniden yap</string>
     <string name="unsaved_changes">Kaydedilmemiş değişiklik var</string>
 
-    <!-- ===== Üst bar sekmeleri ===== -->
-    <string name="tab_active">Aktif</string>
-    <string name="tab_annotations">Notlar</string>
-    <string name="tab_furniture">Mobilya</string>
-    <string name="tab_walls">Duvarlar</string>
-    <string name="tab_grid">Izgara</string>
+    <!-- ===== Sağdaki açılır kapanır panel ===== -->
+    <string name="panel_open">Paneli aç</string>
+    <string name="panel_close">Paneli kapat</string>
+    <string name="rail_elements">Yapı</string>
 
     <!-- ===== Sol araç paneli ===== -->
     <string name="tool_select">Seç</string>
@@ -51,7 +43,6 @@
     <string name="measure_undo_pick">Son nokta</string>
     <string name="measure_cancel">Vazgeç</string>
     <string name="tool_measure">Ölç</string>
-    <string name="tool_palette">Palet</string>
     <string name="tool_layers">Katmanlar</string>
     <string name="tool_door">Kapı</string>
     <string name="tool_window">Pencere</string>
@@ -60,6 +51,8 @@
     <string name="tool_chamfer">Pah kır</string>
     <string name="tool_trim">Buda</string>
     <string name="tool_extend">Uzat</string>
+    <string name="tool_slab">Döşeme</string>
+    <string name="tool_furniture">Mobilya</string>
 
     <!-- ===== Sağ panel bölüm başlıkları ===== -->
     <string name="panel_layers">Katman Paleti</string>
@@ -94,6 +87,12 @@
     <string name="swing_left_out">Sol dışa</string>
     <string name="swing_right_in">Sağ içe</string>
     <string name="swing_right_out">Sağ dışa</string>
+    <string name="option_thickness">Kalınlık</string>
+    <string name="option_material">Malzeme</string>
+    <string name="option_width">Genişlik</string>
+    <string name="option_radius">Yuvarlatma yarıçapı</string>
+    <string name="option_chamfer">Pah ölçüsü</string>
+    <string name="option_measure">Ne ölçülecek</string>
     <string name="hint_place_on_wall">açıklığı koymak için bir duvara dokun</string>
     <string name="hint_place_in_room">alanı ölçmek için odanın içine dokun</string>
     <string name="opening_door_word">kapı</string>
@@ -155,9 +154,16 @@
     <string name="update_failed_server">Güncelleme sunucusuna ulaşılamadı. Biraz sonra tekrar dene</string>
     <string name="update_failed_save">Güncelleme kaydedilemedi. Cihazda boş yer kalmamış olabilir</string>
     <string name="library_import">İÇE AKTAR</string>
+    <string name="library_new">YENİ PROJE</string>
+    <string name="new_project_title">Yeni proje</string>
+    <string name="new_project_name">Projenin adı</string>
+    <string name="new_project_default">Yeni proje</string>
+    <string name="new_project_hint">Boş bir sayfa açılacak, çizmeye hemen başlayabilirsin.</string>
+    <string name="new_project_create">OLUŞTUR</string>
+    <string name="new_project_cancel">VAZGEÇ</string>
     <string name="library_unreadable">Okunamayan</string>
     <string name="library_empty_title">henüz proje yok</string>
-    <string name="library_empty_hint">başlamak için bir DXF çizimi içe aktarın</string>
+    <string name="library_empty_hint">boş bir proje oluştur, ya da elindeki DXF çizimini içe aktar</string>
     <string name="library_dismiss">KAPAT</string>
     <string name="library_unreadable_hint">bu dosya okunabilir bir PAFTA projesi değil</string>
     <string name="library_delete">%1$s projesini sil</string>

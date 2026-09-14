@@ -174,14 +174,6 @@ public class EditorViewModel(
         }
     }
 
-    public fun selectTab(tab: ViewTab) {
-        _state.update { it.copy(activeTab = tab) }
-    }
-
-    public fun selectEditMode(mode: EditMode) {
-        _state.update { it.copy(editMode = mode) }
-    }
-
     public fun selectAnnotationTool(kind: AnnotationKind?) {
         _state.update { it.copy(annotationTool = kind, activeTool = Tool.TEXT) }
     }
@@ -237,9 +229,8 @@ public class EditorViewModel(
             canUndo = history.canUndo,
             canRedo = history.canRedo,
             dirty = true,
-            // Tool and tab belong to the live session, not to document history.
+            // The tool belongs to the live session, not to document history.
             activeTool = current.activeTool,
-            activeTab = current.activeTab,
             annotationTool = current.annotationTool,
             // Session state, not document history.
             measureMode = current.measureMode,
@@ -256,7 +247,6 @@ public class EditorViewModel(
             canRedo = history.canRedo,
             dirty = true,
             activeTool = current.activeTool,
-            activeTab = current.activeTab,
             annotationTool = current.annotationTool,
             measureMode = current.measureMode,
             pendingPicks = current.pendingPicks,

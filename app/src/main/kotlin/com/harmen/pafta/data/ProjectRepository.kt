@@ -72,6 +72,10 @@ public class ProjectRepository(context: Context) {
         }
     }
 
+    /** Starts an empty project, to be drawn in rather than imported into. */
+    public suspend fun create(projectName: String): StoreResult<ProjectEntry> =
+        withContext(Dispatchers.IO) { store.create(projectName) }
+
     public suspend fun open(file: File): StoreResult<PaftaProject> =
         withContext(Dispatchers.IO) { store.open(file) }
 

@@ -114,6 +114,34 @@ public class ProjectStore(
     }
 
     /**
+     * Starts a project with nothing in it.
+     *
+     * The name the user typed is only a wish: the library may already hold one
+     * by that name, so the file name is made unique first and the project takes
+     * *that* as its name. Two projects called the same thing in one list is a
+     * worse outcome than a name with a number after it.
+     */
+    public fun create(projectName: String): StoreResult<ProjectEntry> {
+        val wanted = projectName.trim()
+        if (wanted.isEmpty()) {
+            return StoreResult.Failure(StoreFailure.Io(IoCause.NAME_REQUIRED))
+        }
+
+        val target = uniqueFile(wanted)
+        val project = newBlankProject(
+            projectName = target.nameWithoutExtension,
+            nowEpochMs = clock(),
+        )
+
+        return try {
+            PaftaContainer.write(project, target)
+            StoreResult.Success(ProjectEntry(target, project.manifest))
+        } catch (e: IOException) {
+            StoreResult.Failure(StoreFailure.Io(IoCause.CANNOT_WRITE_PROJECT, e.message))
+        }
+    }
+
+    /**
      * Every project in the library, newest first.
      *
      * A file that cannot be read as a project is skipped rather than failing the

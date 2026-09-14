@@ -18,7 +18,7 @@ import com.harmen.pafta.project.StoreFailure
 import com.harmen.pafta.project.WallMaterial
 
 /**
- * The tools on the left rail, in the order they appear.
+ * Everything the user can pick up and work with.
  *
  * Labels are string resource ids, not literals: PAFTA's interface is Turkish and
  * the wording lives in `strings.xml`, so a label can never be an English word
@@ -53,9 +53,49 @@ public enum class Tool(
     ARC(R.string.tool_arc),
     HATCH(R.string.tool_hatch),
     TEXT(R.string.tool_text),
-    PALETTE(R.string.tool_palette),
-    LAYERS(R.string.tool_layers),
+    SLAB(R.string.tool_slab),
+    FURNITURE(R.string.tool_furniture),
 }
+
+/**
+ * The drawing and editing tools, in the order they sit on the top row.
+ *
+ * These are the commands of a drawing office: pick something, draw a line,
+ * round a corner, cut one thing back to another, measure. They are on top
+ * because they apply to whatever is already on the sheet.
+ */
+public val TOOLBAR_TOOLS: List<Tool> = listOf(
+    Tool.SELECT,
+    Tool.LINE,
+    Tool.RECTANGLE,
+    Tool.CIRCLE,
+    Tool.ARC,
+    Tool.FILLET,
+    Tool.CHAMFER,
+    Tool.TRIM,
+    Tool.EXTEND,
+    Tool.MEASURE,
+    Tool.HATCH,
+    Tool.TEXT,
+    Tool.GRID,
+)
+
+/**
+ * The building elements, in the order they sit in the right-hand column.
+ *
+ * A wall is not a line and a door is not a rectangle: these make the building
+ * itself, they carry thickness, height and material, and they are counted as
+ * elements. Keeping them in their own column is what stops "çizgi" and "duvar"
+ * from looking like two names for the same job.
+ */
+public val ELEMENT_TOOLS: List<Tool> = listOf(
+    Tool.WALL,
+    Tool.DOOR,
+    Tool.WINDOW,
+    Tool.ZONE,
+    Tool.SLAB,
+    Tool.FURNITURE,
+)
 
 /**
  * Tools that make a shape rather than inspect one.
@@ -85,24 +125,6 @@ public val PLACING_TOOLS: Set<Tool> = setOf(Tool.DOOR, Tool.WINDOW, Tool.ZONE)
  */
 public val PAIRED_TOOLS: Set<Tool> =
     setOf(Tool.FILLET, Tool.CHAMFER, Tool.TRIM, Tool.EXTEND)
-
-/** The tab group in the second row of the top bar. */
-public enum class ViewTab(@StringRes public val label: Int) {
-    ACTIVE(R.string.tab_active),
-    ANNOTATIONS(R.string.tab_annotations),
-    FURNITURE(R.string.tab_furniture),
-    WALLS(R.string.tab_walls),
-    GRID(R.string.tab_grid),
-}
-
-/** The top-bar menus. Identifiers, not labels — the wording is in resources. */
-public enum class TopMenu { FILE, EDIT }
-
-/** The left-hand menu group in the second row. */
-public enum class EditMode(@StringRes public val label: Int) {
-    EDIT(R.string.mode_edit),
-    VIEW(R.string.mode_view),
-}
 
 /** A material swatch in the material selector. */
 public data class MaterialSwatch(
@@ -168,8 +190,6 @@ public data class EditorState(
     val projectName: String = "",
     val unitLabel: String = "",
     val activeTool: Tool = Tool.SELECT,
-    val activeTab: ViewTab = ViewTab.ACTIVE,
-    val editMode: EditMode = EditMode.EDIT,
     val layers: List<LayerState> = emptyList(),
     val materials: List<MaterialSwatch> = emptyList(),
     val properties: List<PropertyRow> = emptyList(),

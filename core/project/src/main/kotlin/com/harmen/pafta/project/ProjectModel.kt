@@ -275,6 +275,15 @@ public data class PaftaManifest(
     val modifiedAtEpochMs: Long = 0,
     /** Written by the app so an older build can warn about a newer file. */
     val producer: String = "PAFTA",
+    /**
+     * True when the project was started empty in PAFTA rather than imported.
+     *
+     * It changes one thing, and it matters: a project made from a file that
+     * holds nothing drawable is a problem to report, while a project the user
+     * has only just started is an empty sheet to draw on. Without this flag the
+     * two are the same empty drawing and the second would open as an error.
+     */
+    val blank: Boolean = false,
 )
 
 /**

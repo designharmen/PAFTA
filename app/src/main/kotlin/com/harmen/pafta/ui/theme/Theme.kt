@@ -17,7 +17,7 @@ public data class HarmenMetrics(
     val gutterTight: Dp = 8.dp,
     val hairline: Dp = 1.dp,
     val topBarRowHeight: Dp = 44.dp,
-    val topBarTabRowHeight: Dp = 36.dp,
+    /** The building-element column down the right-hand edge. */
     val toolRailWidth: Dp = 64.dp,
     val toolRailWidthCompact: Dp = 52.dp,
     val rightPanelWidth: Dp = 232.dp,

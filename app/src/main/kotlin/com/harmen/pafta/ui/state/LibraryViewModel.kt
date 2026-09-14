@@ -21,8 +21,13 @@ public data class LibraryState(
     val importing: Boolean = false,
     /** A failure to show the user; cleared when they dismiss it. */
     val error: UiError? = null,
-    /** Set after a successful import so the screen can open the new project. */
+    /**
+     * Set after a project is made — imported or started empty — so the screen
+     * can open it straight away.
+     */
     val justImported: ProjectEntry? = null,
+    /** True while the "new project" sheet is asking for a name. */
+    val naming: Boolean = false,
 )
 
 /** Drives the project library: list, import, rename, delete. */
@@ -55,6 +60,37 @@ public class LibraryViewModel(private val repository: ProjectRepository) : ViewM
                     _state.update {
                         it.copy(importing = false, justImported = result.value)
                     }
+                    refresh()
+                }
+
+                is StoreResult.Failure -> _state.update {
+                    it.copy(importing = false, error = UiError.Store(result.failure))
+                }
+            }
+        }
+    }
+
+    /** Opens and closes the little sheet that asks what the project is called. */
+    public fun beginNewProject() {
+        _state.update { it.copy(naming = true, error = null) }
+    }
+
+    public fun cancelNewProject() {
+        _state.update { it.copy(naming = false) }
+    }
+
+    /**
+     * Starts an empty project and reports it, so the screen opens it.
+     *
+     * The same door as an import: whatever made the project, the user ends up
+     * inside it rather than back at a list wondering whether it worked.
+     */
+    public fun createProject(projectName: String) {
+        viewModelScope.launch {
+            _state.update { it.copy(naming = false, importing = true, error = null) }
+            when (val result = repository.create(projectName)) {
+                is StoreResult.Success -> {
+                    _state.update { it.copy(importing = false, justImported = result.value) }
                     refresh()
                 }
 

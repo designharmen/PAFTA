@@ -766,3 +766,65 @@ interface now. Fillet, chamfer, trim and extend each need the user to pick
 of the interface until it does, rather than appearing as buttons that do
 nothing, which this project has a rule against.
 
+
+---
+
+## The interface, rearranged
+
+The owner looked at the editor and asked for five things: make the right-hand
+layer table open and shut instead of standing there permanently, make the P
+badge go back to the project list, put a "new project" option on that list, put
+the whole set of drawing tools on the top row where Aktif · Notlar · Mobilya
+used to be, and put the building elements — wall, door, window, floor,
+furniture — down the far-right column.
+
+Doing it turned up something worth writing down. That top row was carrying a
+`DOSYA` menu, a `DÜZENLE` menu, a `PAYLAŞ` button, an edit/view mode switch and
+five tabs — **eleven controls, and not one of them changed anything**. Each set
+a value in the state that nothing read: `onMenu` and `onShare` were never wired
+from `MainActivity` at all, and `activeTab` and `editMode` were stored, carried
+carefully through undo and redo, and never looked at. Eleven ways to tap and see
+nothing happen, on the row the eye lands on first. They are gone. Rule 6b in
+`CLAUDE.md` says a thing that does not work must not look like it works; it
+turns out the rule needed applying to what was already there, not only to what
+comes next.
+
+The layout now reads down and across:
+
+| Where | What |
+| --- | --- |
+| Top row | the P badge (the way back to the projects), the project name, undo and redo |
+| Second row | every drawing and editing tool: Seç · Çizgi · Dikdörtgen · Daire · Yay · Yuvarlat · Pah kır · Buda · Uzat · Ölç · Tarama · Metin · Izgara |
+| Third row | **only when the tool in hand needs something told** — the wall's thickness and material, the opening's width, the corner size, what Ölç is taking |
+| The sheet | everything left over |
+| Far right | Duvar · Kapı · Pencere · Mahal · Döşeme · Mobilya, with the panel handle above them |
+| Between them | the layer and properties panel, when it is asked for |
+
+The settings strip replaces the little panels that used to unfold underneath
+each tool in the old left rail. One place for "the setting for what I am
+holding" beats six places, and it reads horizontally, which is the shape of the
+space above a drawing.
+
+Döşeme and Mobilya are drawn faint and do not respond. They are phase B2, and
+the rule above is why they are not simply left out: the owner asked for them by
+name, so the column has to show that they are coming rather than pretend they
+were never asked for.
+
+### A project that starts empty
+
+`YENİ PROJE` needed one change in the core, and it is a nice illustration of why
+an error message should carry data rather than a sentence. `openAsDrawing`
+refuses a project whose drawing holds nothing — that refusal was written for an
+imported file full of records this reader cannot draw, and it is the right
+answer there. A project the user has only just started looks identical to it: an
+empty DXF. So the manifest now carries `blank`, set when PAFTA makes the project
+itself, and the same empty drawing is an error in one case and a fresh sheet in
+the other.
+
+A blank project opens on 20m × 15m rather than on its own extent, because an
+empty extent fits at 1mm per pixel and the user would start on a view one metre
+wide. As soon as anything is drawn the view frames what was drawn instead.
+
+The name is made unique before the project is written, not after: the file name
+is found first and the project takes *that* as its name, so a second `Yeni
+proje` becomes `Yeni proje-2` in the list rather than a second identical row.

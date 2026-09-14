@@ -2,64 +2,73 @@ package com.harmen.pafta.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import com.harmen.pafta.R
 import com.harmen.pafta.dxf.DxfDrawing
 import com.harmen.pafta.geometry.Aabb
-import com.harmen.pafta.ui.chrome.HairlineDivider
-import com.harmen.pafta.ui.chrome.PaftaTopBar
 import com.harmen.pafta.project.DrawnShape
 import com.harmen.pafta.project.OpeningKind
 import com.harmen.pafta.project.dimensions
-import com.harmen.pafta.project.openingPlans
-import com.harmen.pafta.project.zonePlans
 import com.harmen.pafta.project.lengthMm
+import com.harmen.pafta.project.openingPlans
 import com.harmen.pafta.project.wallBands
-import com.harmen.pafta.units.AreaUnit
-import com.harmen.pafta.units.formatArea
-import com.harmen.pafta.units.formatLength
+import com.harmen.pafta.project.zonePlans
+import com.harmen.pafta.ui.chrome.DrawingToolBar
+import com.harmen.pafta.ui.chrome.ElementRail
+import com.harmen.pafta.ui.chrome.HairlineDivider
+import com.harmen.pafta.ui.chrome.PaftaTopBar
 import com.harmen.pafta.ui.chrome.RightPanel
-import com.harmen.pafta.ui.chrome.ToolRail
+import com.harmen.pafta.ui.chrome.ToolOptionsBar
 import com.harmen.pafta.ui.chrome.VerticalHairline
 import com.harmen.pafta.ui.state.DRAWING_TOOLS
 import com.harmen.pafta.ui.state.EditorState
 import com.harmen.pafta.ui.state.EditorViewModel
-import com.harmen.pafta.ui.state.TopMenu
 import com.harmen.pafta.ui.state.UiError
 import com.harmen.pafta.ui.theme.HarmenColours
 import com.harmen.pafta.ui.theme.HarmenType
 import com.harmen.pafta.ui.theme.LocalCompactLayout
 import com.harmen.pafta.ui.viewport.PlanViewport
 import com.harmen.pafta.ui.viewport.RoomLabel
+import com.harmen.pafta.units.AreaUnit
+import com.harmen.pafta.units.formatArea
+import com.harmen.pafta.units.formatLength
 
 /**
- * The editor screen: top bar, tool rail, viewport, inspector.
+ * The editor screen.
  *
- * The three-column layout is the tablet case. Below [COMPACT_WIDTH] the rail
- * narrows to icons only and the inspector collapses off-screen, which keeps the
- * drawing — the thing the user came for — from being squeezed into a gutter on a
- * phone.
+ * Reading down: the project and its undo buttons, then the drawing and editing
+ * tools, then whatever the tool in hand needs told. Reading across: the sheet
+ * takes everything left over, the building elements stand down the right-hand
+ * edge, and the layer panel slides out between them when it is asked for.
+ *
+ * The panel is shut to begin with and stays where the user last put it. It used
+ * to be nailed to the screen, taking 232dp of a tablet away from the drawing
+ * whether or not anything in it was wanted.
  */
 @Composable
 public fun PaftaScreen(
@@ -73,8 +82,6 @@ public fun PaftaScreen(
     onDismissError: () -> Unit = {},
     roomLabels: List<RoomLabel> = emptyList(),
     onBack: (() -> Unit)? = null,
-    onShare: () -> Unit = {},
-    onMenu: (TopMenu) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     // Turkish words the view model needs but must never contain: a literal in
@@ -83,21 +90,18 @@ public fun PaftaScreen(
     val openRoomNote = stringResource(R.string.zone_not_closed)
     LaunchedEffect(newRoomName) { viewModel.defaultZoneName = newRoomName }
 
+    // Survives a rotation, so turning the tablet does not shut a panel the user
+    // opened to type a wall length into.
+    var panelOpen by rememberSaveable { mutableStateOf(false) }
+
     BoxWithConstraints(modifier.fillMaxSize().background(HarmenColours.Ground)) {
         val compact = maxWidth < COMPACT_WIDTH
-        val showInspector = maxWidth >= INSPECTOR_WIDTH
 
         CompositionLocalProvider(LocalCompactLayout provides compact) {
             Column(Modifier.fillMaxSize()) {
                 PaftaTopBar(
                     projectName = state.projectName,
-                    activeTab = state.activeTab,
-                    editMode = state.editMode,
-                    onTabSelected = viewModel::selectTab,
-                    onEditModeSelected = viewModel::selectEditMode,
-                    onShare = onShare,
-                    onMenu = onMenu,
-                    onBack = onBack,
+                    onHome = onBack,
                     canUndo = state.canUndo,
                     canRedo = state.canRedo,
                     onUndo = viewModel::undo,
@@ -105,36 +109,39 @@ public fun PaftaScreen(
                     dirty = state.dirty,
                 )
 
-                Row(Modifier.fillMaxWidth().weight(1f)) {
-                    ToolRail(
-                        activeTool = state.activeTool,
-                        lastText = state.lastText,
-                        onToolSelected = viewModel::selectTool,
-                        compact = compact,
-                        measureMode = state.measureMode,
-                        pendingPickCount = state.pendingPicks.size,
-                        onMeasureModeSelected = viewModel::selectMeasureMode,
-                        onFinishMeasurement = viewModel::finishMeasurement,
-                        onUndoPick = viewModel::undoPick,
-                        onCancelMeasurement = viewModel::cancelMeasurement,
-                        wallThicknessMm = state.wallThicknessMm,
-                        onWallThicknessSelected = viewModel::selectWallThickness,
-                        wallMaterial = state.wallMaterial,
-                        onWallMaterialSelected = viewModel::selectWallMaterial,
-                        selectedShapeId = state.selectedShapeId,
-                        onDeleteSelected = viewModel::deleteSelected,
-                        onFinishChain = viewModel::finishChain,
-                        doorWidthMm = state.doorWidthMm,
-                        windowWidthMm = state.windowWidthMm,
-                        onOpeningWidthSelected = viewModel::setOpeningWidth,
-                        hasFirstPick = state.firstPickId != null,
-                        filletRadiusMm = state.filletRadiusMm,
-                        onFilletRadiusSelected = viewModel::setFilletRadius,
-                        chamferMm = state.chamferMm,
-                        onChamferSizeSelected = viewModel::setChamferSize,
-                    )
-                    VerticalHairline(Modifier.fillMaxHeight())
+                DrawingToolBar(
+                    activeTool = state.activeTool,
+                    onToolSelected = viewModel::selectTool,
+                    compact = compact,
+                )
 
+                ToolOptionsBar(
+                    activeTool = state.activeTool,
+                    wallThicknessMm = state.wallThicknessMm,
+                    onWallThicknessSelected = viewModel::selectWallThickness,
+                    wallMaterial = state.wallMaterial,
+                    onWallMaterialSelected = viewModel::selectWallMaterial,
+                    doorWidthMm = state.doorWidthMm,
+                    windowWidthMm = state.windowWidthMm,
+                    onOpeningWidthSelected = viewModel::setOpeningWidth,
+                    hasFirstPick = state.firstPickId != null,
+                    filletRadiusMm = state.filletRadiusMm,
+                    onFilletRadiusSelected = viewModel::setFilletRadius,
+                    chamferMm = state.chamferMm,
+                    onChamferSizeSelected = viewModel::setChamferSize,
+                    measureMode = state.measureMode,
+                    pendingPickCount = state.pendingPicks.size,
+                    onMeasureModeSelected = viewModel::selectMeasureMode,
+                    onFinishMeasurement = viewModel::finishMeasurement,
+                    onUndoPick = viewModel::undoPick,
+                    onCancelMeasurement = viewModel::cancelMeasurement,
+                    selectedShapeId = state.selectedShapeId,
+                    onDeleteSelected = viewModel::deleteSelected,
+                    onFinishChain = viewModel::finishChain,
+                )
+                HairlineDivider()
+
+                Row(Modifier.fillMaxWidth().weight(1f)) {
                     // Worked out once per change and used by both the drawing and
                     // the panel, so the two can never disagree about a room.
                     val zones = remember(state.shapes) { state.shapes.zonePlans() }
@@ -200,40 +207,51 @@ public fun PaftaScreen(
                         snapAt = state.snapAt,
                     )
 
-                    if (showInspector) {
-                        VerticalHairline(Modifier.fillMaxHeight())
-                        RightPanel(
-                            layers = state.layers,
-                            materials = state.materials,
-                            properties = state.properties,
-                            selectionTitle = state.selectionTitle,
-                            activeAnnotationTool = state.annotationTool,
-                            onLayerVisibilityToggled = viewModel::setLayerVisible,
-                            onLayerOpacityChanged = viewModel::setLayerOpacity,
-                            onMaterialSelected = viewModel::selectMaterial,
-                            onAnnotationToolSelected = { viewModel.selectAnnotationTool(it) },
-                            selectedShapeId = state.selectedShapeId,
-                            selectedDimensions = state.shapes
-                                .firstOrNull { it.id == state.selectedShapeId }
-                                ?.dimensions()
-                                .orEmpty(),
-                            onSelectedDimensionChanged = viewModel::setSelectedDimension,
-                            onDuplicateSelected = viewModel::duplicateSelected,
-                            selectedZone = zones.firstOrNull { it.id == state.selectedShapeId },
-                            onSelectedNameChanged = viewModel::setSelectedName,
-                            selectedSwing = (
-                                state.shapes.firstOrNull { it.id == state.selectedShapeId }
-                                    as? DrawnShape.Opening
-                                )?.takeIf { it.kind == OpeningKind.DOOR }?.swing,
-                            onSwingSelected = viewModel::setDoorSwing,
-                            canOffset = state.shapes
-                                .firstOrNull { it.id == state.selectedShapeId }
-                                ?.let { it is DrawnShape.Wall || it is DrawnShape.Line }
-                                ?: false,
-                            onOffset = viewModel::offsetSelected,
-                            onTurn = viewModel::turnSelected,
-                        )
+                    if (panelOpen) {
+                        Row(Modifier.fillMaxHeight()) {
+                            VerticalHairline(Modifier.fillMaxHeight())
+                            RightPanel(
+                                layers = state.layers,
+                                materials = state.materials,
+                                properties = state.properties,
+                                selectionTitle = state.selectionTitle,
+                                activeAnnotationTool = state.annotationTool,
+                                onLayerVisibilityToggled = viewModel::setLayerVisible,
+                                onLayerOpacityChanged = viewModel::setLayerOpacity,
+                                onMaterialSelected = viewModel::selectMaterial,
+                                onAnnotationToolSelected = { viewModel.selectAnnotationTool(it) },
+                                selectedShapeId = state.selectedShapeId,
+                                selectedDimensions = state.shapes
+                                    .firstOrNull { it.id == state.selectedShapeId }
+                                    ?.dimensions()
+                                    .orEmpty(),
+                                onSelectedDimensionChanged = viewModel::setSelectedDimension,
+                                onDuplicateSelected = viewModel::duplicateSelected,
+                                selectedZone = zones.firstOrNull { it.id == state.selectedShapeId },
+                                onSelectedNameChanged = viewModel::setSelectedName,
+                                selectedSwing = (
+                                    state.shapes.firstOrNull { it.id == state.selectedShapeId }
+                                        as? DrawnShape.Opening
+                                    )?.takeIf { it.kind == OpeningKind.DOOR }?.swing,
+                                onSwingSelected = viewModel::setDoorSwing,
+                                canOffset = state.shapes
+                                    .firstOrNull { it.id == state.selectedShapeId }
+                                    ?.let { it is DrawnShape.Wall || it is DrawnShape.Line }
+                                    ?: false,
+                                onOffset = viewModel::offsetSelected,
+                                onTurn = viewModel::turnSelected,
+                            )
+                        }
                     }
+
+                    VerticalHairline(Modifier.fillMaxHeight())
+                    ElementRail(
+                        activeTool = state.activeTool,
+                        onToolSelected = viewModel::selectTool,
+                        compact = compact,
+                        panelOpen = panelOpen,
+                        onTogglePanel = { panelOpen = !panelOpen },
+                    )
                 }
                 HairlineDivider()
             }
@@ -287,8 +305,5 @@ private fun EditorNote(text: String, onDismiss: () -> Unit, modifier: Modifier =
     }
 }
 
-/** Below this width the tool rail drops its captions. */
+/** Below this width the tools drop their captions. */
 private val COMPACT_WIDTH = 720.dp
-
-/** Below this width the inspector is hidden rather than squeezed. */
-private val INSPECTOR_WIDTH = 600.dp
