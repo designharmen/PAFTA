@@ -12,6 +12,7 @@ import com.harmen.pafta.geometry.faceContaining
 import com.harmen.pafta.geometry.insetPolygon
 import com.harmen.pafta.geometry.offset
 import com.harmen.pafta.geometry.rotated
+import com.harmen.pafta.geometry.scaled
 import kotlin.math.atan2
 
 /**
@@ -79,13 +80,39 @@ public fun List<DrawnShape>.openingPlans(): List<OpeningPlan> {
     }
 }
 
+/**
+ * Everything that walls a room in, as straight pieces with a thickness each.
+ *
+ * Walls, and the rounded corners between them. A fillet parts the two walls'
+ * centre lines by a radius, so a room whose corner has been rounded would
+ * otherwise report that its walls no longer close — the corner was tidied and
+ * the room fell open, which is the opposite of what tidying it should do. The
+ * curve is cut into short straight pieces so the same face-finding works on it.
+ */
+private fun List<DrawnShape>.wallPieces(): List<Pair<Segment2, Double>> {
+    val pieces = mutableListOf<Pair<Segment2, Double>>()
+    for (shape in this) {
+        when {
+            shape is DrawnShape.Wall -> pieces += shape.centreLine() to shape.thicknessMm
+
+            shape is DrawnShape.Arc && shape.thicknessMm >= EPSILON_MM -> {
+                val points = shape.centreLinePoints()
+                for (i in 0 until points.size - 1) {
+                    pieces += Segment2(points[i], points[i + 1]) to shape.thicknessMm
+                }
+            }
+        }
+    }
+    return pieces
+}
+
 /** The rooms among these shapes, each measured from the walls around it. */
 public fun List<DrawnShape>.zonePlans(): List<ZonePlan> {
     val zones = filterIsInstance<DrawnShape.Zone>()
     if (zones.isEmpty()) return emptyList()
 
-    val walls = filterIsInstance<DrawnShape.Wall>()
-    val centreLines = walls.map { it.centreLine() }
+    val pieces = wallPieces()
+    val centreLines = pieces.map { it.first }
 
     return zones.map { zone ->
         val seed = zone.seed.toVec2()
@@ -94,7 +121,7 @@ public fun List<DrawnShape>.zonePlans(): List<ZonePlan> {
         // A room is measured to the plaster, so each side comes in by half the
         // thickness of the wall that side is.
         val outline = face?.let {
-            insetPolygon(it.map { edge -> edge.a }, it.map { edge -> walls[edge.source].thicknessMm / 2.0 })
+            insetPolygon(it.map { edge -> edge.a }, it.map { edge -> pieces[edge.source].second / 2.0 })
         }.orEmpty()
 
         ZonePlan(
@@ -155,6 +182,46 @@ public fun DrawnShape.turnedBy(degrees: Double): DrawnShape? = when (this) {
     }
 
     else -> null
+}
+
+/**
+ * This shape made bigger or smaller about its own middle.
+ *
+ * About its own middle, because "make this half the size" said while pointing at
+ * one thing means that thing, where it is — scaling about the origin would send
+ * it across the sheet, which is the behaviour that makes the command frightening
+ * in the programs that do it.
+ *
+ * An opening is not offered it: a door is 900mm because that is the door that
+ * was bought, and its width is typed, not stretched.
+ */
+public fun DrawnShape.scaledBy(factor: Double): DrawnShape? {
+    if (factor <= 0.0 || kotlin.math.abs(factor - 1.0) < EPSILON_MM) return null
+    return when (this) {
+        is DrawnShape.Wall -> {
+            val ends = scaled(listOf(a.toVec2(), b.toVec2()), centreLine().midpoint, factor)
+            copy(a = Vec3(ends[0].x, ends[0].y, a.z), b = Vec3(ends[1].x, ends[1].y, b.z))
+        }
+
+        is DrawnShape.Line -> {
+            val middle = (a.toVec2() + b.toVec2()) * 0.5
+            val ends = scaled(listOf(a.toVec2(), b.toVec2()), middle, factor)
+            copy(a = Vec3(ends[0].x, ends[0].y, a.z), b = Vec3(ends[1].x, ends[1].y, b.z))
+        }
+
+        is DrawnShape.Rectangle -> {
+            val middle = (corner.toVec2() + opposite.toVec2()) * 0.5
+            val ends = scaled(listOf(corner.toVec2(), opposite.toVec2()), middle, factor)
+            copy(
+                corner = Vec3(ends[0].x, ends[0].y, corner.z),
+                opposite = Vec3(ends[1].x, ends[1].y, opposite.z),
+            )
+        }
+
+        is DrawnShape.Circle -> copy(radiusMm = radiusMm * factor)
+        is DrawnShape.Arc -> copy(radiusMm = radiusMm * factor)
+        else -> null
+    }
 }
 
 /**

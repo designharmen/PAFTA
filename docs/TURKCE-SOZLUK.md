@@ -63,6 +63,9 @@ gerçekten çalışan çizim araçları aldı.
 | Chamfer | **Pah kır** |
 | Trim | **Buda** |
 | Extend | **Uzat** |
+| Mirror | **Aynala** |
+| Join | **Birleştir** |
+| Scale | **Ölçekle** (sağ panelde) |
 
 "Palet" kaldırıldı: hiçbir zaman bir işe bağlanmamıştı.
 

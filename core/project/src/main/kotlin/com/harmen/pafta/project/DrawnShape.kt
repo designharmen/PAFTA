@@ -201,6 +201,16 @@ public sealed interface DrawnShape {
         val startDegrees: Double,
         val endDegrees: Double,
         override val layer: String = LAYER_DRAWING,
+        /**
+         * How thick the arc is, in millimetres. Zero means it is only a line.
+         *
+         * A rounded corner between two walls is a piece of wall, not a pencil
+         * mark across the gap where the corner used to be. It is the same arc
+         * either way — the same centre, radius and angles, and the same single
+         * `ARC` record on the way out to DXF — but when it has a thickness it
+         * is drawn as a band like a wall, and the corner closes.
+         */
+        val thicknessMm: Double = 0.0,
     ) : DrawnShape {
         override fun toEntities(): List<DxfEntity> =
             if (radiusMm < EPSILON_MM) {
@@ -317,10 +327,17 @@ public sealed interface DrawnShape {
          */
         public fun wallLayer(thicknessMm: Double, material: WallMaterial): String =
             "$LAYER_WALL-${material.code}-${Math.round(thicknessMm)}"
-
-        private const val EPSILON_MM = 1e-6
     }
 }
+
+/**
+ * Below this, a length is nothing: a wall with no length, an arc with no
+ * radius, a thickness that means "no thickness".
+ *
+ * Module-wide rather than tucked inside [DrawnShape], because the shapes are
+ * only half the story — the edits that produce them ask the same question.
+ */
+internal const val EPSILON_MM: Double = 1e-6
 
 /**
  * How long the shape is, in drawing millimetres, or null when length is not
@@ -575,10 +592,86 @@ public data class WallBand(
     val corners: List<Vec2>,
 )
 
-/** The walls among these shapes, as the bands they are drawn as. */
+/**
+ * True when this shape is drawn as a filled band rather than as linework.
+ *
+ * Walls, and the rounded corners between them. The viewport draws bands through
+ * their own list so that the ones on a layer can be merged into one shape — two
+ * translucent bands laid over each other brighten where they overlap, which is
+ * what made every corner of a room show a pale patch. Anything here must
+ * therefore be kept out of the plain-linework list, or it is drawn twice.
+ */
+public fun DrawnShape.isBand(): Boolean =
+    this is DrawnShape.Wall || (this is DrawnShape.Arc && thicknessMm >= EPSILON_MM)
+
+/**
+ * The arc's centre line, as a run of short straight pieces.
+ *
+ * Everything downstream works on straight pieces — the band the arc is filled
+ * as, the room it helps enclose, the segments a tap snaps to — so it is sampled
+ * once here rather than three times in three slightly different ways. The step
+ * is taken from the sweep, not the radius, so a quarter turn always gets the
+ * same number of pieces and never shows its corners.
+ */
+public fun DrawnShape.Arc.centreLinePoints(): List<Vec2> {
+    val sweep = sweepDegrees()
+    val steps = kotlin.math.max(4, kotlin.math.ceil(sweep / 5.0).toInt())
+    return (0..steps).map { i ->
+        val degrees = startDegrees + sweep * i / steps
+        val radians = Math.toRadians(degrees)
+        Vec2(
+            centre.x + radiusMm * kotlin.math.cos(radians),
+            centre.y + radiusMm * kotlin.math.sin(radians),
+        )
+    }
+}
+
+/** How far round the arc goes, anticlockwise, in degrees. */
+public fun DrawnShape.Arc.sweepDegrees(): Double {
+    val raw = (endDegrees - startDegrees) % 360.0
+    val positive = if (raw < 0.0) raw + 360.0 else raw
+    // An arc that starts and ends at the same angle is the whole circle, not
+    // nothing: a fillet never makes one, but a hand-drawn arc could.
+    return if (positive < EPSILON_MM) 360.0 else positive
+}
+
+/**
+ * The outline of a thick arc: the outer face round one way, the inner face
+ * back.
+ *
+ * Empty for an arc with no thickness, which is a pencil line and has no faces.
+ */
+public fun DrawnShape.Arc.bandCorners(): List<Vec2> {
+    if (thicknessMm < EPSILON_MM || radiusMm < EPSILON_MM) return emptyList()
+    val half = thicknessMm / 2.0
+    if (half >= radiusMm) return emptyList()
+
+    val middle = centreLinePoints()
+    val outer = middle.map { scaledFrom(centre.toVec2(), it, (radiusMm + half) / radiusMm) }
+    val inner = middle.map { scaledFrom(centre.toVec2(), it, (radiusMm - half) / radiusMm) }
+    return outer + inner.asReversed()
+}
+
+/** A point moved towards or away from [from] by a factor, staying on its ray. */
+private fun scaledFrom(from: Vec2, point: Vec2, factor: Double): Vec2 =
+    Vec2(from.x + (point.x - from.x) * factor, from.y + (point.y - from.y) * factor)
+
+/** The two ends of a thick arc's centre line: where walls join onto it. */
+private fun DrawnShape.Arc.ends(): List<Vec2> =
+    if (thicknessMm < EPSILON_MM) emptyList() else centreLinePoints().let { listOf(it.first(), it.last()) }
+
+/**
+ * The walls among these shapes, as the bands they are drawn as.
+ *
+ * Rounded corners come through here too. A fillet between two walls leaves a
+ * piece of curved wall, and it has to be filled like a wall or the corner is a
+ * gap with a pencil line across it — which is exactly what it looked like the
+ * first time, on the device.
+ */
 public fun List<DrawnShape>.wallBands(): List<WallBand> {
     val walls = filterIsInstance<DrawnShape.Wall>()
-    if (walls.isEmpty()) return emptyList()
+    val curves = filterIsInstance<DrawnShape.Arc>().filter { it.thicknessMm >= EPSILON_MM }
+    if (walls.isEmpty() && curves.isEmpty()) return emptyList()
 
     /** Half the thickness of the thickest other wall that ends at [point]. */
     fun reachAt(self: DrawnShape.Wall, point: Vec2): Double {
@@ -588,6 +681,17 @@ public fun List<DrawnShape>.wallBands(): List<WallBand> {
             val meets = other.a.toVec2().distanceTo(point) <= JOIN_TOLERANCE_MM ||
                 other.b.toVec2().distanceTo(point) <= JOIN_TOLERANCE_MM
             if (meets) reach = maxOf(reach, other.thicknessMm / 2.0)
+        }
+        // A rounded corner already meets the wall face to face, so there is no
+        // corner to fill — but two shapes that touch along one exact line can
+        // still leave a hairline when they are merged, so the wall is given a
+        // millimetre to overlap by. A millimetre is under a screen pixel at any
+        // plan scale, and it is the difference between a closed corner and a
+        // seam.
+        for (curve in curves) {
+            if (curve.ends().any { it.distanceTo(point) <= JOIN_TOLERANCE_MM }) {
+                reach = maxOf(reach, 1.0)
+            }
         }
         return reach
     }
@@ -612,6 +716,9 @@ public fun List<DrawnShape>.wallBands(): List<WallBand> {
             layer = wall.layer,
             corners = listOf(fromEnd + n, toEnd + n, toEnd - n, fromEnd - n),
         )
+    } + curves.mapNotNull { curve ->
+        val corners = curve.bandCorners()
+        if (corners.size < 3) null else WallBand(curve.id, curve.layer, corners)
     }
 }
 
@@ -660,9 +767,12 @@ public fun List<DrawnShape>.pick(at: Vec2, toleranceMm: Double): DrawnShape? {
             // Both are picked through what they are drawn from — an opening
             // through its wall, a room through its outline — which needs the
             // whole drawing, not one shape. `pickResolved` does that.
+            // A rounded corner is picked anywhere on its body, the same way the
+            // walls either side of it are: it is a piece of wall, so aiming at
+            // the pencil line up its middle would be the wrong target.
             is DrawnShape.Arc -> {
-                val curve = shape.toEntities().flatMap { it.outline(48) }
-                curve.any { it.distanceTo(at) <= toleranceMm }
+                val reach = shape.thicknessMm / 2.0 + toleranceMm
+                shape.toEntities().flatMap { it.outline(48) }.any { it.distanceTo(at) <= reach }
             }
 
             is DrawnShape.Opening, is DrawnShape.Zone -> false

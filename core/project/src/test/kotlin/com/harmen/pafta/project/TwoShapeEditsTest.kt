@@ -102,7 +102,10 @@ class TwoShapeEditsTest {
         assertEquals(400.0, wallIn(after, "a").b.x, 1e-6)
         assertEquals(400.0, wallIn(after, "b").a.y, 1e-6)
 
-        val flat = assertIs<DrawnShape.Line>(after.last())
+        // A wall, not a line: the flat across a chamfered wall corner is built,
+        // so drawing it as linework left a hole in the building. `RoundedCornerTest`
+        // is where that rule is spelled out.
+        val flat = assertIs<DrawnShape.Wall>(after.last())
         assertEquals(400.0, flat.a.x, 1e-6)
         assertEquals(400.0, flat.b.y, 1e-6)
     }

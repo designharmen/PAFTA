@@ -48,6 +48,8 @@ public enum class Tool(
     CHAMFER(R.string.tool_chamfer, ready = true),
     TRIM(R.string.tool_trim, ready = true),
     EXTEND(R.string.tool_extend, ready = true),
+    MIRROR(R.string.tool_mirror, ready = true),
+    JOIN(R.string.tool_join, ready = true),
     MEASURE(R.string.tool_measure, ready = true),
     GRID(R.string.tool_grid, ready = true),
     ARC(R.string.tool_arc),
@@ -74,6 +76,8 @@ public val TOOLBAR_TOOLS: List<Tool> = listOf(
     Tool.CHAMFER,
     Tool.TRIM,
     Tool.EXTEND,
+    Tool.MIRROR,
+    Tool.JOIN,
     Tool.MEASURE,
     Tool.HATCH,
     Tool.TEXT,
@@ -123,8 +127,14 @@ public val PLACING_TOOLS: Set<Tool> = setOf(Tool.DOOR, Tool.WINDOW, Tool.ZONE)
  * worked the way AutoCAD has always worked them: pick the tool, tap one, tap
  * the other.
  */
-public val PAIRED_TOOLS: Set<Tool> =
-    setOf(Tool.FILLET, Tool.CHAMFER, Tool.TRIM, Tool.EXTEND)
+public val PAIRED_TOOLS: Set<Tool> = setOf(
+    Tool.FILLET,
+    Tool.CHAMFER,
+    Tool.TRIM,
+    Tool.EXTEND,
+    Tool.MIRROR,
+    Tool.JOIN,
+)
 
 /** A material swatch in the material selector. */
 public data class MaterialSwatch(

@@ -34,10 +34,13 @@ import com.harmen.pafta.project.chamfered
 import com.harmen.pafta.project.extended
 import com.harmen.pafta.project.filleted
 import com.harmen.pafta.project.isLine
+import com.harmen.pafta.project.joined
+import com.harmen.pafta.project.mirroredAcross
 import com.harmen.pafta.project.moving
 import com.harmen.pafta.project.offsetBy
 import com.harmen.pafta.project.pickResolved
 import com.harmen.pafta.project.replacing
+import com.harmen.pafta.project.scaledBy
 import com.harmen.pafta.project.snapSegments
 import com.harmen.pafta.project.toEntities
 import com.harmen.pafta.project.trimmed
@@ -524,6 +527,22 @@ public class EditorViewModel(
     }
 
     /**
+     * The selected shape made bigger or smaller, about its own middle.
+     *
+     * Through `replacing` for the same reason turning is: a wall that changes
+     * length at a corner has to take its neighbour with it, or the room it was
+     * part of falls open.
+     */
+    public fun scaleSelected(factor: Double) {
+        val id = _state.value.selectedShapeId ?: return
+        val original = _state.value.shapes.firstOrNull { it.id == id } ?: return
+        val scaled = original.scaledBy(factor) ?: return
+
+        edit { s -> s.copy(shapes = s.shapes.replacing(id, scaled)) }
+        rebuildSnapCandidates()
+    }
+
+    /**
      * A tap for one of the tools that needs two shapes.
      *
      * The first tap remembers; the second does the work and forgets. Tapping
@@ -536,7 +555,12 @@ public class EditorViewModel(
             _state.update { it.copy(firstPickId = null) }
             return
         }
-        if (!hit.isLine()) {
+        // Every one of these tools needs a wall or a line — except the first tap
+        // of Aynala, which is the thing being reflected and may be a circle or
+        // a curve. Its second tap, the axis, is checked where it is used.
+        val reflecting = _state.value.activeTool == Tool.MIRROR &&
+            _state.value.firstPickId == null
+        if (!hit.isLine() && !reflecting) {
             _state.update { it.copy(firstPickId = null) }
             _error.value = UiError.EditRefused(EditRefusal.NOT_A_LINE)
             return
@@ -556,6 +580,10 @@ public class EditorViewModel(
             // one doing the cutting, the second lands on what goes.
             Tool.TRIM -> shapes.trimmed(hit.id, first, at = point)
             Tool.EXTEND -> shapes.extended(first, hit.id)
+            // The first tap is what gets reflected, the second is the line it
+            // is reflected about — the way anybody would point at it.
+            Tool.MIRROR -> shapes.mirroredAcross(first, hit.id, newId = newShapeId())
+            Tool.JOIN -> shapes.joined(first, hit.id)
             else -> return
         }
 

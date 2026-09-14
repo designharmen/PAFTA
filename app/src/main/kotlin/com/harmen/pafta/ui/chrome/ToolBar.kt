@@ -21,11 +21,13 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Architecture
 import androidx.compose.material.icons.outlined.Chair
 import androidx.compose.material.icons.outlined.Circle
+import androidx.compose.material.icons.outlined.CallMerge
 import androidx.compose.material.icons.outlined.ContentCut
 import androidx.compose.material.icons.outlined.Crop169
 import androidx.compose.material.icons.outlined.Dashboard
 import androidx.compose.material.icons.outlined.Details
 import androidx.compose.material.icons.outlined.DoorFront
+import androidx.compose.material.icons.outlined.Flip
 import androidx.compose.material.icons.outlined.GridOn
 import androidx.compose.material.icons.outlined.Layers
 import androidx.compose.material.icons.outlined.NearMe
@@ -235,7 +237,8 @@ public fun ToolOptionsBar(
                     BarNote(activeTool.hint(hasFirstPick))
                 }
 
-                Tool.TRIM, Tool.EXTEND -> BarNote(activeTool.hint(hasFirstPick))
+                Tool.TRIM, Tool.EXTEND, Tool.MIRROR, Tool.JOIN ->
+                    BarNote(activeTool.hint(hasFirstPick))
 
                 Tool.MEASURE -> MeasureOptions(
                     mode = measureMode,
@@ -458,6 +461,8 @@ internal fun Tool.icon(): ImageVector = when (this) {
     Tool.CHAMFER -> Icons.Outlined.Details
     Tool.TRIM -> Icons.Outlined.ContentCut
     Tool.EXTEND -> Icons.Outlined.OpenInFull
+    Tool.MIRROR -> Icons.Outlined.Flip
+    Tool.JOIN -> Icons.Outlined.CallMerge
     Tool.MEASURE -> Icons.Outlined.SquareFoot
     Tool.GRID -> Icons.Outlined.GridOn
     Tool.ARC -> Icons.Outlined.Architecture
@@ -480,6 +485,10 @@ private fun Tool.hint(hasFirstPick: Boolean): Int = when (this) {
         if (hasFirstPick) R.string.hint_trim_second else R.string.hint_trim_first
     Tool.EXTEND ->
         if (hasFirstPick) R.string.hint_extend_second else R.string.hint_extend_first
+    Tool.MIRROR ->
+        if (hasFirstPick) R.string.hint_mirror_second else R.string.hint_mirror_first
+    Tool.JOIN ->
+        if (hasFirstPick) R.string.hint_join_second else R.string.hint_join_first
     else ->
         if (hasFirstPick) R.string.hint_pick_second else R.string.hint_pick_first
 }

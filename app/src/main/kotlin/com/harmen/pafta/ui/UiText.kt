@@ -198,6 +198,9 @@ public fun UiError.mesaj(): String = when (this) {
             EditRefusal.DOES_NOT_FIT -> R.string.error_does_not_fit
             EditRefusal.DOES_NOT_CROSS -> R.string.error_does_not_cross
             EditRefusal.ALREADY_REACHES -> R.string.error_already_reaches
+            EditRefusal.NOT_IN_LINE -> R.string.error_not_in_line
+            EditRefusal.DO_NOT_TOUCH -> R.string.error_do_not_touch
+            EditRefusal.CANNOT_MIRROR -> R.string.error_cannot_mirror
         },
     )
 }

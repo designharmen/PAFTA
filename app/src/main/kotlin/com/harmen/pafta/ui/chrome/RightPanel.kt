@@ -107,6 +107,8 @@ public fun RightPanel(
     canOffset: Boolean = false,
     onOffset: (Double) -> Unit = {},
     onTurn: (Double) -> Unit = {},
+    /** Makes the selected shape bigger or smaller about its own middle. */
+    onScale: (Double) -> Unit = {},
 ) {
     Column(
         modifier = modifier
@@ -206,6 +208,7 @@ public fun RightPanel(
                     )
                     PanelButton(R.string.action_offset) { onOffset(distance) }
                     TurnChooser(onTurn)
+                    ScaleChooser(onScale)
                 }
             }
         }
@@ -435,6 +438,46 @@ private fun TurnChooser(onTurn: (Double) -> Unit) {
 
 /** The angles a plan is turned by, largest first. */
 private val TURN_ANGLES = listOf(90, 60, 45, 30)
+
+/**
+ * How much bigger or smaller, as the four amounts anybody actually asks for.
+ *
+ * Shown as percentages rather than as `0.5` and `2.0`: "half" and "double" are
+ * what the request sounds like, and a percentage is how a person who has never
+ * used a drawing program reads it.
+ */
+@Composable
+private fun ScaleChooser(onScale: (Double) -> Unit) {
+    Text(
+        text = stringResource(R.string.action_scale),
+        style = HarmenType.PropertyKey,
+        color = HarmenColours.TextMuted,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 4.dp, end = 4.dp, top = 8.dp, bottom = 4.dp),
+    )
+    Row(Modifier.fillMaxWidth()) {
+        for (percent in SCALE_PERCENTS) {
+            Text(
+                text = stringResource(R.string.scale_percent, percent),
+                style = HarmenType.PropertyKey,
+                color = HarmenColours.Text,
+                textAlign = TextAlign.Center,
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(horizontal = 2.dp, vertical = 3.dp)
+                    .clip(RoundedCornerShape(metrics.cornerRadius))
+                    .background(HarmenColours.PanelRaised)
+                    .clickable(role = Role.Button) { onScale(percent / 100.0) }
+                    .height(44.dp)
+                    .padding(vertical = 13.dp),
+            )
+        }
+    }
+}
+
+/** The amounts a drawing is scaled by, smallest first. */
+private val SCALE_PERCENTS = listOf(50, 75, 150, 200)
 
 /** The Turkish word for a measurement. Never a literal in code. */
 private val ShapeDimension.label: Int

@@ -828,3 +828,66 @@ wide. As soon as anything is drawn the view frames what was drawn instead.
 The name is made unique before the project is written, not after: the file name
 is found first and the project takes *that* as its name, so a second `Yeni
 proje` becomes `Yeni proje-2` in the list rather than a second identical row.
+
+---
+
+## What the device said about the rounded corner
+
+Yapım 37 went to the tablet and came back with one screenshot and two problems
+in it, both from the same command.
+
+**The corner was a gap with a pencil line across it.** `fillet` shortened both
+walls and added a `DrawnShape.Arc` between them — and an arc was linework, so the
+two wall bands stopped a radius short of each other and a hairline curved across
+the hole. The arithmetic was right and the drawing was wrong, which is a useful
+reminder that a plan is not a diagram of its own geometry: **a rounded corner
+between two walls is a piece of curved wall.** So `Arc` now carries a
+`thicknessMm`, zero meaning "this is a pencil line"; `wallBands` fills a thick
+arc the same way it fills a wall; `zonePlans` cuts it into short straight pieces
+so a room whose corner has been rounded still closes — otherwise tidying a
+corner would open the room, which is the exact opposite of tidying it. Chamfer
+had the same fault and the same fix, more simply: between two walls the flat it
+leaves is now a short wall, not a line.
+
+Two shapes that touch along one exact line can still show a seam where they are
+merged, so a wall landing on a rounded corner is given one millimetre to overlap
+by — under a screen pixel at any plan scale, and the difference between a closed
+corner and a hairline.
+
+**Every door slid along by however much the wall was cut back.** This one is the
+price of a design decision that is still right. An opening does not hold a place
+on the sheet; it holds how far it is from its wall's *start*. That is what keeps
+a door in its doorway when the wall is dragged or made longer — and it is
+exactly what breaks when the start itself moves, which is what fillet, chamfer
+and trim all do. The fix is one function, `withLines`, through which all four
+two-shape edits now change a wall: it measures how far the start travelled along
+the wall's own direction and re-measures every opening in that wall from the new
+start. A door that no longer fits the shortened wall is kept inside it rather
+than sent off the end.
+
+Turning a wall and typing a new length into it were checked against the same
+question and are both already right — a rotation carries its doors round with
+it, and a length change moves the far end, not the start.
+
+### Phase C is finished
+
+`mirror` and `scale` were built and tested in `core:geometry` and never reached
+the interface; `join` was on the phase list and not written at all. All three
+are in now, which closes the phase.
+
+**Aynala** and **Birleştir** are two-tap tools like the other four. Mirror takes
+the thing to reflect and then the wall to reflect it about — the original stays,
+because half a plan and its mirror image is the whole point. Rectangles are
+refused rather than reflected: a rectangle is held as two opposite corners with
+its sides square to the sheet, so reflecting one about a sloping wall would
+quietly straighten it, and a wrong answer is worse than a refusal. Join makes
+one wall out of two that lie on the same line and touch; the second one's doors
+and windows come across onto the survivor, re-measured, because a door does not
+stop existing when the wall it is in is renamed. Two walls of a corridor and two
+walls at a corner are both refused, and so is a gap — filling one in would be
+inventing wall nobody drew.
+
+**Ölçekle** is in the right-hand panel next to Döndür, as four percentages:
+50, 75, 150, 200. It scales about the shape's own middle, so the thing stays
+where it was pointed at rather than flying across the sheet, which is the
+behaviour that makes `SCALE` frightening in the programs that have it.

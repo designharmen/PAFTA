@@ -34,6 +34,7 @@ import com.harmen.pafta.geometry.Aabb
 import com.harmen.pafta.project.DrawnShape
 import com.harmen.pafta.project.OpeningKind
 import com.harmen.pafta.project.dimensions
+import com.harmen.pafta.project.isBand
 import com.harmen.pafta.project.lengthMm
 import com.harmen.pafta.project.openingPlans
 import com.harmen.pafta.project.wallBands
@@ -171,11 +172,13 @@ public fun PaftaScreen(
                         previewLabel = state.preview?.lengthMm?.let {
                             formatLength(it, state.display.lengthFormat)
                         },
-                        // Walls go through their own list because they are
-                        // filled bands with closed corners, not plain outlines.
+                        // Walls and rounded corners go through their own list
+                        // because they are filled bands with closed corners,
+                        // not plain outlines. Drawing one in both lists would
+                        // put a pencil line up the middle of a solid wall.
                         drawn = remember(state.shapes) {
                             state.shapes
-                                .filterNot { it is DrawnShape.Wall }
+                                .filterNot { it.isBand() }
                                 .flatMap { it.toEntities() }
                         },
                         walls = remember(state.shapes) { state.shapes.wallBands() },
@@ -200,7 +203,7 @@ public fun PaftaScreen(
                         highlighted = state.shapes
                             .firstOrNull {
                                 it.id == (state.firstPickId ?: state.selectedShapeId) &&
-                                    it !is DrawnShape.Wall
+                                    !it.isBand()
                             }
                             ?.toEntities()
                             .orEmpty(),
@@ -240,6 +243,7 @@ public fun PaftaScreen(
                                     ?: false,
                                 onOffset = viewModel::offsetSelected,
                                 onTurn = viewModel::turnSelected,
+                                onScale = viewModel::scaleSelected,
                             )
                         }
                     }
