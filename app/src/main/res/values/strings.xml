@@ -106,6 +106,47 @@
     <string name="option_beam_width">Kiriş genişliği</string>
     <string name="option_slab_thickness">Döşeme kalınlığı</string>
     <string name="option_slab_kind">Ne olacak</string>
+    <string name="option_furniture_group">Nerenin</string>
+    <string name="option_furniture_piece">Hangisi</string>
+    <string name="hint_place_furniture">parçanın geleceği yere dokun</string>
+    <string name="option_wall_type">Hazır duvar</string>
+
+    <!-- ===== Kütüphane: mobilya ve donatı ===== -->
+    <string name="group_seating">Oturma</string>
+    <string name="group_dining">Yemek</string>
+    <string name="group_bedroom">Yatak odası</string>
+    <string name="group_kitchen">Mutfak</string>
+    <string name="group_bathroom">Banyo</string>
+    <string name="block_armchair">Berjer</string>
+    <string name="block_sofa_two">İkili kanepe</string>
+    <string name="block_sofa_three">Üçlü kanepe</string>
+    <string name="block_coffee_table">Sehpa</string>
+    <string name="block_tv_unit">TV ünitesi</string>
+    <string name="block_dining_table_four">Masa (4 kişilik)</string>
+    <string name="block_dining_table_six">Masa (6 kişilik)</string>
+    <string name="block_dining_table_round">Yuvarlak masa</string>
+    <string name="block_chair">Sandalye</string>
+    <string name="block_bed_single">Tek kişilik yatak</string>
+    <string name="block_bed_double">Çift kişilik yatak</string>
+    <string name="block_wardrobe">Gardırop</string>
+    <string name="block_bedside">Komodin</string>
+    <string name="block_desk">Çalışma masası</string>
+    <string name="block_counter">Tezgâh</string>
+    <string name="block_sink">Evye</string>
+    <string name="block_hob">Ocak</string>
+    <string name="block_fridge">Buzdolabı</string>
+    <string name="block_wc">Klozet</string>
+    <string name="block_basin">Lavabo</string>
+    <string name="block_shower">Duş teknesi</string>
+    <string name="block_bath">Küvet</string>
+
+    <!-- ===== Kütüphane: hazır duvarlar ===== -->
+    <string name="wall_function_partition">Bölme</string>
+    <string name="wall_function_load_bearing">Taşıyıcı</string>
+    <string name="wall_function_shear">Perde</string>
+    <string name="wall_function_retaining">İstinat</string>
+    <string name="wall_function_parapet">Parapet</string>
+    <string name="wall_type_name">%1$s · %2$s</string>
     <string name="slab_floor">Kat döşemesi</string>
     <string name="slab_roof">Teras çatı</string>
 

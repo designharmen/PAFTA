@@ -477,6 +477,56 @@ public sealed interface DrawnShape {
             copy(seed = Vec3(seed.x + dx, seed.y + dy, seed.z))
     }
 
+    /**
+     * A piece of the library, put down on the plan.
+     *
+     * It holds *which* piece it is, not a copy of how that piece is drawn. So a
+     * project saved today gets the better drawing of a WC that lands next year,
+     * and a library of two hundred pieces costs a project file two hundred
+     * words rather than two hundred drawings.
+     */
+    @Serializable
+    @SerialName("parca")
+    public data class Block(
+        override val id: String,
+        val block: CatalogueBlock,
+        @Serializable(with = Vec3Serializer::class) val at: Vec3,
+        /** Degrees anticlockwise from east; a sofa against the far wall is 180. */
+        val rotationDegrees: Double = 0.0,
+        /** Placed at the library's own size unless it is told otherwise. */
+        val widthMm: Double = 0.0,
+        val depthMm: Double = 0.0,
+        override val layer: String = LAYER_FURNITURE,
+    ) : DrawnShape {
+
+        /** The size it is actually drawn at: its own, unless one was given. */
+        public val drawnWidthMm: Double
+            get() = if (widthMm >= EPSILON_MM) widthMm else block.widthMm
+        public val drawnDepthMm: Double
+            get() = if (depthMm >= EPSILON_MM) depthMm else block.depthMm
+
+        /** The closed outlines it is drawn as, where it stands. */
+        public fun outlines(): List<List<Vec2>> = placedOutlines(
+            block = block,
+            at = at.toVec2(),
+            rotationDegrees = rotationDegrees,
+            widthMm = drawnWidthMm,
+            depthMm = drawnDepthMm,
+        )
+
+        override fun toEntities(): List<DxfEntity> = placedEntities(
+            block = block,
+            layer = layer,
+            at = at.toVec2(),
+            rotationDegrees = rotationDegrees,
+            widthMm = drawnWidthMm,
+            depthMm = drawnDepthMm,
+        )
+
+        override fun translated(dx: Double, dy: Double): DrawnShape =
+            copy(at = Vec3(at.x + dx, at.y + dy, at.z))
+    }
+
     public companion object {
         /** A 20cm interior wall: the thickness most plans start from. */
         public const val DEFAULT_WALL_THICKNESS_MM: Double = 200.0
@@ -519,6 +569,7 @@ public sealed interface DrawnShape {
         public const val LAYER_COLUMN: String = "KOLON"
         public const val LAYER_BEAM: String = "KIRIS"
         public const val LAYER_SLAB: String = "DOSEME"
+        public const val LAYER_FURNITURE: String = "MOBILYA"
 
         /**
          * The layer a wall belongs on, e.g. `DUVAR-TUGLA-200`.
@@ -560,6 +611,9 @@ public val DrawnShape.lengthMm: Double?
         // neither has a length anybody would type in.
         is DrawnShape.Rectangle, is DrawnShape.Zone -> null
         is DrawnShape.Column, is DrawnShape.Slab -> null
+        // A piece of furniture is as wide and as deep as it is; neither of
+        // those is what a length box means.
+        is DrawnShape.Block -> null
     }
 
 /**
@@ -594,6 +648,7 @@ public fun DrawnShape.withLength(millimetres: Double): DrawnShape {
         is DrawnShape.Beam -> copy(b = stretched(a, b))
         is DrawnShape.Arc, is DrawnShape.Rectangle, is DrawnShape.Zone -> this
         is DrawnShape.Column, is DrawnShape.Slab -> this
+        is DrawnShape.Block -> this
     }
 }
 
@@ -681,6 +736,11 @@ public fun DrawnShape.dimensions(): Map<ShapeDimension, Double> = when (this) {
         ShapeDimension.THICKNESS to thicknessMm,
     )
 
+    is DrawnShape.Block -> linkedMapOf(
+        ShapeDimension.WIDTH to drawnWidthMm,
+        ShapeDimension.DEPTH to drawnDepthMm,
+    )
+
     // A door has no sill, so it is not offered one: floor level is not a
     // setting, it is where doors are.
     is DrawnShape.Opening -> when (kind) {
@@ -749,6 +809,12 @@ public fun DrawnShape.withDimension(which: ShapeDimension, millimetres: Double):
         is DrawnShape.Slab ->
             if (which == ShapeDimension.THICKNESS) copy(thicknessMm = millimetres) else this
 
+        is DrawnShape.Block -> when (which) {
+            ShapeDimension.WIDTH -> copy(widthMm = millimetres)
+            ShapeDimension.DEPTH -> copy(depthMm = millimetres)
+            else -> this
+        }
+
         is DrawnShape.Rectangle -> {
             // The corner the user drew from stays put and the opposite one
             // moves, on the side it was already on — a rectangle made wider
@@ -799,6 +865,7 @@ public fun DrawnShape.withId(id: String): DrawnShape = when (this) {
     is DrawnShape.Column -> copy(id = id)
     is DrawnShape.Beam -> copy(id = id)
     is DrawnShape.Slab -> copy(id = id)
+    is DrawnShape.Block -> copy(id = id)
 }
 
 /**
@@ -838,7 +905,11 @@ public fun DrawnShape.snapSegments(): List<Segment2> = when (this) {
         if (centreLine().length > 0.0) listOf(centreLine()) else emptyList()
 
     // A slab is the space between walls that are already offering themselves.
+    // Furniture is put against walls, not built into them: it offers nothing to
+    // snap a wall onto, and a wall that caught on a sofa would be a wall nobody
+    // could draw past one.
     is DrawnShape.Opening, is DrawnShape.Zone, is DrawnShape.Slab -> emptyList()
+    is DrawnShape.Block -> emptyList()
 }
 
 /**
@@ -1118,6 +1189,16 @@ public fun List<DrawnShape>.pick(at: Vec2, toleranceMm: Double): DrawnShape? {
             // opening through its wall, a room and a slab through the outline
             // the walls leave — which needs the whole drawing, not one shape.
             // `pickResolved` does that.
+            // Picked anywhere inside it, like a column: a sofa is a thing you
+            // point at, not an outline you have to find the edge of.
+            is DrawnShape.Block -> shape.outlines().any { outline ->
+                outline.size >= 3 && containsPoint(outline, at) ||
+                    outline.indices.any { i ->
+                        Segment2(outline[i], outline[(i + 1) % outline.size])
+                            .closestPointTo(at).distanceTo(at) <= toleranceMm
+                    }
+            }
+
             is DrawnShape.Opening, is DrawnShape.Zone, is DrawnShape.Slab -> false
         }
         if (hit) return shape

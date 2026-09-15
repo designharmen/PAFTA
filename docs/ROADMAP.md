@@ -1050,3 +1050,82 @@ doorway. The hatch is measured in **pixels, not millimetres**, on purpose: it is
 a convention for reading the drawing rather than a thing in the building, so it
 stays the same weight at every zoom. Hatching in model units gives a solid block
 zoomed out and three lines zoomed in.
+
+---
+
+## The plan kept zooming itself back out
+
+*"Oto zoomlama gibi bir sorun var."* It was, and it was made two rounds ago by
+the interface re-layout.
+
+`PlanViewport` threw the user's view away on every resize:
+
+```kotlin
+.onSizeChanged { newSize -> if (newSize != surface) { surface = newSize; viewport = null } }
+```
+
+`viewport = null` means "fall back to the fitted view", which was written for
+the device being turned. On the old layout the canvas almost never changed size:
+the tool rail was a fixed column and each tool's settings unfolded *inside* it.
+On the new one the canvas resizes constantly — the settings strip appears under
+the tools the moment a tool with settings is picked, and the layer panel slides
+out beside the sheet. Every one of those is a resize, and every resize zoomed the
+plan back out to fit. Somebody working at 1:20 on a doorway lost their place
+each time they changed tool.
+
+The fix is `Viewport2D.resized`, which keeps the scale and keeps whatever was in
+the middle of the old surface in the middle of the new one. A view the user has
+never touched still fits, because there is nothing of theirs to keep.
+
+Worth recording for its own sake: the bug was not in the code that was changed.
+The re-layout did not touch the viewport at all — it changed how often the
+viewport's existing behaviour fired, from twice a session to twice a minute.
+
+## Phase D — the library
+
+The things that are drawn the same way every time. A bed is 1600 x 2000 with
+pillows across the head, a WC is a shape everybody recognises, a basin is a
+rectangle with a circle in it. None is worth drawing by hand twice, and every
+one is worth drawing the **same** twice.
+
+### A project stores which piece, not a copy of it
+
+`DrawnShape.Block` holds a `CatalogueBlock` — an enum value — plus where it
+stands, which way it faces and, optionally, a size of its own. The geometry
+lives in code. That is the whole design decision: a project saved today gets the
+better drawing of a WC that lands next year, and a library of two hundred pieces
+costs a project file two hundred words rather than two hundred drawings.
+
+Twenty-two pieces in five drawers — oturma, yemek, yatak odası, mutfak, banyo.
+Each is plain rectangles and circles about its own middle: a plan is read at
+1:50 and a sofa with its cushions drawn in is a grey smudge. What has to be
+right is the space it takes up and whether you can tell what it is at a glance.
+
+A test checks every piece is exactly as wide and as deep as it claims and is
+centred on its own origin — and it immediately caught the WC drawn 590mm deep
+while telling everyone it was 700. That is the kind of error nobody sees on a
+screen and everybody sees when the door will not shut.
+
+Furniture is **outlines, never filled**: filled shapes on this plan mean
+building — walls, columns, rounded corners — and a filled sofa would read as a
+structure. It offers nothing to snap a wall onto either, since a wall that
+caught on a sofa would be a wall nobody could draw past one.
+
+Turning is by angle rather than by moving points, so a sofa turned to face the
+other way is the same sofa at 180 degrees and has not drifted across the room.
+Columns got the same treatment, which is what makes a 30x60 column useful.
+
+### The twenty wall types are presets, not types
+
+The specification's twenty wall types are in as `WallType`, and deliberately
+**not** as twenty classes. `DrawnShape.Wall` already carries a material and a
+thickness; a "type" is one tap that sets them both, plus a `function` —
+partition, load-bearing, shear, retaining, parapet — which is a real property of
+a real wall and is what the schedules of phase G will be made of.
+
+A preset is only ever a label. What gets drawn is the thickness and the
+material, and setting either of those by hand clears the preset, because one
+that still claims to be selected after its numbers were changed is a preset
+that is lying. A wall from the catalogue lands on exactly the same layer as one
+built from the loose buttons: one wall, one layer, whichever door it came
+through.

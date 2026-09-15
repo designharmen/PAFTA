@@ -228,6 +228,13 @@ public fun DrawnShape.turnedBy(degrees: Double): DrawnShape? = when (this) {
         copy(a = Vec3(turned[0].x, turned[0].y, a.z), b = Vec3(turned[1].x, turned[1].y, b.z))
     }
 
+    // A piece of furniture and a column turn where they stand, by changing the
+    // angle they are drawn at rather than by moving any points: a sofa against
+    // the far wall is the same sofa at 180 degrees, and turning it must not
+    // drift it across the room.
+    is DrawnShape.Block -> copy(rotationDegrees = rotationDegrees + degrees)
+    is DrawnShape.Column -> copy(rotationDegrees = rotationDegrees + degrees)
+
     else -> null
 }
 
@@ -267,6 +274,10 @@ public fun DrawnShape.scaledBy(factor: Double): DrawnShape? {
 
         is DrawnShape.Circle -> copy(radiusMm = radiusMm * factor)
         is DrawnShape.Arc -> copy(radiusMm = radiusMm * factor)
+        is DrawnShape.Block -> copy(
+            widthMm = drawnWidthMm * factor,
+            depthMm = drawnDepthMm * factor,
+        )
         else -> null
     }
 }

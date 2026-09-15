@@ -41,6 +41,23 @@ public data class Viewport2D(
         copy(panX = panX + dxPixels, panY = panY + dyPixels)
 
     /**
+     * The same view after the surface it is drawn on changes size.
+     *
+     * Whatever was in the middle stays in the middle, at the same scale. This
+     * is the difference between a window that gets bigger and a drawing that
+     * jumps: re-fitting on every resize threw away wherever the user had
+     * scrolled to, and on a tablet the surface resizes constantly — a settings
+     * strip appears under the tools, a panel slides out beside the sheet — so
+     * the plan kept zooming itself back out while somebody was working in it.
+     */
+    public fun resized(
+        fromWidth: Double,
+        fromHeight: Double,
+        toWidth: Double,
+        toHeight: Double,
+    ): Viewport2D = pannedBy((toWidth - fromWidth) / 2.0, (toHeight - fromHeight) / 2.0)
+
+    /**
      * Zooms by [factor] while holding the model point under [pivotScreen] fixed,
      * which is what a pinch gesture has to do to feel attached to the drawing.
      *

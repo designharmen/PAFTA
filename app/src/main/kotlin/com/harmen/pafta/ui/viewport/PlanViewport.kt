@@ -203,11 +203,29 @@ public fun PlanViewport(
             // out across the whole screen.
             .clipToBounds()
             .onSizeChanged { newSize ->
-                if (newSize != surface) {
+                val was = surface
+                if (newSize != was) {
                     surface = newSize
-                    // A resize (rotation, split screen) re-fits rather than
-                    // leaving the drawing half off the edge.
-                    viewport = null
+                    // The surface changes size constantly on a tablet: the
+                    // settings strip appears under the tools, the panel slides
+                    // out beside the sheet, the device is turned. Re-fitting
+                    // every time threw away wherever the user had scrolled to,
+                    // so the plan kept zooming itself back out while somebody
+                    // was working in it.
+                    //
+                    // A view the user has never touched still fits, because
+                    // there is nothing of theirs to keep. One they have panned
+                    // or zoomed keeps its scale, and whatever was in the middle
+                    // stays in the middle.
+                    val current = viewport
+                    if (current != null && was.width > 0 && was.height > 0) {
+                        viewport = current.resized(
+                            fromWidth = was.width.toDouble(),
+                            fromHeight = was.height.toDouble(),
+                            toWidth = newSize.width.toDouble(),
+                            toHeight = newSize.height.toDouble(),
+                        )
+                    }
                 }
             }
             .pointerInput(drawing, drawEnabled) {

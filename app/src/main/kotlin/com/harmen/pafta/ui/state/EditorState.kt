@@ -11,12 +11,15 @@ import com.harmen.pafta.project.DoorSwing
 import com.harmen.pafta.project.DrawnShape
 import com.harmen.pafta.project.EditRefusal
 import com.harmen.pafta.project.AnnotationKind
+import com.harmen.pafta.project.BlockGroup
+import com.harmen.pafta.project.CatalogueBlock
 import com.harmen.pafta.project.LayerState
 import com.harmen.pafta.project.MaterialOverride
 import com.harmen.pafta.project.OpeningKind
 import com.harmen.pafta.project.SlabKind
 import com.harmen.pafta.project.StoreFailure
 import com.harmen.pafta.project.WallMaterial
+import com.harmen.pafta.project.WallType
 
 /**
  * Everything the user can pick up and work with.
@@ -59,7 +62,7 @@ public enum class Tool(
     ARC(R.string.tool_arc),
     HATCH(R.string.tool_hatch),
     TEXT(R.string.tool_text),
-    FURNITURE(R.string.tool_furniture),
+    FURNITURE(R.string.tool_furniture, ready = true),
 }
 
 /**
@@ -124,7 +127,7 @@ public val DRAWING_TOOLS: Set<Tool> =
  * true of a room, which is placed by tapping the floor it covers.
  */
 public val PLACING_TOOLS: Set<Tool> =
-    setOf(Tool.DOOR, Tool.WINDOW, Tool.ZONE, Tool.SLAB, Tool.COLUMN)
+    setOf(Tool.DOOR, Tool.WINDOW, Tool.ZONE, Tool.SLAB, Tool.COLUMN, Tool.FURNITURE)
 
 /**
  * Tools that need two shapes before they can do anything.
@@ -249,6 +252,15 @@ public data class EditorState(
     val wallThicknessMm: Double = DrawnShape.DEFAULT_WALL_THICKNESS_MM,
     /** Material used by the wall tool; it decides which layer the wall lands on. */
     val wallMaterial: WallMaterial = WallMaterial.BRICK,
+    /**
+     * The ready-made wall the tool was last set from, or null.
+     *
+     * Only ever a label: what actually gets drawn is the thickness and the
+     * material above. Setting either of those by hand clears it, because a
+     * preset that still claims to be selected after its numbers were changed is
+     * a preset that is lying.
+     */
+    val wallType: WallType? = null,
     /** Width the door tool places with, in drawing millimetres. */
     val doorWidthMm: Double = DrawnShape.DEFAULT_DOOR_WIDTH_MM,
     /** Width the window tool places with. */
@@ -278,6 +290,12 @@ public data class EditorState(
 
     /** Whether the slab tool places a floor or a flat roof. */
     val slabKind: SlabKind = SlabKind.FLOOR,
+
+    /** Which drawer of the library the furniture tool is looking in. */
+    val blockGroup: BlockGroup = BlockGroup.SEATING,
+
+    /** Which piece of it is about to be placed. */
+    val block: CatalogueBlock = CatalogueBlock.SOFA_THREE,
 
     /** The radius the round-off tool works with. */
     val filletRadiusMm: Double = 300.0,

@@ -12,7 +12,11 @@ import com.harmen.pafta.project.StoreFailure
 import com.harmen.pafta.project.WallMaterial
 import com.harmen.pafta.project.UnreadableReason
 import com.harmen.pafta.project.EditRefusal
+import com.harmen.pafta.project.BlockGroup
+import com.harmen.pafta.project.CatalogueBlock
 import com.harmen.pafta.project.FinishFamily
+import com.harmen.pafta.project.WallFunction
+import com.harmen.pafta.project.WallType
 import com.harmen.pafta.project.FloorFinish
 import com.harmen.pafta.project.OpeningKind
 import com.harmen.pafta.project.SlabKind
@@ -216,6 +220,77 @@ public fun SlabKind.adi(): String = stringResource(
         SlabKind.FLOOR -> R.string.slab_floor
         SlabKind.ROOF -> R.string.slab_roof
     },
+)
+
+/** The Turkish name of a library piece. */
+@Composable
+@ReadOnlyComposable
+public fun CatalogueBlock.adi(): String = stringResource(
+    when (this) {
+        CatalogueBlock.ARMCHAIR -> R.string.block_armchair
+        CatalogueBlock.SOFA_TWO -> R.string.block_sofa_two
+        CatalogueBlock.SOFA_THREE -> R.string.block_sofa_three
+        CatalogueBlock.COFFEE_TABLE -> R.string.block_coffee_table
+        CatalogueBlock.TV_UNIT -> R.string.block_tv_unit
+        CatalogueBlock.DINING_TABLE_FOUR -> R.string.block_dining_table_four
+        CatalogueBlock.DINING_TABLE_SIX -> R.string.block_dining_table_six
+        CatalogueBlock.DINING_TABLE_ROUND -> R.string.block_dining_table_round
+        CatalogueBlock.CHAIR -> R.string.block_chair
+        CatalogueBlock.BED_SINGLE -> R.string.block_bed_single
+        CatalogueBlock.BED_DOUBLE -> R.string.block_bed_double
+        CatalogueBlock.WARDROBE -> R.string.block_wardrobe
+        CatalogueBlock.BEDSIDE -> R.string.block_bedside
+        CatalogueBlock.DESK -> R.string.block_desk
+        CatalogueBlock.COUNTER -> R.string.block_counter
+        CatalogueBlock.SINK -> R.string.block_sink
+        CatalogueBlock.HOB -> R.string.block_hob
+        CatalogueBlock.FRIDGE -> R.string.block_fridge
+        CatalogueBlock.WC -> R.string.block_wc
+        CatalogueBlock.BASIN -> R.string.block_basin
+        CatalogueBlock.SHOWER -> R.string.block_shower
+        CatalogueBlock.BATH -> R.string.block_bath
+    },
+)
+
+/** Which room of the library a piece comes from. */
+@Composable
+@ReadOnlyComposable
+public fun BlockGroup.adi(): String = stringResource(
+    when (this) {
+        BlockGroup.SEATING -> R.string.group_seating
+        BlockGroup.DINING -> R.string.group_dining
+        BlockGroup.BEDROOM -> R.string.group_bedroom
+        BlockGroup.KITCHEN -> R.string.group_kitchen
+        BlockGroup.BATHROOM -> R.string.group_bathroom
+    },
+)
+
+/** What a wall is for: bölme, taşıyıcı, perde, istinat, parapet. */
+@Composable
+@ReadOnlyComposable
+public fun WallFunction.adi(): String = stringResource(
+    when (this) {
+        WallFunction.PARTITION -> R.string.wall_function_partition
+        WallFunction.LOAD_BEARING -> R.string.wall_function_load_bearing
+        WallFunction.SHEAR -> R.string.wall_function_shear
+        WallFunction.RETAINING -> R.string.wall_function_retaining
+        WallFunction.PARAPET -> R.string.wall_function_parapet
+    },
+)
+
+/**
+ * A ready-made wall, as the one line that tells you what it is.
+ *
+ * `Tuğla 200 · Bölme` — the material and thickness are what gets drawn, the
+ * function is what the schedules will be made of, and neither is worth a second
+ * line in a strip along the top of the sheet.
+ */
+@Composable
+@ReadOnlyComposable
+public fun WallType.adi(): String = stringResource(
+    R.string.wall_type_name,
+    "${material.adi()} ${Math.round(thicknessMm)}",
+    function.adi(),
 )
 
 /**

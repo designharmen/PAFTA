@@ -144,3 +144,32 @@ class Viewport2DTest {
         assertEquals(100.0, v.lengthToModel(25.0), 1e-12)
     }
 }
+
+/** What happens to the view when the thing it is drawn on changes size. */
+class ViewportResizeTest {
+
+    @Test
+    fun `whatever was in the middle is still in the middle`() {
+        val view = Viewport2D(scale = 0.05, panX = 120.0, panY = 340.0)
+        val middleBefore = view.toModel(Vec2(500.0, 400.0))
+
+        // The settings strip appears: 41px off the height. The panel opens:
+        // 233px off the width.
+        val after = view.resized(1000.0, 800.0, 767.0, 759.0)
+        val middleAfter = after.toModel(Vec2(767.0 / 2.0, 759.0 / 2.0))
+
+        assertTrue(middleBefore.distanceTo(middleAfter) < 1e-9)
+    }
+
+    @Test
+    fun `the scale is not touched, so nothing zooms`() {
+        val view = Viewport2D(scale = 0.037, panX = -50.0, panY = 900.0)
+        assertEquals(0.037, view.resized(1000.0, 800.0, 400.0, 1200.0).scale, 1e-12)
+    }
+
+    @Test
+    fun `a surface that did not change leaves the view exactly as it was`() {
+        val view = Viewport2D(scale = 0.05, panX = 120.0, panY = 340.0)
+        assertEquals(view, view.resized(1000.0, 800.0, 1000.0, 800.0))
+    }
+}

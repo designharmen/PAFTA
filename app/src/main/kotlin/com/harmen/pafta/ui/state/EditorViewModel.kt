@@ -19,7 +19,10 @@ import com.harmen.pafta.project.AnnotationKind
 import com.harmen.pafta.project.AutoSavePolicy
 import com.harmen.pafta.project.DoorSwing
 import com.harmen.pafta.project.DrawingDocument
+import com.harmen.pafta.project.BlockGroup
+import com.harmen.pafta.project.CatalogueBlock
 import com.harmen.pafta.project.DrawnShape
+import com.harmen.pafta.project.WallType
 import com.harmen.pafta.project.FloorFinish
 import com.harmen.pafta.project.SlabKind
 import com.harmen.pafta.project.slabPlans
@@ -290,6 +293,7 @@ public class EditorViewModel(
             Tool.ZONE -> placeZone(point)
             Tool.SLAB -> placeSlab(point)
             Tool.COLUMN -> placeColumn(point, toleranceMm)
+            Tool.FURNITURE -> placeBlock(point, toleranceMm)
             in PAIRED_TOOLS -> pairedPick(point, toleranceMm)
             in DRAWING_TOOLS -> drawPick(point, toleranceMm)
             else -> Unit
@@ -559,6 +563,70 @@ public class EditorViewModel(
             )
         }
         rebuildSnapCandidates()
+    }
+
+    /**
+     * A piece of the library where the user tapped.
+     *
+     * Snapped like everything else that is placed, so a bed lands on a round
+     * number and the next one lines up with it. It is selected straight away,
+     * because the first thing anybody does after putting a sofa down is turn it
+     * to face the right way.
+     */
+    private fun placeBlock(point: Vec2, toleranceMm: Double) {
+        val landed = snap(
+            pick = point,
+            segments = snapCandidates.near(point, toleranceMm),
+            tolerance = toleranceMm,
+            gridSpacing = if (_state.value.gridVisible) _state.value.gridSpacingMm else null,
+        ).point
+
+        val piece = DrawnShape.Block(
+            id = newShapeId(),
+            block = _state.value.block,
+            at = Vec3(landed.x, landed.y, 0.0),
+        )
+
+        edit { s ->
+            s.copy(
+                shapes = s.shapes + piece,
+                layers = s.layers.including(piece.layer),
+                selectedShapeId = piece.id,
+            )
+        }
+    }
+
+    /** Opens a drawer of the library, and picks the first thing in it. */
+    public fun selectBlockGroup(group: BlockGroup) {
+        val first = CatalogueBlock.entries.first { it.group == group }
+        _state.update {
+            it.copy(blockGroup = group, block = first, activeTool = Tool.FURNITURE)
+        }
+    }
+
+    /** Picks the piece the furniture tool places. */
+    public fun selectBlock(block: CatalogueBlock) {
+        _state.update {
+            it.copy(block = block, blockGroup = block.group, activeTool = Tool.FURNITURE)
+        }
+    }
+
+    /**
+     * Sets the wall tool from one of the ready-made walls.
+     *
+     * A preset is three settings in one tap — what it is made of, how thick it
+     * is, and what it is for — which is how an architect thinks about a wall and
+     * not how three separate buttons make them think about it.
+     */
+    public fun selectWallType(type: WallType) {
+        _state.update {
+            it.copy(
+                wallType = type,
+                wallMaterial = type.material,
+                wallThicknessMm = type.thicknessMm,
+                activeTool = Tool.WALL,
+            )
+        }
     }
 
     /** What the column tool places with. */
@@ -913,7 +981,10 @@ public class EditorViewModel(
 
     /** Sets the thickness the wall tool draws with, in millimetres. */
     public fun selectWallThickness(thicknessMm: Double) {
-        _state.update { it.copy(wallThicknessMm = thicknessMm, activeTool = Tool.WALL) }
+        // The preset goes: it named a thickness, and this is a different one.
+        _state.update {
+            it.copy(wallThicknessMm = thicknessMm, wallType = null, activeTool = Tool.WALL)
+        }
     }
 
     // --- Drawing by dragging -------------------------------------------------
@@ -1025,7 +1096,7 @@ public class EditorViewModel(
 
     /** Sets what the wall tool builds with; this also decides its layer. */
     public fun selectWallMaterial(material: WallMaterial) {
-        _state.update { it.copy(wallMaterial = material, activeTool = Tool.WALL) }
+        _state.update { it.copy(wallMaterial = material, wallType = null, activeTool = Tool.WALL) }
     }
 
     /**

@@ -150,6 +150,12 @@ public fun PaftaScreen(
                     onSlabThicknessSelected = viewModel::selectSlabThickness,
                     slabKind = state.slabKind,
                     onSlabKindSelected = viewModel::selectSlabKind,
+                    blockGroup = state.blockGroup,
+                    onBlockGroupSelected = viewModel::selectBlockGroup,
+                    block = state.block,
+                    onBlockSelected = viewModel::selectBlock,
+                    wallType = state.wallType,
+                    onWallTypeSelected = viewModel::selectWallType,
                 )
                 HairlineDivider()
 

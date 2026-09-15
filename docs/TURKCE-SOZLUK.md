@@ -31,7 +31,7 @@ gerçekten çalışan çizim araçları aldı.
 | Floor / Slab | **Döşeme** |
 | Column | **Kolon** |
 | Beam | **Kiriş** |
-| Furniture | **Mobilya** (henüz hazır değil, soluk) |
+| Furniture | **Mobilya** |
 | Elements | **Yapı** (sütun başlığı) |
 | Open / Close panel | **Paneli aç** / **Paneli kapat** |
 
@@ -50,6 +50,21 @@ gerçekten çalışan çizim araçları aldı.
 | Beam width | **Kiriş genişliği** |
 | Slab thickness | **Döşeme kalınlığı** |
 | What it is | **Ne olacak** → **Kat döşemesi** / **Teras çatı** |
+
+## Kütüphane (Mobilya aracı)
+
+Beş çekmece: **Oturma** · **Yemek** · **Yatak odası** · **Mutfak** · **Banyo**
+
+Berjer · İkili kanepe · Üçlü kanepe · Sehpa · TV ünitesi · Masa (4 kişilik) ·
+Masa (6 kişilik) · Yuvarlak masa · Sandalye · Tek kişilik yatak · Çift kişilik
+yatak · Gardırop · Komodin · Çalışma masası · Tezgâh · Evye · Ocak · Buzdolabı ·
+Klozet · Lavabo · Duş teknesi · Küvet
+
+## Hazır duvarlar (yirmi tip)
+
+Duvar aracının ayar şeridinde, adı **malzeme + kalınlık · görev** biçiminde:
+örneğin *Beton 300 · Perde*. Görevler: **Bölme** · **Taşıyıcı** · **Perde** ·
+**İstinat** · **Parapet**
 
 ## Döşeme kaplamaları (şartnamedeki yirmi kaplama)
 

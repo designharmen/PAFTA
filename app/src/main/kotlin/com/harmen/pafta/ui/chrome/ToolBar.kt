@@ -58,7 +58,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.harmen.pafta.R
 import com.harmen.pafta.measure.MeasurementKind
+import com.harmen.pafta.project.BlockGroup
+import com.harmen.pafta.project.CatalogueBlock
 import com.harmen.pafta.project.OpeningKind
+import com.harmen.pafta.project.WallType
 import com.harmen.pafta.project.SlabKind
 import com.harmen.pafta.project.WallMaterial
 import com.harmen.pafta.ui.adi
@@ -155,12 +158,18 @@ public fun ToolOptionsBar(
     onSlabThicknessSelected: (Double) -> Unit = {},
     slabKind: SlabKind = SlabKind.FLOOR,
     onSlabKindSelected: (SlabKind) -> Unit = {},
+    blockGroup: BlockGroup = BlockGroup.SEATING,
+    onBlockGroupSelected: (BlockGroup) -> Unit = {},
+    block: CatalogueBlock = CatalogueBlock.SOFA_THREE,
+    onBlockSelected: (CatalogueBlock) -> Unit = {},
+    wallType: WallType? = null,
+    onWallTypeSelected: (WallType) -> Unit = {},
 ) {
     val chainable = activeTool in CHAINABLE && pendingPickCount > 0
     val hasSomethingToSay = when (activeTool) {
         Tool.WALL -> true
         Tool.DOOR, Tool.WINDOW -> true
-        Tool.ZONE, Tool.SLAB, Tool.COLUMN, Tool.BEAM -> true
+        Tool.ZONE, Tool.SLAB, Tool.COLUMN, Tool.BEAM, Tool.FURNITURE -> true
         Tool.MEASURE -> true
         Tool.SELECT -> selectedShapeId != null
         in PAIRED_TOOLS -> true
@@ -181,6 +190,20 @@ public fun ToolOptionsBar(
         ) {
             when (activeTool) {
                 Tool.WALL -> {
+                    // The catalogue first: one tap that says what the wall is,
+                    // rather than three that say what it measures. The loose
+                    // buttons stay after it for a wall that is not one of the
+                    // twenty, and picking one of those drops the preset.
+                    OptionGroup(R.string.option_wall_type) {
+                        for (type in WallType.entries) {
+                            OptionChip(
+                                text = type.adi(),
+                                selected = type == wallType,
+                                onClick = { onWallTypeSelected(type) },
+                                swatch = { MaterialSwatch(type.material, size = 16.dp) },
+                            )
+                        }
+                    }
                     OptionGroup(R.string.option_thickness) {
                         for (thickness in WALL_THICKNESSES_MM) {
                             OptionChip(
@@ -279,6 +302,31 @@ public fun ToolOptionsBar(
                         )
                     }
                     BarNote(R.string.hint_place_column)
+                }
+
+                Tool.FURNITURE -> {
+                    // Two steps, because twenty-two pieces in one row is a row
+                    // nobody scrolls to the end of: which room, then which
+                    // piece in it.
+                    OptionGroup(R.string.option_furniture_group) {
+                        for (group in BlockGroup.entries) {
+                            OptionChip(
+                                text = group.adi(),
+                                selected = group == blockGroup,
+                                onClick = { onBlockGroupSelected(group) },
+                            )
+                        }
+                    }
+                    OptionGroup(R.string.option_furniture_piece) {
+                        for (piece in CatalogueBlock.entries.filter { it.group == blockGroup }) {
+                            OptionChip(
+                                text = piece.adi(),
+                                selected = piece == block,
+                                onClick = { onBlockSelected(piece) },
+                            )
+                        }
+                    }
+                    BarNote(R.string.hint_place_furniture)
                 }
 
                 Tool.BEAM -> {
