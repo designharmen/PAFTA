@@ -7,6 +7,7 @@ import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /** Importing somebody else's 3D model, and opening it. */
@@ -301,4 +302,102 @@ class ConverterTest {
         ).toByteArray()
 
     private val objBytes2 = "v 0 0 0\nv 1000 0 0\nv 1000 1000 0\nf 1 2 3\n".toByteArray()
+}
+
+/** Recognising a file by what is in it, not by what it is called. */
+class SniffTest {
+
+    private lateinit var root: java.io.File
+    private lateinit var store: ProjectStore
+
+    @BeforeTest
+    fun setUp() {
+        root = kotlin.io.path.createTempDirectory("pafta-sniff").toFile()
+        store = ProjectStore(root)
+    }
+
+    @AfterTest
+    fun tearDown() {
+        root.deleteRecursively()
+    }
+
+    private val objText = "# bir ev\nv 0 0 0\nv 1000 0 0\nv 1000 1000 0\nf 1 2 3\n"
+    private val stlText = "solid ev\nfacet normal 0 0 1\nouter loop\n" +
+        "vertex 0 0 0\nvertex 1000 0 0\nvertex 0 1000 0\nendloop\nendfacet\nendsolid ev"
+    private val plyText = "ply\nformat ascii 1.0\nelement vertex 3\n" +
+        "property float x\nproperty float y\nproperty float z\n" +
+        "element face 1\nproperty list uchar int vertex_indices\nend_header\n" +
+        "0 0 0\n1 0 0\n1 1 0\n3 0 1 2\n"
+
+    @Test
+    fun `each readable format is recognised from its own bytes`() {
+        assertEquals(FileFormat.OBJ, FileFormat.sniff(objText.toByteArray()))
+        assertEquals(FileFormat.STL, FileFormat.sniff(stlText.toByteArray()))
+        assertEquals(FileFormat.PLY, FileFormat.sniff(plyText.toByteArray()))
+
+        val glb = "glTF".toByteArray() + ByteArray(32)
+        assertEquals(FileFormat.GLB, FileFormat.sniff(glb))
+
+        val gltf = """{"asset":{"version":"2.0"},"meshes":[]}""".toByteArray()
+        assertEquals(FileFormat.GLTF, FileFormat.sniff(gltf))
+
+        val dxf = "  0\nSECTION\n  2\nENTITIES\n  0\nENDSEC\n  0\nEOF\n".toByteArray()
+        assertEquals(FileFormat.DXF, FileFormat.sniff(dxf))
+    }
+
+    @Test
+    fun `a binary STL is recognised by its size, not by the word at the front`() {
+        val buffer = java.nio.ByteBuffer.allocate(84 + 50 * 2)
+            .order(java.nio.ByteOrder.LITTLE_ENDIAN)
+        // The trap: a binary file whose header begins with `solid`.
+        buffer.put("solid exported by something".toByteArray().copyOf(80))
+        buffer.putInt(2)
+        repeat(2) {
+            repeat(12) { buffer.putFloat(1f) }
+            buffer.putShort(0)
+        }
+        assertEquals(FileFormat.STL, FileFormat.sniff(buffer.array()))
+    }
+
+    @Test
+    fun `something that is not a model at all is not guessed at`() {
+        assertNull(FileFormat.sniff("merhaba dünya".toByteArray()))
+        assertNull(FileFormat.sniff(ByteArray(0)))
+        assertNull(FileFormat.sniff(ByteArray(200) { 0 }))
+    }
+
+    @Test
+    fun `a file whose name says nothing is imported by what is in it`() {
+        // What a download or a cloud drive actually hands over: no extension.
+        val entry = assertIs<StoreResult.Success<ProjectEntry>>(
+            store.import("indirilen dosya", objText.toByteArray()),
+        ).value
+        assertEquals(FileFormat.OBJ, entry.format)
+
+        val opened = assertIs<StoreResult.Success<PaftaProject>>(store.open(entry.file)).value
+        assertEquals(1, assertIs<StoreResult.Success<ModelDocument>>(opened.openAsModel()).value.faces.size)
+    }
+
+    @Test
+    fun `the name still wins when it says something`() {
+        // An OBJ named .obj stays an OBJ; sniffing is the fallback, not a vote.
+        val entry = assertIs<StoreResult.Success<ProjectEntry>>(
+            store.import("ev.obj", objText.toByteArray()),
+        ).value
+        assertEquals(FileFormat.OBJ, entry.format)
+        assertEquals("ev.obj", entry.manifest.source.fileName)
+    }
+
+    @Test
+    fun `a file with neither a usable name nor recognisable contents is still refused`() {
+        val outcome = store.import("birsey", ByteArray(500) { 3 })
+        assertIs<StoreFailure.UnknownFormat>(assertIs<StoreResult.Failure>(outcome).failure)
+    }
+
+    @Test
+    fun `a DWG is not sniffed into something it is not`() {
+        // Real DWG files begin with a version string like AC1032.
+        val dwg = "AC1032".toByteArray() + ByteArray(300) { 0 }
+        assertNull(FileFormat.sniff(dwg))
+    }
 }

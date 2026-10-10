@@ -86,6 +86,75 @@ public enum class FileFormat(
             return entries.firstOrNull { it.extension == token }
         }
 
+        /**
+         * What the bytes say they are, whatever the file is called.
+         *
+         * Android hands over a display name from whichever app the file came
+         * from, and that name is not always what the file is: a download may
+         * arrive as `model(1)`, a cloud drive may hand over no extension at
+         * all, and a file renamed by hand is renamed by hand. Refusing a
+         * perfectly good model because of its name is the kind of failure
+         * nobody can diagnose from the outside.
+         *
+         * Only the formats PAFTA actually reads are sniffed. A DWG is still a
+         * DWG however it is recognised, and recognising it faster would not
+         * make it openable.
+         */
+        public fun sniff(bytes: ByteArray): FileFormat? {
+            if (bytes.isEmpty()) return null
+
+            // glTF's binary wrapper says its own name in the first four bytes.
+            if (bytes.size >= 12 && bytes.startsWith("glTF")) return GLB
+
+            // A binary STL is exactly 84 bytes plus 50 a triangle, and that is
+            // checked before the text sniffing below — a binary file is allowed
+            // to begin with the word `solid` too.
+            if (bytes.size >= 84) {
+                val count = (0 until 4).fold(0L) { total, i ->
+                    total or ((bytes[80 + i].toLong() and 0xFF) shl (8 * i))
+                }
+                if (bytes.size.toLong() == 84L + count * 50L && count > 0) return STL
+            }
+
+            val head = bytes.copyOfRange(0, minOf(bytes.size, SNIFF_BYTES))
+                .toString(Charsets.ISO_8859_1)
+            val trimmed = head.trimStart()
+
+            return when {
+                trimmed.startsWith("ply", ignoreCase = true) -> PLY
+
+                trimmed.startsWith("solid", ignoreCase = true) &&
+                    head.contains("facet", ignoreCase = true) -> STL
+
+                // glTF's text spelling is JSON with the one key every file has.
+                trimmed.startsWith("{") && head.contains("\"asset\"") -> GLTF
+
+                // DXF is a stream of group codes; every one of them opens the
+                // same way, whichever program wrote it.
+                head.contains("SECTION") &&
+                    (head.contains("HEADER") || head.contains("ENTITIES")) -> DXF
+
+                // OBJ has no header at all, so it is recognised by having both
+                // of the two things it is made of.
+                OBJ_VERTEX.containsMatchIn(head) && OBJ_FACE.containsMatchIn(head) -> OBJ
+
+                else -> null
+            }
+        }
+
+        private fun ByteArray.startsWith(text: String): Boolean {
+            val wanted = text.toByteArray(Charsets.US_ASCII)
+            if (size < wanted.size) return false
+            for (i in wanted.indices) if (this[i] != wanted[i]) return false
+            return true
+        }
+
+        /** Enough of the front of a file to recognise it by, and no more. */
+        private const val SNIFF_BYTES = 8192
+
+        private val OBJ_VERTEX = Regex("(?m)^\\s*v\\s+[-0-9.]")
+        private val OBJ_FACE = Regex("(?m)^\\s*f\\s+[-0-9]")
+
         /** Every extension the import picker should offer. */
         public val importableExtensions: List<String> =
             entries.filter { it != PAFTA }.map { it.extension }

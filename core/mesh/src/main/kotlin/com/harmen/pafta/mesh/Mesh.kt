@@ -44,6 +44,21 @@ public data class MeshFace(
 )
 
 /**
+ * True when every corner of this face is an actual number.
+ *
+ * Files written by other programs are allowed to contain anything, and some
+ * contain `nan` where a coordinate should be. One of those reaching the camera
+ * took the whole app down, so they are dropped here, at the door.
+ */
+internal fun MeshFace.isReal(): Boolean =
+    points.size >= 3 && points.all { it.x.isFinite() && it.y.isFinite() && it.z.isFinite() }
+
+/** Adds a face only if it is one. Every reader puts its faces through this. */
+internal infix fun MutableList<MeshFace>.addIfReal(face: MeshFace) {
+    if (face.isReal()) add(face)
+}
+
+/**
  * Why a model file could not be read. Data, not a sentence — the same rule the
  * rest of PAFTA keeps, so the Turkish is composed in one place at the surface.
  */

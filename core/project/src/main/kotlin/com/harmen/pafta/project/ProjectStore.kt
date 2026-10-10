@@ -63,10 +63,26 @@ public class ProjectStore(
         projectName: String = defaultProjectName(fileName),
     ): StoreResult<ProjectEntry> {
         val extension = fileName.substringAfterLast('.', "").lowercase(Locale.ROOT)
-        val format = FileFormat.of(fileName)
+        if (payload.isEmpty()) return StoreResult.Failure(StoreFailure.EmptyFile)
+
+        // The name first, the bytes second. Android hands over whatever display
+        // name the app the file came from chose to give it, and that is not
+        // always what the file is — a download arrives as `model(1)`, a cloud
+        // drive hands over no extension at all, a file gets renamed by hand.
+        // Refusing a perfectly good model over its name is a failure nobody can
+        // diagnose from the outside, so when the name says nothing useful the
+        // file is asked what it is.
+        val named = FileFormat.of(fileName)
+        val format = named
+            ?: FileFormat.sniff(payload)
             ?: return StoreResult.Failure(StoreFailure.UnknownFormat(extension))
 
-        if (payload.isEmpty()) return StoreResult.Failure(StoreFailure.EmptyFile)
+        // Stored under the name the format actually is, so everything
+        // downstream — the chip in the library, the viewer it opens in, the
+        // exporter — reads one answer rather than two.
+        val storedName =
+            if (named != null) fileName else "$fileName.${format.extension}"
+
         if (payload.size > importLimitBytes) {
             return StoreResult.Failure(
                 StoreFailure.TooLarge(payload.size.toLong(), importLimitBytes),
@@ -86,7 +102,7 @@ public class ProjectStore(
         val now = clock()
         val project = newProject(
             projectName = projectName,
-            fileName = fileName,
+            fileName = storedName,
             payload = payload,
             nowEpochMs = now,
             importedFrom = importedFrom,

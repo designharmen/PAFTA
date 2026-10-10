@@ -148,19 +148,30 @@ public data class Camera3D(
         public fun framing(bounds: Aabb, fovDegrees: Double = 45.0): Camera3D {
             if (bounds.isEmpty) return Camera3D(fovDegrees = fovDegrees)
 
+            // Everything from here down is written as though the numbers might
+            // not be numbers, because they might not be: a model file PAFTA did
+            // not write can hold anything at all. The camera is built with
+            // `require`, so a single bad coordinate used to take the whole app
+            // down rather than showing a model with a bad coordinate in it.
             val size = bounds.size
-            val across = max(max(abs(size.x), abs(size.y)), abs(size.z))
-            // Far enough that the whole of it is inside the angle of view, with
-            // a little air round it.
+            val across = listOf(size.x, size.y, size.z)
+                .filter { it.isFinite() }
+                .maxOfOrNull { abs(it) }
+                ?: return Camera3D(fovDegrees = fovDegrees)
+
             val distance = max(
                 1000.0,
                 (across / 2.0) / tan(Math.toRadians(fovDegrees) / 2.0) * 1.9,
             )
-            return Camera3D(
-                target = bounds.center,
-                distanceMm = distance,
-                fovDegrees = fovDegrees,
-            )
+            if (!distance.isFinite()) return Camera3D(fovDegrees = fovDegrees)
+
+            val middle = bounds.center
+            val target = if (middle.x.isFinite() && middle.y.isFinite() && middle.z.isFinite()) {
+                middle
+            } else {
+                Vec3.ZERO
+            }
+            return Camera3D(target = target, distanceMm = distance, fovDegrees = fovDegrees)
         }
     }
 }

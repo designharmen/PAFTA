@@ -66,7 +66,7 @@ public object ObjReader {
                     }
                     // A face of two points is a line, not a face; it is dropped
                     // rather than treated as a sliver of no area.
-                    if (corners.size >= 3) faces += MeshFace(corners, group)
+                    if (corners.size >= 3) faces addIfReal MeshFace(corners, group)
                 }
             }
         }

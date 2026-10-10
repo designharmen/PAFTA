@@ -1353,3 +1353,60 @@ readable and actually imports and opens a sample of each. A format marked
 readable with no entry in the converter would be a file that imports, opens, and
 shows nothing — which is the exact failure this project has spent the most time
 stamping out.
+
+---
+
+## "Hiçbiri açılmıyor" — one real crash, one real gap, and a way to tell
+
+The owner updated to yapım 44 and reported that none of the formats opened. Two
+things came out of looking rather than guessing, and a third was built so that
+this question never has to be asked blind again.
+
+### A single bad coordinate took the whole app down
+
+`Camera3D` is built with `require(distanceMm > 0.0 && isFinite)`, which is right
+for geometry PAFTA writes itself. `Camera3D.framing` computed that distance from
+the model's extent — and a model file PAFTA did not write **is allowed to
+contain anything**, including `nan` where a coordinate should be. One of those
+anywhere in a file made the extent not-a-number, which made the distance
+not-a-number, which threw.
+
+Not an error message: a crash, on the frame the model first appeared. The test
+that finds it is three lines and should have been written the day the camera
+was. It is fixed at both ends — `framing` now treats every number as suspect and
+falls back rather than throwing, and the readers drop any face with a corner
+that is not a number at the door, through one shared `addIfReal`.
+
+### A file is now recognised by what is in it
+
+Android hands over whatever display name the app the file came from chose to
+give it. A download arrives as `model(1)`, a cloud drive hands over no extension
+at all, a file gets renamed by hand. `FileFormat.of(fileName)` returning null
+then refused a perfectly good model over its name — which is exactly the kind of
+failure nobody can diagnose from the outside, and exactly the kind that produces
+"none of them open".
+
+`FileFormat.sniff` now asks the bytes: `glTF` in the first four for GLB, the
+84-plus-50-a-triangle size rule for binary STL (checked *before* the text rules,
+because a binary STL may begin with the word `solid` too), `ply`, JSON with an
+`asset` key for glTF, `SECTION` with `HEADER` or `ENTITIES` for DXF, and both a
+`v` line and an `f` line for OBJ, which has no header at all. The name still
+wins when it says something; sniffing is the fallback, not a vote. A DWG is
+deliberately not sniffed — recognising it faster would not make it openable.
+
+### Three real files, in the repository and in the owner's hands
+
+Every other test in this module builds its sample inline, which proves the
+reader against *what the test author believed the format was*. `RealFileTest`
+reads three whole files of a small house — four walls, a floor slab, a pitched
+roof — as OBJ, STL and GLB, through the same import-and-open path the tablet
+runs, and checks all three describe a house 6m by 4m with its ridge at 4.3m.
+
+The same three files went to the owner. That is the point of them: with a file
+that is *known* to work, "it does not open on my tablet" and "it does not open
+at all" stop being the same report.
+
+### What this does not fix
+
+Nothing here makes DWG or SKP open, and the owner's own files are almost
+certainly those two. That remains true and remains said plainly.

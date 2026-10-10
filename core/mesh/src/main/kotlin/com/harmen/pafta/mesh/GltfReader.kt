@@ -134,7 +134,7 @@ public object GltfReader {
                     if (faces.size < FACE_BUDGET) {
                         val corners = (0..2).mapNotNull { positions.getOrNull(indices[i + it]) }
                         if (corners.size == 3) {
-                            faces += MeshFace(corners.map { placement.applyTo(it) }, label)
+                            faces addIfReal MeshFace(corners.map { placement.applyTo(it) }, label)
                         }
                     }
                     i += 3

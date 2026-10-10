@@ -149,7 +149,7 @@ public object PlyReader {
                             if (index in points.indices) corners += points[index]
                         }
                     }
-                    if (corners.size >= 3 && faces.size < FACE_BUDGET) faces += MeshFace(corners)
+                    if (corners.size >= 3 && faces.size < FACE_BUDGET) faces addIfReal MeshFace(corners)
                 } else {
                     // Something this reader has no use for — colours, normals,
                     // a camera. Stepped over by the header's own description of
@@ -212,7 +212,7 @@ public object PlyReader {
                             }
                         }
                         if (corners.size >= 3 && faces.size < FACE_BUDGET) {
-                            faces += MeshFace(corners)
+                            faces addIfReal MeshFace(corners)
                         }
                     }
 

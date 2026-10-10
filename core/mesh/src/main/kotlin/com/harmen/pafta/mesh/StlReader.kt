@@ -62,7 +62,7 @@ public object StlReader {
                     readFloat(bytes, base + 8).toDouble(),
                 )
             }
-            faces += MeshFace(corners)
+            faces addIfReal MeshFace(corners)
             at += TRIANGLE
             read++
         }
@@ -94,7 +94,7 @@ public object StlReader {
                 line.startsWith("endfacet", ignoreCase = true) -> {
                     inFile++
                     if (corners.size >= 3 && faces.size < FACE_BUDGET) {
-                        faces += MeshFace(corners.toList(), name)
+                        faces addIfReal MeshFace(corners.toList(), name)
                     }
                     corners = ArrayList(3)
                 }
