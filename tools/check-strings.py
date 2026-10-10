@@ -38,6 +38,10 @@ it does so four minutes into a CI run. This catches them in a second:
     interface draws from — this one compiles perfectly and simply leaves the
     tool off the screen, which is worse than a build failure because nothing
     reports it
+  * a loose `filterIsInstance` inside a `buildList` — it takes an `Iterable<*>`
+    so it binds to the list being built rather than to the function's own
+    receiver, filters the output instead of the input, and compiles, runs and
+    quietly returns nothing
 
 Exits non-zero and prints the file and line on the first real problem found.
 """
@@ -647,6 +651,44 @@ def check_tool_placement() -> list[str]:
     return []
 
 
+def check_build_list_receiver() -> list[str]:
+    """`filterIsInstance` inside `buildList` must say what it is filtering.
+
+    `buildList { ... }` puts a `MutableList` in scope as `this`. Most of this
+    project's own extensions need a `List<DrawnShape>` and so cannot bind to it
+    — but `filterIsInstance` is declared on `Iterable<*>`, which the list being
+    built satisfies perfectly. So it binds to the output, filters the wrong
+    collection, and returns an empty list.
+
+    Nothing reports that. It compiles, it runs, and the feature is simply
+    missing: the first version of the 3D view stood up an empty building for
+    exactly this reason. The fix is always to name what is being filtered, so
+    the rule here is that inside a `buildList` the call must be qualified —
+    `shapes.filterIsInstance<...>()` or `this@name.filterIsInstance<...>()`.
+    """
+    problems: list[str] = []
+    for directory in ALL_KOTLIN_DIRS:
+        if not directory.is_dir():
+            continue
+        for path in sorted(directory.rglob("*.kt")):
+            text = _without_comments_and_strings(path.read_text())
+            for found in re.finditer(r"\bbuildList\s*(?:<[^>]*>\s*)?\{", text):
+                body, _ = _balanced(text, text.index("{", found.start()))
+                for call in re.finditer(r"(.{0,2})\bfilterIsInstance\s*<", body):
+                    before = call.group(1)
+                    # Qualified calls end in a dot: `shapes.` or `this@x.`.
+                    if before.endswith("."):
+                        continue
+                    line = text.count("\n", 0, found.start()) + \
+                        body.count("\n", 0, call.start()) + 1
+                    problems.append(
+                        f"{path.name}:{line} — `buildList` içinde başıboş "
+                        "`filterIsInstance`: kurulan listeyi süzer, gelen listeyi "
+                        "değil. Neyi süzdüğünü yaz (ör. `shapes.filterIsInstance`)."
+                    )
+    return problems
+
+
 def main() -> int:
     if not STRINGS.exists():
         fail(f"{STRINGS} bulunamadı")
@@ -676,6 +718,7 @@ def main() -> int:
         + check_modifier_imports()
         + check_enum_branches()
         + check_tool_placement()
+        + check_build_list_receiver()
     )
 
     if problems:

@@ -1129,3 +1129,84 @@ that still claims to be selected after its numbers were changed is a preset
 that is lying. A wall from the catalogue lands on exactly the same layer as one
 built from the loose buttons: one wall, one layer, whichever door it came
 through.
+
+---
+
+## 3D, brought forward
+
+The owner: *"Şuanlık mimari işlemleri dondur. Derhal 3d görüntüleme eklentilerini
+aktif hale getir."*
+
+There are two things that could mean, and they are very different jobs.
+
+**Phase J as written** is Filament, glTF, and a 3D *file* viewer — for models
+made somewhere else. It needs the NDK, a native renderer and an asset pipeline,
+and when it is finished it still shows nothing the owner has drawn, because
+PAFTA has no glTF reader either. It is weeks of work ending in a demo of
+somebody else's teapot.
+
+**The building the owner has already drawn**, standing up, is a different thing
+entirely — and it was almost free, because *PAFTA has been storing the third
+dimension since the very first wall*. A wall has a height. A door has a height
+and a sill. A column has a height, a slab has a thickness and a level, and the
+furniture catalogue knows a wardrobe is 2m and a bath is 550. None of it had
+ever appeared anywhere, because a plan is a horizontal cut and a height does
+not show in one. All that was missing was somewhere to look at it from.
+
+So that is what was built, and phase J's file viewer stays where it was.
+
+### No renderer, no native code, no licence question
+
+`Camera3D` in `core:geometry` is an orbit camera — a target, a distance, a
+compass bearing and a height — that projects a model point onto the glass and
+says how far away it was. `Model3D` in `core:project` turns shapes into flat
+faces. The viewport sorts them back to front and fills them in that order.
+
+That is the oldest trick in the subject and it is exactly right here. A house
+is a few hundred flat faces, none of them passing through another — walls meet
+at their faces, a floor stops at the wall it meets. A depth buffer and a
+graphics pipeline would buy nothing and cost a native dependency, a licence
+question, and the thing this project values most: **every piece of the
+arithmetic is in `core` and has tests**, on a machine with no screen.
+
+### The openings are the whole job
+
+A wall with a door in it is not a rectangle with a door painted on. It is the
+piece of wall before the door, the piece after it, the lintel over it — and for
+a window, the wall under the sill as well — plus the reveals you see looking
+into the opening, which are what give a doorway depth instead of leaving a hole
+with no sides. Two doors in one wall is five pieces a side.
+
+`Model3DTest` checks a doorway is actually open (no face spans it below head
+height), that a window has wall under it, that a door as tall as its wall gets
+jambs but no head, and that an opening wider than its own wall does not push
+the wall out past its own ends.
+
+Faces are wound so every one looks outwards, whichever way round the hand drew
+the shape — otherwise half of everything on a plan comes out inside-out and is
+shaded as though lit from within. One fixed light, high and over the left
+shoulder, which is where architectural drawings have been lit from for two
+hundred years.
+
+### The mistake worth keeping
+
+The first version of `toFaces` did all its work inside `buildList`:
+
+```kotlin
+public fun List<DrawnShape>.toFaces(): List<Face3> = buildList {
+    val walls = filterIsInstance<DrawnShape.Wall>()   // ← the WRONG list
+    ...
+}
+```
+
+Inside `buildList`, `this` is the list being built. Most of this project's own
+extensions need a `List<DrawnShape>` and so cannot bind to it — but
+`filterIsInstance` is declared on `Iterable<*>`, which a `MutableList<Face3>`
+satisfies perfectly. So it bound to the output, filtered the wrong collection,
+returned nothing, and **compiled and ran without a word**. It stood up an empty
+building.
+
+Thirteen tests failed at once, which is how it was found in seconds rather than
+on the device. `tools/check-strings.py` now refuses a loose `filterIsInstance`
+inside a `buildList` — it must name what it is filtering — and the check was
+verified by putting the exact mistake back.

@@ -2,6 +2,7 @@ package com.harmen.pafta.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -27,6 +28,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.harmen.pafta.R
 import com.harmen.pafta.dxf.DxfDrawing
@@ -38,6 +40,7 @@ import com.harmen.pafta.project.isBand
 import com.harmen.pafta.project.lengthMm
 import com.harmen.pafta.project.openingPlans
 import com.harmen.pafta.project.slabPlans
+import com.harmen.pafta.project.toFaces
 import com.harmen.pafta.project.wallBands
 import com.harmen.pafta.project.zonePlans
 import com.harmen.pafta.ui.chrome.DrawingToolBar
@@ -54,6 +57,7 @@ import com.harmen.pafta.ui.state.UiError
 import com.harmen.pafta.ui.theme.HarmenColours
 import com.harmen.pafta.ui.theme.HarmenType
 import com.harmen.pafta.ui.theme.LocalCompactLayout
+import com.harmen.pafta.ui.viewport.ModelViewport
 import com.harmen.pafta.ui.viewport.PlanViewport
 import com.harmen.pafta.ui.viewport.RoomLabel
 import com.harmen.pafta.units.AreaUnit
@@ -96,6 +100,11 @@ public fun PaftaScreen(
     // opened to type a wall length into.
     var panelOpen by rememberSaveable { mutableStateOf(false) }
 
+    // Which of the two views is showing. Kept here rather than in the document,
+    // because looking at the building from a different side is not an edit and
+    // has no business in the undo history.
+    var showingModel by rememberSaveable { mutableStateOf(false) }
+
     BoxWithConstraints(modifier.fillMaxSize().background(HarmenColours.Ground)) {
         val compact = maxWidth < COMPACT_WIDTH
 
@@ -109,15 +118,22 @@ public fun PaftaScreen(
                     onUndo = viewModel::undo,
                     onRedo = viewModel::redo,
                     dirty = state.dirty,
+                    showingModel = showingModel,
+                    onShowModel = { showingModel = it },
                 )
 
-                DrawingToolBar(
-                    activeTool = state.activeTool,
-                    onToolSelected = viewModel::selectTool,
-                    compact = compact,
-                )
+                // The drawing tools belong to the plan. In the 3D view they
+                // would be a row of buttons that answer a tap with nothing,
+                // which is the one thing this interface has a rule against.
+                if (!showingModel) {
+                    DrawingToolBar(
+                        activeTool = state.activeTool,
+                        onToolSelected = viewModel::selectTool,
+                        compact = compact,
+                    )
+                }
 
-                ToolOptionsBar(
+                if (!showingModel) ToolOptionsBar(
                     activeTool = state.activeTool,
                     wallThicknessMm = state.wallThicknessMm,
                     onWallThicknessSelected = viewModel::selectWallThickness,
@@ -177,7 +193,33 @@ public fun PaftaScreen(
                         slabLabels[slab.id] = listOf(slab.kind.adi(), slab.finish.adi())
                     }
 
-                    PlanViewport(
+                    if (showingModel) {
+                        // Everything the plan has been storing about height
+                        // since the first wall, finally standing up.
+                        val faces = remember(state.shapes) { state.shapes.toFaces() }
+                        Box(Modifier.weight(1f).fillMaxHeight()) {
+                            ModelViewport(
+                                faces = faces,
+                                layers = state.layers,
+                                highlightedId = state.selectedShapeId,
+                            )
+                            if (faces.isEmpty()) {
+                                ModelNote(
+                                    text = stringResource(R.string.model_empty),
+                                    modifier = Modifier
+                                        .align(Alignment.Center)
+                                        .padding(horizontal = 32.dp),
+                                )
+                            } else {
+                                ModelNote(
+                                    text = stringResource(R.string.model_hint),
+                                    modifier = Modifier
+                                        .align(Alignment.BottomCenter)
+                                        .padding(bottom = 16.dp),
+                                )
+                            }
+                        }
+                    } else PlanViewport(
                         drawing = drawing,
                         layers = state.layers,
                         measurements = state.measurements,
@@ -316,6 +358,27 @@ public fun PaftaScreen(
             }
         }
     }
+}
+
+/**
+ * A quiet line over the 3D view: what to do, or why there is nothing to see.
+ *
+ * Not tappable and not dismissible, because it is not telling the user that
+ * anything went wrong — it is telling them how the view works, which is a thing
+ * they want again the next time they open it.
+ */
+@Composable
+private fun ModelNote(text: String, modifier: Modifier = Modifier) {
+    Text(
+        text = text,
+        style = HarmenType.Status,
+        color = HarmenColours.TextMuted,
+        textAlign = TextAlign.Center,
+        modifier = modifier
+            .clip(RoundedCornerShape(8.dp))
+            .background(HarmenColours.Panel.copy(alpha = 0.85f))
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+    )
 }
 
 /**

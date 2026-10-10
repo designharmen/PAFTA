@@ -21,6 +21,10 @@
     <string name="panel_open">Paneli aç</string>
     <string name="panel_close">Paneli kapat</string>
     <string name="rail_elements">Yapı</string>
+    <string name="view_plan">Plan</string>
+    <string name="view_model">3B</string>
+    <string name="model_empty">Burada gösterilecek bir şey yok. Önce plana duvar çiz; duvarlar, kolonlar ve döşemeler burada ayağa kalkar.</string>
+    <string name="model_hint">tek parmakla çevir · iki parmakla yaklaş ve kaydır</string>
 
     <!-- ===== Sol araç paneli ===== -->
     <string name="tool_select">Seç</string>

@@ -23,6 +23,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -56,6 +57,9 @@ public fun PaftaTopBar(
     onRedo: () -> Unit = {},
     /** Shows the unsaved-work dot next to the project name. */
     dirty: Boolean = false,
+    /** Whether the 3D view is showing instead of the plan. */
+    showingModel: Boolean = false,
+    onShowModel: (Boolean) -> Unit = {},
 ) {
     val unsavedDescription = stringResource(R.string.unsaved_changes)
     val homeDescription = stringResource(R.string.nav_back_to_projects)
@@ -110,6 +114,13 @@ public fun PaftaTopBar(
                 }
             }
 
+            // Plan or building. Two words rather than an icon, because an
+            // icon for "3D" is a cube and a cube is also a room, a box and a
+            // block — and this is the one switch on the screen that changes
+            // everything below it.
+            ViewSwitch(showingModel = showingModel, onShowModel = onShowModel)
+            Spacer(Modifier.width(metrics.gutterTight))
+
             HistoryButton(
                 icon = Icons.Outlined.Undo,
                 description = stringResource(R.string.action_undo),
@@ -154,6 +165,46 @@ public fun Monogram(letter: String, modifier: Modifier = Modifier) {
             color = HarmenColours.Text,
         )
     }
+}
+
+/** Plan on the left, the building on the right; the one showing is lit. */
+@Composable
+private fun ViewSwitch(showingModel: Boolean, onShowModel: (Boolean) -> Unit) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .clip(RoundedCornerShape(metrics.cornerRadius))
+            .background(HarmenColours.PanelRaised),
+    ) {
+        ViewSwitchHalf(
+            text = stringResource(R.string.view_plan),
+            selected = !showingModel,
+            onClick = { onShowModel(false) },
+        )
+        ViewSwitchHalf(
+            text = stringResource(R.string.view_model),
+            selected = showingModel,
+            onClick = { onShowModel(true) },
+        )
+    }
+}
+
+@Composable
+private fun ViewSwitchHalf(text: String, selected: Boolean, onClick: () -> Unit) {
+    Text(
+        text = text,
+        style = HarmenType.MenuCaps,
+        color = if (selected) HarmenColours.Text else HarmenColours.TextMuted,
+        modifier = Modifier
+            .clip(RoundedCornerShape(metrics.cornerRadius))
+            .background(if (selected) HarmenColours.SelectedWash else Color.Transparent)
+            .drawBehind {
+                if (!selected) return@drawBehind
+                drawRect(color = HarmenColours.Accent, style = Stroke(width = 1.dp.toPx()))
+            }
+            .clickable(role = Role.Tab, onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 9.dp),
+    )
 }
 
 /** Undo and redo. Disabled goes faint rather than disappearing. */
