@@ -203,6 +203,7 @@ private fun PaftaApp(modifier: Modifier = Modifier) {
             // drawing. Sending it to the library would mean closing the project
             // to read why a door could not be placed.
             error = editorError,
+            modelFaces = opened.modelFaces,
             onDismissError = editorViewModel::dismissError,
             onBack = {
                 editorViewModel.close { openPath = null }

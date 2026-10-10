@@ -266,12 +266,18 @@ public object DxfReader {
                 "CIRCLE" -> out += readCircle(fields)
                 "ARC" -> out += readArc(fields)
                 "TEXT", "MTEXT" -> out += readText(fields, type == "MTEXT")
+                // The two entities that carry a flat face. `3DFACE` is how a 3D
+                // model reaches DXF; `SOLID` is its 2D cousin, a filled quad,
+                // and the one difference between them is the corner order.
+                "3DFACE" -> readFace(fields, swapLastTwo = false)?.let { out += it }
+                "SOLID", "TRACE" -> readFace(fields, swapLastTwo = true)?.let { out += it }
                 "INSERT" -> out += readInsert(fields)
                 "POLYLINE" -> {
                     // The classic POLYLINE keeps its points in following VERTEX
-                    // entities, terminated by SEQEND.
-                    val (entity, consumed) = readClassicPolyline(body, i)
-                    out += entity
+                    // entities, terminated by SEQEND. It is also how a mesh is
+                    // written, which is a different shape of answer.
+                    val (entities, consumed) = readClassicPolyline(body, i)
+                    out += entities
                     i = consumed
                     continue
                 }
@@ -385,14 +391,58 @@ public object DxfReader {
     }
 
     /** Returns the polyline plus the index just past its SEQEND. */
-    private fun readClassicPolyline(body: List<Group>, polylineIndex: Int): Pair<DxfEntity.Polyline, Int> {
+    /**
+     * A `3DFACE`, a `SOLID` or a `TRACE`: three or four corners and nothing else.
+     *
+     * `SOLID` numbers its corners in a Z, not round the edge, so its last two
+     * are swapped to make an outline that does not cross itself. A face whose
+     * fourth corner repeats its third is a triangle written as a quad, which is
+     * how every program writes a triangle in DXF, so the repeat is dropped.
+     */
+    private fun readFace(f: List<Group>, swapLastTwo: Boolean): DxfEntity.Face? {
+        val corners = listOf(
+            Vec3(scalar(f, 10), scalar(f, 20), scalar(f, 30)),
+            Vec3(scalar(f, 11), scalar(f, 21), scalar(f, 31)),
+            Vec3(scalar(f, 12), scalar(f, 22), scalar(f, 32)),
+            Vec3(scalar(f, 13), scalar(f, 23), scalar(f, 33)),
+        ).let { if (swapLastTwo) listOf(it[0], it[1], it[3], it[2]) else it }
+
+        val distinct = corners.filterIndexed { i, point ->
+            i == 0 || !point.isCloseTo(corners[i - 1], 1e-9)
+        }.let {
+            // A quad whose last corner is its first is a triangle too.
+            if (it.size > 3 && it.last().isCloseTo(it.first(), 1e-9)) it.dropLast(1) else it
+        }
+
+        if (distinct.size < 3) return null
+        return DxfEntity.Face(layer = layerOf(f), points = distinct, colour = colourOf(f))
+    }
+
+    /**
+     * A `POLYLINE` and everything that follows it, as whatever it turns out to be.
+     *
+     * One entity in the file, three different things in practice: a flat run of
+     * points, a polygon mesh, or a polyface mesh — a list of corners followed by
+     * a list of which corners make each face. The flag on the header says which,
+     * and getting it wrong turns a 3D model into a scribble joining every point
+     * in it to the next.
+     */
+    private fun readClassicPolyline(body: List<Group>, polylineIndex: Int): Pair<List<DxfEntity>, Int> {
         var i = polylineIndex + 1
         val header = mutableListOf<Group>()
         while (i < body.size && body[i].code != 0) {
             header += body[i]
             i++
         }
-        val vertices = mutableListOf<Vec2>()
+
+        val layer = header.firstOrNull { it.code == 8 }?.value ?: "0"
+        val colour = header.firstOrNull { it.code == 62 }?.asInt() ?: COLOUR_BY_LAYER
+        val flags = header.firstOrNull { it.code == 70 }?.asInt() ?: 0
+        val isPolyface = (flags and 64) != 0
+
+        val points = mutableListOf<Vec3>()
+        val faces = mutableListOf<List<Int>>()
+
         while (i < body.size) {
             val g = body[i]
             if (g.code != 0) {
@@ -404,31 +454,59 @@ public object DxfReader {
                     i++
                     var x = 0.0
                     var y = 0.0
+                    var z = 0.0
+                    var vertexFlags = 0
+                    val corners = IntArray(4)
                     while (i < body.size && body[i].code != 0) {
-                        when (body[i].code) {
+                        when (val code = body[i].code) {
                             10 -> x = body[i].asDouble()
                             20 -> y = body[i].asDouble()
+                            30 -> z = body[i].asDouble()
+                            70 -> vertexFlags = body[i].asInt() ?: 0
+                            // 71..74 name the corners of one face of a mesh,
+                            // one-based, and negative when the edge they start
+                            // is to be hidden — which changes nothing here.
+                            71, 72, 73, 74 -> corners[code - 71] = body[i].asInt() ?: 0
                         }
                         i++
                     }
-                    vertices += Vec2(x, y)
+                    // In a polyface mesh a record is either a corner or a face,
+                    // and bit 128 without bit 64 is what marks it as a face.
+                    val isFaceRecord = isPolyface &&
+                        (vertexFlags and 128) != 0 && (vertexFlags and 64) == 0
+                    if (isFaceRecord) {
+                        faces += corners.map { kotlin.math.abs(it) }.filter { it > 0 }
+                    } else {
+                        points += Vec3(x, y, z)
+                    }
                 }
+
                 "SEQEND" -> {
                     i++
                     while (i < body.size && body[i].code != 0) i++
                     break
                 }
+
                 else -> break // malformed: a new entity started without SEQEND
             }
         }
-        val flags = header.firstOrNull { it.code == 70 }?.asInt() ?: 0
-        val entity = DxfEntity.Polyline(
-            layer = header.firstOrNull { it.code == 8 }?.value ?: "0",
-            vertices = vertices,
-            closed = (flags and 1) != 0,
-            colour = header.firstOrNull { it.code == 62 }?.asInt() ?: COLOUR_BY_LAYER,
-        )
-        return entity to i
+
+        if (isPolyface && faces.isNotEmpty()) {
+            val built = faces.mapNotNull { indices ->
+                val corners = indices.mapNotNull { points.getOrNull(it - 1) }
+                if (corners.size < 3) null else DxfEntity.Face(layer, corners, colour)
+            }
+            if (built.isNotEmpty()) return built to i
+        }
+
+        return listOf(
+            DxfEntity.Polyline(
+                layer = layer,
+                vertices = points.map { it.toVec2() },
+                closed = (flags and 1) != 0,
+                colour = colour,
+            ),
+        ) to i
     }
 
     /** Strips the MTEXT formatting codes a 2D viewer cannot honour. */

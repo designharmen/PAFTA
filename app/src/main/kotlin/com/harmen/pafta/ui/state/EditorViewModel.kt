@@ -22,10 +22,12 @@ import com.harmen.pafta.project.DrawingDocument
 import com.harmen.pafta.project.BlockGroup
 import com.harmen.pafta.project.CatalogueBlock
 import com.harmen.pafta.project.DrawnShape
+import com.harmen.pafta.project.Face3
 import com.harmen.pafta.project.WallType
 import com.harmen.pafta.project.FloorFinish
 import com.harmen.pafta.project.SlabKind
 import com.harmen.pafta.project.slabPlans
+import com.harmen.pafta.project.toFaces
 import com.harmen.pafta.project.EditOutcome
 import com.harmen.pafta.project.EditRefusal
 import com.harmen.pafta.project.LayerState
@@ -74,6 +76,15 @@ public data class EditorDocument(
      */
     val bounds: Aabb,
     val unsupportedEntityTypes: Set<String> = emptySet(),
+    /**
+     * The faces the imported file itself holds, worked out once when it opens.
+     *
+     * A DXF out of a 3D program carries real faces in space. Finding them means
+     * walking every entity in the file, and a drawing can be six megabytes — so
+     * it is done here, once, rather than on the way to the screen where it
+     * would be done again on every frame.
+     */
+    val modelFaces: List<Face3> = emptyList(),
 )
 
 /**
@@ -141,6 +152,7 @@ public class EditorViewModel(
                         drawing = doc.drawing,
                         bounds = doc.bounds,
                         unsupportedEntityTypes = doc.unsupportedEntityTypes,
+                        modelFaces = doc.drawing.toFaces(),
                     )
                     _state.value = loaded.toEditorState(doc).let {
                         it.copy(properties = drawingProperties(_document.value, it))

@@ -88,6 +88,13 @@ internal fun DxfEntity.placedIn(
             colour = newColour,
         )
 
+        // A face moves corner by corner, like everything else made of points.
+        is DxfEntity.Face -> copy(
+            layer = newLayer,
+            points = points.map { t.apply(it) },
+            colour = newColour,
+        )
+
         is DxfEntity.Polyline -> copy(
             layer = newLayer,
             vertices = vertices.map { t.apply(it) },

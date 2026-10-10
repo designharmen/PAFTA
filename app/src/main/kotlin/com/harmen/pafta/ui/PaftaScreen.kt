@@ -40,6 +40,7 @@ import com.harmen.pafta.project.isBand
 import com.harmen.pafta.project.lengthMm
 import com.harmen.pafta.project.openingPlans
 import com.harmen.pafta.project.slabPlans
+import com.harmen.pafta.project.Face3
 import com.harmen.pafta.project.toFaces
 import com.harmen.pafta.project.wallBands
 import com.harmen.pafta.project.zonePlans
@@ -87,6 +88,8 @@ public fun PaftaScreen(
     error: UiError? = null,
     onDismissError: () -> Unit = {},
     roomLabels: List<RoomLabel> = emptyList(),
+    /** Faces the imported file itself holds, if it is a 3D drawing. */
+    modelFaces: List<Face3> = emptyList(),
     onBack: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
@@ -104,6 +107,13 @@ public fun PaftaScreen(
     // because looking at the building from a different side is not an edit and
     // has no business in the undo history.
     var showingModel by rememberSaveable { mutableStateOf(false) }
+
+    // A drawing that turns out to be a 3D model opens showing the model. Its
+    // plan is the shadow it casts on the ground, which is not what somebody who
+    // opened a 3D file came to see.
+    LaunchedEffect(modelFaces.isNotEmpty()) {
+        if (modelFaces.isNotEmpty()) showingModel = true
+    }
 
     BoxWithConstraints(modifier.fillMaxSize().background(HarmenColours.Ground)) {
         val compact = maxWidth < COMPACT_WIDTH
@@ -196,7 +206,17 @@ public fun PaftaScreen(
                     if (showingModel) {
                         // Everything the plan has been storing about height
                         // since the first wall, finally standing up.
-                        val faces = remember(state.shapes) { state.shapes.toFaces() }
+                        // What the user drew, and whatever the imported file
+                        // brought with it: a DXF out of a 3D program carries
+                        // real faces, and they belong in the same view as the
+                        // walls standing next to them.
+                        // What the user drew, and whatever the imported file
+                        // brought with it: a DXF out of a 3D program carries
+                        // real faces, and they belong in the same view as the
+                        // walls standing next to them.
+                        val faces = remember(state.shapes, modelFaces) {
+                            state.shapes.toFaces() + modelFaces
+                        }
                         Box(Modifier.weight(1f).fillMaxHeight()) {
                             ModelViewport(
                                 faces = faces,

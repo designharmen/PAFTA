@@ -1410,3 +1410,60 @@ at all" stop being the same report.
 
 Nothing here makes DWG or SKP open, and the owner's own files are almost
 certainly those two. That remains true and remains said plainly.
+
+---
+
+## "Bu DXF açıldı ama içinde çizilecek bir şey yok: 3DSOLID (30)"
+
+The owner imported `rozet.dxf` and got exactly that. It is the most useful
+message this project has ever produced, because it names what is in the file —
+and what is in the file is thirty ACIS solids.
+
+That message was right and the file is fine. PAFTA's DXF reader knew eight
+entity types, all of them flat: line, point, polyline, circle, arc, text,
+insert. A DXF written by a 3D program contains none of those.
+
+### Three kinds of 3D now come through
+
+**`3DFACE`** is the one that matters most: a flat face with three or four
+corners, anywhere in space. It is how most programs write a 3D model to DXF.
+
+**`SOLID`** (and `TRACE`) is its flat cousin, a filled quad — and it numbers its
+corners in a Z rather than round the edge, so read literally the shape comes out
+as a bow tie. Its last two corners are swapped on the way in.
+
+**Polyface meshes** are how 3D reached DXF before `3DFACE` was common, and they
+are the subtle one. A `POLYLINE` with bit 64 set is not a run of points at all:
+it is a list of corners followed by a list of which corners make each face, both
+written as `VERTEX` records and told apart by another flag. Read as an ordinary
+polyline — which is what PAFTA did — a model becomes a scribble joining every
+point in it to the next. The reader now checks the flag first.
+
+A triangle is written in DXF as a quad with its last corner repeated, by every
+program that writes one. That repeat is dropped, so a triangle comes back a
+triangle.
+
+### The file decides which view opens
+
+A drawing that turns out to hold faces opens **showing the model**, not the
+plan. The plan of a 3D model is the shadow it casts on the ground, which is not
+what somebody who opened a 3D file came to see. Both views still work: the
+switch is there, and a wall drawn by hand stands next to the imported geometry
+in the same 3D view.
+
+The faces are found once, when the file opens, and carried on the document.
+Finding them means walking every entity, and the owner already has a 6.2MB
+drawing in their library — doing that on the way to the screen would have meant
+doing it again on every frame.
+
+### What this does not fix, and what would
+
+**`3DSOLID` is still not read, and `rozet.dxf` will still report thirty of
+them.** An ACIS solid is a boundary representation — faces bounded by trimmed
+analytic surfaces — stored as its own encoded format inside the DXF. Pulling
+flat polygons out of one is a real piece of work, and it is work that **cannot
+be done without the file**: the encoding has to be confirmed against actual
+bytes, and a binary-format reader written blind is a reader that is wrong.
+
+So the ask is specific now, and it is small: **`rozet.dxf` itself.** With it,
+this becomes a solvable problem rather than a guess.

@@ -77,6 +77,18 @@ public object DxfWriter {
                     pair(0, "POINT"); pair(8, e.layer); colour(e.colour, ::pair)
                     num(10, e.position.x); num(20, e.position.y); num(30, e.position.z)
                 }
+                // Always written as a quad, with the last corner repeated for a
+                // triangle: that is what every program writes and what every
+                // reader, including this one, expects to find.
+                is DxfEntity.Face -> {
+                    val c = e.points.take(4).let { if (it.size == 3) it + it.last() else it }
+                    if (c.size == 4) {
+                        pair(0, "3DFACE"); pair(8, e.layer); colour(e.colour, ::pair)
+                        for ((i, p) in c.withIndex()) {
+                            num(10 + i, p.x); num(20 + i, p.y); num(30 + i, p.z)
+                        }
+                    }
+                }
                 is DxfEntity.Circle -> {
                     pair(0, "CIRCLE"); pair(8, e.layer); colour(e.colour, ::pair)
                     num(10, e.centre.x); num(20, e.centre.y); num(30, e.centre.z)

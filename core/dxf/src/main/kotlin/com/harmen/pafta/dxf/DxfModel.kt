@@ -68,6 +68,29 @@ public sealed interface DxfEntity {
             if (closed && vertices.size > 2) vertices + vertices.first() else vertices
     }
 
+    /**
+     * A flat face in space: three or four corners, anywhere.
+     *
+     * The one entity in DXF that carries real three-dimensional geometry in a
+     * form anybody can read. `3DFACE`, the filled `SOLID`, and every face of a
+     * polyface mesh all come through here — which between them is how most
+     * programs write a 3D model out to DXF.
+     *
+     * On a plan it is drawn as its outline seen from above, which is what a
+     * plan is; in the 3D view it is drawn as itself.
+     */
+    public data class Face(
+        override val layer: String,
+        val points: List<Vec3>,
+        override val colour: Int = COLOUR_BY_LAYER,
+    ) : DxfEntity {
+        override fun outline(arcSegments: Int): List<Vec2> {
+            if (points.size < 3) return points.map { it.toVec2() }
+            val flat = points.map { it.toVec2() }
+            return flat + flat.first()
+        }
+    }
+
     public data class Circle(
         override val layer: String,
         val centre: Vec3,

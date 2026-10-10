@@ -1,5 +1,7 @@
 package com.harmen.pafta.project
 
+import com.harmen.pafta.dxf.DxfDrawing
+import com.harmen.pafta.dxf.DxfEntity
 import com.harmen.pafta.geometry.Aabb
 import com.harmen.pafta.geometry.Vec2
 import com.harmen.pafta.geometry.Vec3
@@ -107,6 +109,27 @@ public fun List<DrawnShape>.toFaces(): List<Face3> {
         for (piece in shapes.filterIsInstance<DrawnShape.Block>()) addAll(piece.faces())
     }
 }
+
+/**
+ * The faces an imported drawing holds, if it holds any.
+ *
+ * A DXF is usually a plan — flat linework, nothing to stand up. But a DXF
+ * exported from a 3D program carries `3DFACE` records and polyface meshes, and
+ * those *are* the model: real faces, in space, ready to be looked at. Taking
+ * them is what makes "open my 3D DXF" mean something rather than showing its
+ * shadow on the ground.
+ *
+ * Linework is left alone. A line has no face and giving it one would be
+ * inventing a building nobody drew.
+ */
+public fun DxfDrawing.toFaces(): List<Face3> = entities
+    .filterIsInstance<DxfEntity.Face>()
+    .filter { it.points.size >= 3 }
+    .map { Face3(points = it.points, kind = FaceKind.MODEL, layer = it.layer, id = it.layer) }
+
+/** True when this drawing holds real geometry in space, not just a plan. */
+public val DxfDrawing.hasModel: Boolean
+    get() = entities.any { it is DxfEntity.Face && it.points.size >= 3 }
 
 /** How far the building reaches, in all three directions. */
 public fun List<Face3>.bounds(): Aabb =
