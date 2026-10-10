@@ -37,8 +37,11 @@ public enum class FileFormat(
 
     GLB("glb", ViewerKind.MODEL, readable = false),
     GLTF("gltf", ViewerKind.MODEL, readable = false),
-    OBJ("obj", ViewerKind.MODEL, readable = false),
-    STL("stl", ViewerKind.MODEL, readable = false),
+    // Both are plain lists of triangles with no units and no scene, which is
+    // exactly what this viewer can show — so both are read here, in Kotlin,
+    // with no native library and no licence question.
+    OBJ("obj", ViewerKind.MODEL, readable = true),
+    STL("stl", ViewerKind.MODEL, readable = true),
     PLY("ply", ViewerKind.MODEL, readable = false),
     DAE("dae", ViewerKind.MODEL, readable = false),
     THREE_DS("3ds", ViewerKind.MODEL, readable = false),

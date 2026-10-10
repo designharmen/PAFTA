@@ -22,6 +22,7 @@ include(":core:geometry")
 include(":core:units")
 include(":core:measure")
 include(":core:dxf")
+include(":core:mesh")
 include(":core:project")
 
 // --- Android modules -------------------------------------------------------

@@ -22,7 +22,18 @@ import com.harmen.pafta.geometry.area
  */
 
 /** What part of the building a face belongs to, which is what shades it. */
-public enum class FaceKind { WALL, WALL_TOP, OPENING_REVEAL, COLUMN, COLUMN_TOP, SLAB, FURNITURE }
+public enum class FaceKind {
+    WALL,
+    WALL_TOP,
+    OPENING_REVEAL,
+    COLUMN,
+    COLUMN_TOP,
+    SLAB,
+    FURNITURE,
+
+    /** A face out of somebody else's model file, which says nothing about itself. */
+    MODEL,
+}
 
 /**
  * One flat face: its corners in order, and what it is.

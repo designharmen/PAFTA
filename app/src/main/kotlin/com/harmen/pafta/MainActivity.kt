@@ -25,10 +25,14 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.harmen.pafta.data.ProjectRepository
 import com.harmen.pafta.data.UpdateService
+import com.harmen.pafta.project.ProjectEntry
+import com.harmen.pafta.project.ViewerKind
+import com.harmen.pafta.ui.ModelScreen
 import com.harmen.pafta.ui.PaftaScreen
 import com.harmen.pafta.ui.library.LibraryScreen
 import com.harmen.pafta.ui.state.EditorViewModel
 import com.harmen.pafta.ui.state.LibraryViewModel
+import com.harmen.pafta.ui.state.ModelViewModel
 import com.harmen.pafta.ui.state.UpdateState
 import com.harmen.pafta.ui.state.UpdateViewModel
 import com.harmen.pafta.ui.theme.PaftaTheme
@@ -66,13 +70,27 @@ private fun PaftaApp(modifier: Modifier = Modifier) {
 
     val libraryViewModel: LibraryViewModel = viewModel { LibraryViewModel(repository) }
     val editorViewModel: EditorViewModel = viewModel { EditorViewModel(repository) }
+    val modelViewModel: ModelViewModel = viewModel { ModelViewModel(repository) }
     val updateService = remember { UpdateService(context) }
     val updateViewModel: UpdateViewModel = viewModel { UpdateViewModel(updateService) }
 
     var openPath by rememberSaveable { mutableStateOf<String?>(null) }
 
+    /**
+     * Whether the open project holds a model rather than a drawing.
+     *
+     * Remembered alongside the path and not worked out from it: every project
+     * is a `.pafta` file whatever was imported into it, so the path says
+     * nothing about what is inside. It comes from the library row the project
+     * was opened from, and is saved with the path so that coming back to the
+     * app after it was put away opens the right screen.
+     */
+    var openIsModel by rememberSaveable { mutableStateOf(false) }
+
     val libraryState by libraryViewModel.state.collectAsStateWithLifecycle()
     val editorState by editorViewModel.state.collectAsStateWithLifecycle()
+    val modelState by modelViewModel.state.collectAsStateWithLifecycle()
+    val modelError by modelViewModel.error.collectAsStateWithLifecycle()
     val document by editorViewModel.document.collectAsStateWithLifecycle()
     val editorError by editorViewModel.error.collectAsStateWithLifecycle()
     val updateState by updateViewModel.state.collectAsStateWithLifecycle()
@@ -98,18 +116,26 @@ private fun PaftaApp(modifier: Modifier = Modifier) {
         ActivityResultContracts.OpenDocument(),
     ) { uri -> if (uri != null) libraryViewModel.import(uri) }
 
+    /** Opens a library row, remembering which of the two screens it needs. */
+    fun open(entry: ProjectEntry) {
+        openIsModel = entry.format?.viewer == ViewerKind.MODEL
+        openPath = entry.file.path
+    }
+
     // Opening straight after making a project — imported or started empty — is
     // what the user means by both buttons.
     LaunchedEffect(libraryState.justImported) {
         libraryState.justImported?.let { entry ->
-            openPath = entry.file.path
+            open(entry)
             libraryViewModel.consumeJustImported()
         }
     }
 
-    // Load whenever the open project changes.
-    LaunchedEffect(openPath) {
-        openPath?.let { editorViewModel.open(File(it)) }
+    // Load whenever the open project changes, into whichever of the two the
+    // project turned out to be.
+    LaunchedEffect(openPath, openIsModel) {
+        val path = openPath ?: return@LaunchedEffect
+        if (openIsModel) modelViewModel.open(File(path)) else editorViewModel.open(File(path))
     }
 
     // Unsaved work must not depend on a timer the system may not let run, so
@@ -117,17 +143,35 @@ private fun PaftaApp(modifier: Modifier = Modifier) {
     LifecycleEventEffect(Lifecycle.Event.ON_STOP) { editorViewModel.requestFlush() }
 
     val opened = document
-    if (openPath == null || opened == null) {
+    if (openPath != null && openIsModel) {
+        ModelScreen(
+            state = modelState,
+            viewModel = modelViewModel,
+            onBack = {
+                modelViewModel.close()
+                openPath = null
+                libraryViewModel.refresh()
+            },
+            modifier = modifier,
+        )
+        // A model that will not read must not leave the app looking at nothing.
+        LaunchedEffect(modelError) {
+            if (modelError != null) openPath = null
+        }
+    } else if (openPath == null || opened == null) {
         // An editor error with no document means the open failed; the library is
         // where the user can act on that.
         LibraryScreen(
-            state = libraryState.copy(error = libraryState.error ?: editorError),
+            state = libraryState.copy(
+                error = libraryState.error ?: editorError ?: modelError,
+            ),
             onImport = { picker.launch(arrayOf("*/*")) },
-            onOpen = { openPath = it.file.path },
+            onOpen = { open(it) },
             onDelete = { libraryViewModel.delete(it) },
             onDismissError = {
                 libraryViewModel.dismissError()
                 editorViewModel.dismissError()
+                modelViewModel.dismissError()
             },
             modifier = modifier,
             updateState = updateState,

@@ -60,6 +60,14 @@ public fun PaftaTopBar(
     /** Whether the 3D view is showing instead of the plan. */
     showingModel: Boolean = false,
     onShowModel: (Boolean) -> Unit = {},
+    /**
+     * Whether there is a plan to switch to at all.
+     *
+     * A project holding somebody else's model has no plan, so the switch would
+     * be a control with one working half — which is the kind of thing this
+     * interface is not allowed to show.
+     */
+    canShowPlan: Boolean = true,
 ) {
     val unsavedDescription = stringResource(R.string.unsaved_changes)
     val homeDescription = stringResource(R.string.nav_back_to_projects)
@@ -118,8 +126,10 @@ public fun PaftaTopBar(
             // icon for "3D" is a cube and a cube is also a room, a box and a
             // block — and this is the one switch on the screen that changes
             // everything below it.
-            ViewSwitch(showingModel = showingModel, onShowModel = onShowModel)
-            Spacer(Modifier.width(metrics.gutterTight))
+            if (canShowPlan) {
+                ViewSwitch(showingModel = showingModel, onShowModel = onShowModel)
+                Spacer(Modifier.width(metrics.gutterTight))
+            }
 
             HistoryButton(
                 icon = Icons.Outlined.Undo,

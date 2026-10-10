@@ -1210,3 +1210,77 @@ Thirteen tests failed at once, which is how it was found in seconds rather than
 on the device. `tools/check-strings.py` now refuses a loose `filterIsInstance`
 inside a `buildList` — it must name what it is filtering — and the check was
 verified by putting the exact mistake back.
+
+---
+
+## Five formats asked for; three of them open
+
+*"Dwg, skp, stl, dxf ve obj dosyalarını açacak düzenlemeyi yap."*
+
+Those five are not one job. They are three jobs of very different sizes, and
+being straight about which is which matters more than the code does.
+
+| | Today |
+| --- | --- |
+| **DXF** | already opened; nothing needed |
+| **STL** | **opens now** — pure Kotlin reader, no dependency |
+| **OBJ** | **opens now** — pure Kotlin reader, no dependency |
+| **DWG** | needs LibreDWG: a C library, GPL-3.0, cross-compiled for Android through the NDK. A phase of its own, and one that cannot be built or tested in the development container at all |
+| **SKP** | **no free library exists.** Trimble reads its own format only through its own paid SDK. This is not a matter of effort |
+
+### STL and OBJ were nearly free, because the viewer already existed
+
+Both are lists of flat faces with no units and no scene tree, which is exactly
+what last round's 3D view draws. So `core:mesh` is a new pure-Kotlin module with
+two readers and no dependency on anything.
+
+STL has one real trap and it is the kind that bites once: the format comes in a
+text spelling and a binary one, and **a binary file is allowed to begin with the
+word `solid`**, which is also how every text file begins. Sniffing the first
+five bytes is the mistake everybody makes; a binary file written by a program
+that put its own name in the header then reads as text and yields an empty
+model from a perfectly good file. So the *size* decides instead: a binary STL is
+exactly 84 bytes plus 50 a triangle, and nothing else lands on that number by
+accident.
+
+OBJ's three traps are all handled and all tested: the point numbers start at
+**one**; a **negative** number counts back from the end of what has been defined
+so far; and `7`, `7/2`, `7//3` and `7/2/3` all mean point seven. Faces are kept
+as written rather than cut into triangles — the viewer fills any flat outline,
+so a four-sided face stays one face, which is fewer to sort and a tidier
+picture.
+
+Neither format records units, and nothing here guesses at them. The view frames
+whatever it is given, so a model exported in metres and one exported in
+millimetres are both the right size on screen.
+
+A model file can be far bigger than this renderer can draw: it sorts every face
+back to front, once per frame. The reader stops at forty thousand faces and the
+screen says how many the file actually held — which is better than reading it
+all and crawling, and far better than showing part of it silently.
+
+### A model is a reference, not a drawing
+
+An imported model opens on its own screen with no tools on it. Nothing there
+edits anything, which is the same rule the rest of PAFTA keeps: the file the
+architect brought in is never rewritten. You turn it round, and you hide the
+parts in the way — the names a file gives its own parts (`o`, `g` in OBJ) become
+the palette, which is the one thing anybody actually wants to do with somebody
+else's model.
+
+### What DWG would take, said plainly
+
+LibreDWG is the only free library that reads DWG. It is C, it is GPL-3.0 (which
+this project has already accepted), and using it from Android means
+cross-compiling it for four processor types and writing the bindings — none of
+which can be built or tested in the container this project is developed in. It
+is phase I, it is real work, and it is honest to say that rather than to start
+it badly.
+
+Until then the route that works today is in the app, in the message a DWG shows
+when it is opened: AutoCAD's own "Save As → DXF", or the free **ODA File
+Converter** on a computer, which converts a whole folder of DWG to DXF at once.
+
+For SKP the message now says the true thing — no free library exists — and
+points at SketchUp's own `File → Export → 3D Model`, choosing **OBJ** or
+**STL**, both of which PAFTA opens as of this build.

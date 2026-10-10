@@ -571,6 +571,9 @@ public sealed interface DrawnShape {
         public const val LAYER_SLAB: String = "DOSEME"
         public const val LAYER_FURNITURE: String = "MOBILYA"
 
+        /** Everything out of an imported 3D model that named no parts. */
+        public const val LAYER_MODEL: String = "MODEL"
+
         /**
          * The layer a wall belongs on, e.g. `DUVAR-TUGLA-200`.
          *

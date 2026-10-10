@@ -246,4 +246,7 @@ private fun FaceKind.colour(): Color = when (this) {
     FaceKind.COLUMN_TOP -> HarmenColours.Linework.copy(alpha = 1f)
     FaceKind.SLAB -> HarmenColours.Linework.copy(alpha = 0.55f)
     FaceKind.FURNITURE -> HarmenColours.Linework.copy(alpha = 0.78f)
+    // A face out of somebody else's file says nothing about itself, so it gets
+    // the plain tone and lets the shading do all the work of showing its shape.
+    FaceKind.MODEL -> HarmenColours.Linework.copy(alpha = 0.88f)
 }

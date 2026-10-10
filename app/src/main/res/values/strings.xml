@@ -25,6 +25,9 @@
     <string name="view_model">3B</string>
     <string name="model_empty">Burada gösterilecek bir şey yok. Önce plana duvar çiz; duvarlar, kolonlar ve döşemeler burada ayağa kalkar.</string>
     <string name="model_hint">tek parmakla çevir · iki parmakla yaklaş ve kaydır</string>
+    <string name="model_parts">Parçalar</string>
+    <string name="model_truncated">Bu model çok büyük: %1$d yüzeyin %2$d tanesi gösteriliyor. Tamamını göstermek tablette çok yavaş olurdu.</string>
+    <string name="model_loading">model okunuyor</string>
 
     <!-- ===== Sol araç paneli ===== -->
     <string name="tool_select">Seç</string>
@@ -286,9 +289,9 @@
     <string name="error_no_viewer">PAFTA %1$s dosyalarını henüz gösteremiyor. Dosya projenin içine güvenle kaydedildi, sonraki sürümde açılabilecek</string>
     <!-- Görüntüleyicisi olmayan biçimler için, bugün işe yarayan yol. -->
     <string name="error_no_viewer_with_hint">%1$s %2$s</string>
-    <string name="hint_dwg">Şimdilik çizimi AutoCAD\'de \"Farklı Kaydet\" ile DXF olarak kaydedip onu aktarabilirsiniz — PAFTA DXF çizimlerini açıyor.</string>
+    <string name="hint_dwg">DWG\'yi okuyan tek ücretsiz kütüphane bilgisayarda derlenmesi gereken bir bileşen; ayrı bir aşama olarak planda duruyor. Bugün işe yarayan yol: AutoCAD\'de çizimi açıp \"Farklı Kaydet\" ile DXF seçin, ya da bilgisayara ücretsiz \"ODA File Converter\" kurup DWG klasörünü DXF\'e çevirin. PAFTA DXF çizimlerini açıyor.</string>
     <string name="hint_rvt">Revit dosyalarını okuyabilen açık kaynak bir kütüphane yok. Revit\'te \"Dışa Aktar → CAD Biçimleri → DXF\" ile kaydedip onu aktarabilirsiniz. (IFC desteği sonraki aşamada geliyor.)</string>
-    <string name="hint_skp">SketchUp\'ta \"Dışa Aktar → 3B Model\" ile DXF olarak kaydedip onu aktarabilirsiniz.</string>
+    <string name="hint_skp">SketchUp dosyalarını okuyabilen ücretsiz bir kütüphane yok; SketchUp kendi biçimini yalnızca kendi ücretli aracıyla açtırıyor. SketchUp\'ta \"Dosya → Dışa Aktar → 3B Model\" deyip biçim olarak OBJ ya da STL seçin — PAFTA ikisini de açıyor.</string>
     <string name="hint_ifc">IFC desteği sonraki aşamada geliyor. Şimdilik modeli DXF olarak dışa aktarabilirsiniz.</string>
     <string name="error_cannot_read">Dosya okunamadı</string>
     <string name="error_cannot_write">Proje kaydedilemedi. Cihazda boş yer kalmamış olabilir</string>

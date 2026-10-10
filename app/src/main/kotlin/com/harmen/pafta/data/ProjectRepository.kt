@@ -6,6 +6,8 @@ import android.net.Uri
 import android.provider.OpenableColumns
 import com.harmen.pafta.project.DrawingDocument
 import com.harmen.pafta.project.IoCause
+import com.harmen.pafta.project.ModelDocument
+import com.harmen.pafta.project.openAsModel
 import com.harmen.pafta.project.PaftaProject
 import com.harmen.pafta.project.ProjectEntry
 import com.harmen.pafta.project.ProjectStore
@@ -87,6 +89,18 @@ public class ProjectRepository(context: Context) {
                 is StoreResult.Success -> when (val drawing = opened.value.openAsDrawing()) {
                     is StoreResult.Failure -> drawing
                     is StoreResult.Success -> StoreResult.Success(opened.value to drawing.value)
+                }
+            }
+        }
+
+    /** Opens a project and reads its payload as a 3D model in one step. */
+    public suspend fun openAsModel(file: File): StoreResult<Pair<PaftaProject, ModelDocument>> =
+        withContext(Dispatchers.IO) {
+            when (val opened = store.open(file)) {
+                is StoreResult.Failure -> opened
+                is StoreResult.Success -> when (val model = opened.value.openAsModel()) {
+                    is StoreResult.Failure -> model
+                    is StoreResult.Success -> StoreResult.Success(opened.value to model.value)
                 }
             }
         }
