@@ -3,11 +3,14 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 plugins {
     `java-library`
     alias(libs.plugins.kotlin.jvm)
+    alias(libs.plugins.kotlin.serialization)
 }
 
 dependencies {
     api(project(":core:geometry"))
-    // Nothing else: a mesh is points and triangles.
+    // glTF is JSON with a binary tail, so the reader needs a JSON parser. The
+    // rest of the formats here are read byte by byte and need nothing.
+    implementation(libs.kotlinx.serialization.json)
     testImplementation(libs.kotlin.test)
 }
 

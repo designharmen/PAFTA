@@ -4,7 +4,9 @@ import com.harmen.pafta.geometry.Aabb
 import com.harmen.pafta.mesh.Mesh
 import com.harmen.pafta.mesh.MeshFailure
 import com.harmen.pafta.mesh.MeshResult
+import com.harmen.pafta.mesh.GltfReader
 import com.harmen.pafta.mesh.ObjReader
+import com.harmen.pafta.mesh.PlyReader
 import com.harmen.pafta.mesh.StlReader
 
 /**
@@ -37,9 +39,16 @@ public fun PaftaProject.openAsModel(): StoreResult<ModelDocument> {
     val format = manifest.format
         ?: return StoreResult.Failure(StoreFailure.UnknownFormat(manifest.source.format))
 
+    // The converter. Every format that can be turned into flat faces without
+    // a native library is turned into them here, at the moment the project is
+    // opened and without the user asking — which is what "open this file"
+    // should have meant all along. A format with no entry is refused by name
+    // rather than silently showing nothing.
     val outcome = when (format) {
         FileFormat.STL -> StlReader.read(payload)
         FileFormat.OBJ -> ObjReader.read(payload)
+        FileFormat.PLY -> PlyReader.read(payload)
+        FileFormat.GLB, FileFormat.GLTF -> GltfReader.read(payload)
         else -> return StoreResult.Failure(
             StoreFailure.Unreadable(format, UnreadableReason.NO_VIEWER_YET),
         )
@@ -53,6 +62,7 @@ public fun PaftaProject.openAsModel(): StoreResult<ModelDocument> {
                     MeshFailure.MALFORMED -> UnreadableReason.MALFORMED
                     MeshFailure.TRUNCATED_FILE -> UnreadableReason.MALFORMED
                     MeshFailure.NOTHING_IN_IT -> UnreadableReason.NO_DRAWABLE_CONTENT
+                    MeshFailure.NEEDS_ANOTHER_FILE -> UnreadableReason.NEEDS_ANOTHER_FILE
                 },
             ),
         )

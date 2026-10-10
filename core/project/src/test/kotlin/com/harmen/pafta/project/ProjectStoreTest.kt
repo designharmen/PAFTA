@@ -204,11 +204,13 @@ class ProjectStoreTest {
 
     @Test
     fun `a format PAFTA cannot draw yet still imports so the file is safe`() {
-        // GLB has no viewer until the 3D phase, but importing must still work.
-        val entry = store.import("model.glb", byteArrayOf(1, 2, 3, 4)).valueOrNull()
+        // SketchUp's own format: no free library reads it and none is coming,
+        // so it is kept rather than refused and the user is told how to export
+        // something PAFTA can open.
+        val entry = store.import("ev.skp", byteArrayOf(1, 2, 3, 4)).valueOrNull()
         assertNotNull(entry)
-        assertEquals(FileFormat.GLB, entry.format)
-        assertFalse(FileFormat.GLB.readable)
+        assertEquals(FileFormat.SKP, entry.format)
+        assertFalse(FileFormat.SKP.readable)
     }
 
     @Test
@@ -378,7 +380,7 @@ class StoreFailureTest {
         assertEquals(IoCause.entries.size, IoCause.entries.toSet().size)
         assertEquals(UnreadableReason.entries.size, UnreadableReason.entries.toSet().size)
         assertEquals(6, IoCause.entries.size)
-        assertEquals(3, UnreadableReason.entries.size)
+        assertEquals(4, UnreadableReason.entries.size)
     }
 }
 
@@ -405,8 +407,17 @@ class FileFormatTest {
     @Test
     fun `only the formats with a viewer are marked readable`() {
         assertTrue(FileFormat.DXF.readable)
-        assertFalse(FileFormat.DWG.readable, "DWG needs LibreDWG, a later phase")
-        assertFalse(FileFormat.GLB.readable, "glTF needs the Filament phase")
+        // The mesh formats, every one of them read in plain Kotlin.
+        assertTrue(FileFormat.STL.readable)
+        assertTrue(FileFormat.OBJ.readable)
+        assertTrue(FileFormat.PLY.readable)
+        assertTrue(FileFormat.GLB.readable)
+        assertTrue(FileFormat.GLTF.readable)
+
+        // And the ones that genuinely need something PAFTA does not have.
+        assertFalse(FileFormat.DWG.readable, "DWG needs LibreDWG, built through the NDK")
+        assertFalse(FileFormat.SKP.readable, "no free library reads SketchUp's own format")
+        assertFalse(FileFormat.IFC.readable, "IFC needs geometry evaluation, a phase of its own")
     }
 
     @Test

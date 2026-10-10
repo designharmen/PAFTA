@@ -125,6 +125,9 @@ public fun StoreFailure.mesaj(): String = when (this) {
                     )
                 }
             }
+            UnreadableReason.NEEDS_ANOTHER_FILE ->
+                stringResource(R.string.error_needs_another_file, tur)
+
             UnreadableReason.NO_VIEWER_YET -> {
                 // "Henüz açamıyorum" tek başına çıkmaz sokaktır. Bugün işe
                 // yarayan bir yol varsa onu da söyle.

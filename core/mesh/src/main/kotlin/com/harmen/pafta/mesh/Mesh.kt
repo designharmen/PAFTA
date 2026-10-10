@@ -56,6 +56,15 @@ public enum class MeshFailure {
 
     /** It stopped in the middle: the file is cut short. */
     TRUNCATED_FILE,
+
+    /**
+     * It is complete but it points at a second file that is not here.
+     *
+     * A `.gltf` may keep its numbers in a `.bin` beside it. PAFTA imports one
+     * file and copies it into the project, so there is no second file to go and
+     * find later — and saying so is the only honest answer.
+     */
+    NEEDS_ANOTHER_FILE,
 }
 
 /** The outcome of reading a model file. */

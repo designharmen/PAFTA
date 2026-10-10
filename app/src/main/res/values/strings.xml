@@ -286,6 +286,7 @@
     <string name="error_no_drawable_with_types">%1$s. İçinde şunlar var: %2$s</string>
     <string name="error_no_drawable_empty">%1$s. Dosyanın çizim bölümü tamamen boş</string>
     <string name="error_no_drawable_structure_only">%1$s. Dosyada %2$d katman ve %3$d hazır parça tanımı var, ama çizim bölümü boş</string>
+    <string name="error_needs_another_file">Bu %1$s dosyası, yanındaki ikinci bir dosyada tutulan veriye bakıyor; o dosya burada yok. Dışa aktarırken tek dosyalık biçimi seçin: glTF yerine GLB, ya da OBJ/STL.</string>
     <string name="error_no_viewer">PAFTA %1$s dosyalarını henüz gösteremiyor. Dosya projenin içine güvenle kaydedildi, sonraki sürümde açılabilecek</string>
     <!-- Görüntüleyicisi olmayan biçimler için, bugün işe yarayan yol. -->
     <string name="error_no_viewer_with_hint">%1$s %2$s</string>

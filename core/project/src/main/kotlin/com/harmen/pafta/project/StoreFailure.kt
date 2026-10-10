@@ -59,6 +59,16 @@ public enum class UnreadableReason {
 
     /** PAFTA recognises the format but has no viewer for it in this build. */
     NO_VIEWER_YET,
+
+    /**
+     * It read, and it points at a second file that was not imported with it.
+     *
+     * A `.gltf` may keep its numbers in a `.bin` beside it, and a `.obj` its
+     * materials in a `.mtl`. PAFTA copies the one file it was given into the
+     * project so that the project keeps working afterwards — which means a
+     * file that needs a neighbour has to say so, not show an empty view.
+     */
+    NEEDS_ANOTHER_FILE,
 }
 
 /** The specific filesystem problem, so the UI can explain it precisely. */

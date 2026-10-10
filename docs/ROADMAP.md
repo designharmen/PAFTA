@@ -1284,3 +1284,72 @@ Converter** on a computer, which converts a whole folder of DWG to DXF at once.
 For SKP the message now says the true thing — no free library exists — and
 points at SketchUp's own `File → Export → 3D Model`, choosing **OBJ** or
 **STL**, both of which PAFTA opens as of this build.
+
+---
+
+## The converter, and the honest edge of it
+
+*"Açılması mümkün olmayan dosyalar için ve dwg modelleri için uygulama içine
+otomatik converter kur."*
+
+There is no single converter to install. There are formats that can be turned
+into flat faces in plain Kotlin, and formats that cannot — and the line between
+them is not about effort.
+
+**What now converts, automatically, with nothing asked of the user:** STL, OBJ,
+**PLY**, **glTF** and **GLB**. The conversion happens at the moment the project
+is opened, in `openAsModel`, and there is no button for it because there should
+not be one: "open this file" should always have meant this.
+
+PLY is the scanner format, and its design is the nicest of the lot — a
+plain-text header that lists exactly what is in the file and in what order, then
+the file. A reader that does what the header says works on files it has never
+seen, including the colour and normal fields it has no use for, which are
+stepped over by the header's own description of them rather than guessed at.
+Text, little-endian binary and big-endian binary are all read.
+
+glTF/GLB is the one worth most, because it is what everything exports today —
+Blender, SketchUp, Revit, Rhino, every web tool. It is JSON saying where the
+numbers are, plus the numbers, and the work is in following that properly: a
+mesh points at accessors, an accessor at a slice of a buffer with its own byte
+offset and possibly a stride, and a buffer is either the binary chunk behind the
+JSON or base64 inside it. Node transforms are followed down the scene tree —
+translation, a quaternion rotation and scale, or a 4x4 matrix — so a model of
+many parts comes out assembled rather than piled on the origin. A scene that
+refers to itself is walked once.
+
+Materials, textures, animation, cameras and skins are not read, deliberately:
+the viewer fills flat faces, so anything richer would be parsed, stored and
+quietly ignored.
+
+### Where the converter stops, and why
+
+A `.gltf` may keep its numbers in a `.bin` file beside it. PAFTA imports **one**
+file and copies it into the project, which is what makes a project keep working
+after the original is moved or deleted — so there is no second file to go and
+find later. That is now its own failure, `NEEDS_ANOTHER_FILE`, with a message
+that says which single-file format to ask the exporter for instead.
+
+**DWG cannot be converted in the app today, and saying otherwise would be a
+lie.** The only free library that reads it is LibreDWG: C, GPL-3.0, and usable
+from Android only by cross-compiling it for four processor types through the NDK
+and writing the bindings. None of that can be built or tested in the container
+this project is developed in, and a binary-format parser written without a
+single real file to test against is a parser that is wrong. It is phase I, it is
+real work, and it needs a round of its own.
+
+**SKP cannot be converted at all.** Trimble reads its own format only through
+its own paid SDK, and the licence rule in `CLAUDE.md` rules that out. This one
+is not a matter of effort and will not change.
+
+Both messages in the app now say the true thing and point at the route that
+works today: ODA File Converter or AutoCAD's own Save As for DWG, and
+`File → Export → 3D Model` choosing OBJ, STL or GLB for SketchUp.
+
+### A test that keeps the list and the code honest
+
+`every format the converter claims it can read, it can` walks the formats marked
+readable and actually imports and opens a sample of each. A format marked
+readable with no entry in the converter would be a file that imports, opens, and
+shows nothing — which is the exact failure this project has spent the most time
+stamping out.

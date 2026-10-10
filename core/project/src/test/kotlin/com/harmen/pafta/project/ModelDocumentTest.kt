@@ -165,3 +165,140 @@ class ModelDocumentTest {
         assertIs<StoreResult.Success<DrawingDocument>>(opened.openAsDrawing())
     }
 }
+
+/** The converter: every format that can become faces, becoming them. */
+class ConverterTest {
+
+    private lateinit var root: java.io.File
+    private lateinit var store: ProjectStore
+
+    @BeforeTest
+    fun setUp() {
+        root = kotlin.io.path.createTempDirectory("pafta-convert").toFile()
+        store = ProjectStore(root)
+    }
+
+    @AfterTest
+    fun tearDown() {
+        root.deleteRecursively()
+    }
+
+    private fun opened(name: String, payload: ByteArray): PaftaProject {
+        val entry = assertIs<StoreResult.Success<ProjectEntry>>(store.import(name, payload)).value
+        return assertIs<StoreResult.Success<PaftaProject>>(store.open(entry.file)).value
+    }
+
+    private val plyBytes = """
+        ply
+        format ascii 1.0
+        element vertex 3
+        property float x
+        property float y
+        property float z
+        element face 1
+        property list uchar int vertex_indices
+        end_header
+        0 0 0
+        1000 0 0
+        1000 1000 0
+        3 0 1 2
+    """.trimIndent().toByteArray()
+
+    private fun glbBytes(): ByteArray {
+        val binary = java.nio.ByteBuffer.allocate(3 * 12 + 3 * 2)
+            .order(java.nio.ByteOrder.LITTLE_ENDIAN)
+        binary.putFloat(0f).putFloat(0f).putFloat(0f)
+        binary.putFloat(1000f).putFloat(0f).putFloat(0f)
+        binary.putFloat(1000f).putFloat(1000f).putFloat(0f)
+        binary.putShort(0).putShort(1).putShort(2)
+
+        val json = """
+        {"asset":{"version":"2.0"},"scenes":[{"nodes":[0]}],"nodes":[{"mesh":0}],
+         "meshes":[{"name":"kutu","primitives":[{"attributes":{"POSITION":0},"indices":1,"mode":4}]}],
+         "accessors":[{"bufferView":0,"componentType":5126,"count":3,"type":"VEC3"},
+                      {"bufferView":1,"componentType":5123,"count":3,"type":"SCALAR"}],
+         "bufferViews":[{"buffer":0,"byteOffset":0,"byteLength":36},
+                        {"buffer":0,"byteOffset":36,"byteLength":6}],
+         "buffers":[{"byteLength":42}]}
+        """.trimIndent()
+
+        fun pad(bytes: ByteArray, filler: Byte): ByteArray =
+            bytes + ByteArray((4 - bytes.size % 4) % 4) { filler }
+
+        val jsonChunk = pad(json.toByteArray(), ' '.code.toByte())
+        val binChunk = pad(binary.array(), 0)
+        val total = 12 + 8 + jsonChunk.size + 8 + binChunk.size
+
+        val out = java.nio.ByteBuffer.allocate(total).order(java.nio.ByteOrder.LITTLE_ENDIAN)
+        out.put("glTF".toByteArray()).putInt(2).putInt(total)
+        out.putInt(jsonChunk.size).putInt(0x4E4F534A).put(jsonChunk)
+        out.putInt(binChunk.size).putInt(0x004E4942).put(binChunk)
+        return out.array()
+    }
+
+    @Test
+    fun `a PLY file is converted and opens with no user action at all`() {
+        val model = assertIs<StoreResult.Success<ModelDocument>>(
+            opened("tarama.ply", plyBytes).openAsModel(),
+        ).value
+        assertEquals(1, model.faces.size)
+        assertEquals(1000.0, model.bounds.size.x, 1e-6)
+    }
+
+    @Test
+    fun `a GLB file is converted, and keeps the names its parts were given`() {
+        val model = assertIs<StoreResult.Success<ModelDocument>>(
+            opened("model.glb", glbBytes()).openAsModel(),
+        ).value
+        assertEquals(1, model.faces.size)
+        assertEquals(listOf("kutu"), model.groups)
+    }
+
+    @Test
+    fun `a gltf that needs a second file says so, by name, rather than showing nothing`() {
+        val needsBin = """
+        {"asset":{"version":"2.0"},"scenes":[{"nodes":[0]}],"nodes":[{"mesh":0}],
+         "meshes":[{"primitives":[{"attributes":{"POSITION":0},"indices":1,"mode":4}]}],
+         "accessors":[{"bufferView":0,"componentType":5126,"count":3,"type":"VEC3"},
+                      {"bufferView":1,"componentType":5123,"count":3,"type":"SCALAR"}],
+         "bufferViews":[{"buffer":0,"byteOffset":0,"byteLength":36},
+                        {"buffer":0,"byteOffset":36,"byteLength":6}],
+         "buffers":[{"uri":"scene.bin","byteLength":42}]}
+        """.trimIndent().toByteArray()
+
+        val unreadable = assertIs<StoreFailure.Unreadable>(
+            assertIs<StoreResult.Failure>(opened("sahne.gltf", needsBin).openAsModel()).failure,
+        )
+        assertEquals(FileFormat.GLTF, unreadable.format)
+        assertEquals(UnreadableReason.NEEDS_ANOTHER_FILE, unreadable.reason)
+    }
+
+    @Test
+    fun `every format the converter claims it can read, it can`() {
+        // The one place the list of what opens and the code that opens it are
+        // checked against each other. A format marked readable with no entry in
+        // the converter would be a file that imports, opens, and shows nothing.
+        val samples = mapOf(
+            FileFormat.STL to ("p.stl" to asciiStl),
+            FileFormat.OBJ to ("p.obj" to objBytes2),
+            FileFormat.PLY to ("p.ply" to plyBytes),
+            FileFormat.GLB to ("p.glb" to glbBytes()),
+        )
+        for ((format, sample) in samples) {
+            assertTrue(format.readable, "${format.name} is not marked readable")
+            val (name, payload) = sample
+            assertIs<StoreResult.Success<ModelDocument>>(
+                opened(name, payload).openAsModel(),
+                "${format.name} is marked readable but the converter has no entry for it",
+            )
+        }
+    }
+
+    private val asciiStl = (
+        "solid x\nfacet normal 0 0 1\nouter loop\n" +
+            "vertex 0 0 0\nvertex 1000 0 0\nvertex 0 1000 0\n" +
+            "endloop\nendfacet\nendsolid x"
+        ).toByteArray()
+
+    private val objBytes2 = "v 0 0 0\nv 1000 0 0\nv 1000 1000 0\nf 1 2 3\n".toByteArray()
+}

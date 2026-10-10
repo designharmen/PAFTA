@@ -35,14 +35,18 @@ public enum class FileFormat(
     DXF("dxf", ViewerKind.DRAWING, readable = true),
     DWG("dwg", ViewerKind.DRAWING, readable = false),
 
-    GLB("glb", ViewerKind.MODEL, readable = false),
-    GLTF("gltf", ViewerKind.MODEL, readable = false),
+    // What everything exports today: Blender, SketchUp, Revit, Rhino and every
+    // web tool. JSON describing where the numbers are, plus the numbers.
+    GLB("glb", ViewerKind.MODEL, readable = true),
+    GLTF("gltf", ViewerKind.MODEL, readable = true),
     // Both are plain lists of triangles with no units and no scene, which is
     // exactly what this viewer can show — so both are read here, in Kotlin,
     // with no native library and no licence question.
     OBJ("obj", ViewerKind.MODEL, readable = true),
     STL("stl", ViewerKind.MODEL, readable = true),
-    PLY("ply", ViewerKind.MODEL, readable = false),
+    // What every 3D scanner writes: a plain-text header that says exactly what
+    // is in the file, then the file.
+    PLY("ply", ViewerKind.MODEL, readable = true),
     DAE("dae", ViewerKind.MODEL, readable = false),
     THREE_DS("3ds", ViewerKind.MODEL, readable = false),
     IFC("ifc", ViewerKind.MODEL, readable = false),
