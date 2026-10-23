@@ -21,14 +21,32 @@ public enum class DwgVersion(internal val tag: String, public val year: Int) {
     ;
 
     /**
-     * True for the versions this reader understands.
+     * True for the versions this reader understands, which is all but one.
      *
-     * R13 through R2000 share one file layout: a table of where things are,
-     * then the objects. From 2004 onwards the file is split into compressed
-     * pages, which is a different reader. Everything a program can save as
-     * "AutoCAD 2000 DWG" lands in the first group.
+     * AutoCAD 2007 is the exception. Every other release either uses the plain
+     * layout of R13 to 2000 or the compressed-page container of 2004; 2007
+     * alone wrapped that container in an error-correcting code of its own,
+     * which later releases dropped again.
      */
-    public val readable: Boolean get() = ordinal <= R2000.ordinal
+    public val readable: Boolean get() = this != R2007
+
+    /** From 2004 the drawing lives in compressed pages. */
+    internal val pagedContainer: Boolean get() = ordinal >= R2004.ordinal
+
+    /** 2000 moved several fields and shortened the coordinates. */
+    internal val since2000: Boolean get() = ordinal >= R2000.ordinal
+
+    /** 2004 replaced the colour field and dropped the neighbour links. */
+    internal val since2004: Boolean get() = ordinal >= R2004.ordinal
+
+    /** 2007 moved every piece of text to the end of its object, as Unicode. */
+    internal val since2007: Boolean get() = ordinal >= R2007.ordinal
+
+    /** 2010 changed how an object states its own size and type. */
+    internal val since2010: Boolean get() = ordinal >= R2010.ordinal
+
+    /** 2013 added one more flag to every entity. */
+    internal val since2013: Boolean get() = ordinal >= R2013.ordinal
 
     public companion object {
         /** The version from the file's first six bytes, or null if those are not a DWG's. */

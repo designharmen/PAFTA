@@ -66,10 +66,10 @@ public fun PaftaProject.openAsDrawing(): StoreResult<DrawingDocument> {
                 is DwgFailure.NothingInIt ->
                     DxfDrawing(entityTypeCounts = reason.objectTypeCounts)
 
-                is DwgFailure.TooNew -> return StoreResult.Failure(
+                is DwgFailure.UnsupportedVersion -> return StoreResult.Failure(
                     StoreFailure.Unreadable(
                         FileFormat.DWG,
-                        UnreadableReason.FORMAT_TOO_NEW,
+                        UnreadableReason.FORMAT_NOT_SUPPORTED,
                         formatYear = reason.version.year,
                     ),
                 )

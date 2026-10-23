@@ -1225,7 +1225,7 @@ being straight about which is which matters more than the code does.
 | **DXF** | already opened; nothing needed |
 | **STL** | **opens now** — pure Kotlin reader, no dependency |
 | **OBJ** | **opens now** — pure Kotlin reader, no dependency |
-| **DWG** | **opens now** for AutoCAD R13, R14 and 2000 — PAFTA's own reader, pure Kotlin, no dependency. AutoCAD 2004 and later are refused by their year, with the Save-As step that fixes it. See *Phase F*. |
+| **DWG** | **opens now** for every version but AutoCAD 2007 — R13, R14, 2000, 2004, 2010, 2013, 2018. PAFTA's own reader, pure Kotlin, no dependency. See *Phase F*. |
 | **SKP** | **no free library exists.** Trimble reads its own format only through its own paid SDK. This is not a matter of effort |
 
 ### STL and OBJ were nearly free, because the viewer already existed
@@ -1587,3 +1587,111 @@ Each cost a build or would have:
 
 Both were verified by reintroducing the exact mistake and watching the check
 catch it.
+
+
+---
+
+## Phase F, part two — AutoCAD 2004 and everything after it
+
+The first part read the files with the old layout. This part reads the rest,
+which is what the owner actually has: a drawing saved by any AutoCAD of the
+last twenty years is a 2004-or-later file.
+
+### What 2004 changed
+
+Everything about the file, and nothing about the drawing.
+
+A DWG up to 2000 is a plain file: a table of contents at a fixed place, then the
+objects where it says they are. From 2004 it is a **container**. At byte 128 sits
+a scrambled directory; it points at a map of pages; that points at a map of
+sections; each section is spread over pages that are **compressed** and have to
+be unpacked and stitched back together in the right order. Only then does
+anything about the drawing exist.
+
+Two sections matter: `AcDb:AcDbObjects`, which is every object, and
+`AcDb:Handles`, the index into it — and that index turned out to be **the same
+format as the table at the end of a 2000 file**. So did the objects. Once the
+container was open, the reader from part one read the drawing with no changes at
+all.
+
+Three pieces had to be worked out:
+
+- **The directory is obfuscated, not encrypted.** Each byte is combined with a
+  run of numbers from a fixed arithmetic sequence, with no key. Twelve bytes of
+  magic at its front are how we know it came out right.
+- **The compression is undocumented.** It is a variant of LZ77 whose rules were
+  learned from LibreDWG's implementation and written fresh here (said plainly in
+  `docs/LICENCES.md`). The one subtlety that matters: a back-reference may reach
+  back fewer bytes than it copies, so it must read back what it is writing as it
+  goes. That is how a thousand identical bytes cost three — and copying from a
+  snapshot instead gives output of the right length and the wrong content.
+- **Each page's own header is scrambled too**, with a key made from where the
+  page sits in the file. A page moved elsewhere stops reading, which is
+  presumably the point.
+
+### What 2007 and 2010 changed
+
+These are changes to the objects, not the container.
+
+- **2007 moved every string out of its object.** A layer name, a piece of text:
+  where it used to sit is now nothing at all, and the strings live in a run at
+  the very end of the object, as Unicode. The run's length is written
+  *backwards* from the object's last bit, and one bit there says whether there
+  is a run at all. A reader that misses this gets the geometry and loses every
+  word in the drawing.
+- **2010 changed how an object states its own size.** It now says how many of
+  its bits are handles rather than how many are data, in a field not counted in
+  its own size, and its type is written in a width that depends on the number.
+- **Each release added flags to every entity** — material, shadow, three kinds
+  of visual style, a data flag in 2013 — and each one is a bit that puts
+  everything after it out of place if it is missed.
+- **2007 also dropped two fields from every table entry.** Two bits, and they
+  were enough to read a block's base point out of the middle of something else:
+  every copy of that block landed two millimetres off, and the one placed at
+  3256 times scale landed three and a half thousand units away. The four-version
+  comparison is what caught it.
+
+### 2007 is the one version that does not open
+
+Alone among them, AutoCAD 2007 wrapped the container in an error-correcting code
+of its own, and the release after it dropped that again. It is refused by name
+and year, with the fix: save as any other version.
+
+That is a deliberate stopping point, not an oversight. It is one release out of
+eight, from 2007, and the alternative was more work than every other version
+cost put together.
+
+### How this was made trustworthy
+
+The same way as part one, and then harder.
+
+**Every object validates.** Each one repeats its own handle a few fields in; the
+reader checks it against the index. On the 2004 file that is 735 of 735; on 2010,
+536 of 536; on 2013, 481 of 481; on 2018, 474 of 474.
+
+**Every entity ends where it says it does.** Each object states its own length in
+bits. Arcs, circles, ellipses, points, faces, filled quads and polylines all
+finish on exactly the bit the object says — in all four files. That check is what
+found the field orders the published descriptions got wrong.
+
+**Four releases, one drawing, identical output.** The test files are the same
+drawing saved by R14, 2000, 2004 and 2018 — four unrelated file layouts, from a
+plain file with a table of contents to compressed pages with the text held
+separately as Unicode. All four now produce the same 143 entities, the same
+kinds, the same coordinates to six decimals, and the same words. A test asserts
+it, and it is the single most useful test in the module: it is what caught the
+two-bit table change, and it would catch any future version's surprises the
+same way.
+
+**Coordinates checked against DXF.** All 68 lines in all four files match the
+DXF export of the same drawing to the last digit, as do the text contents, their
+heights and their rotations.
+
+### One real fix along the way
+
+Up to AutoCAD 2000 a polyline's points sit directly behind it in the file, which
+is how both the DXF reader and part one of this one find them. **From 2004 they
+do not** — they are scattered. But every point says which polyline owns it, in
+every version, so that is what the reader goes by now, with the old
+walk-behind-it as the fallback. Before that, a 2018 file lost its 3D polyline
+and its mesh silently.

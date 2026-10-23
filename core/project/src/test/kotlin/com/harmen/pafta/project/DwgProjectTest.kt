@@ -30,8 +30,8 @@ class DwgProjectTest {
     private fun dwgHeader(version: String) = version.toByteArray() + ByteArray(4096)
 
     @Test
-    fun `yeni surumle kaydedilmis DWG ice aktarilir ve dosya kaybolmaz`() {
-        val entry = store.import("plan.dwg", dwgHeader("AC1032")).valueOrNull()
+    fun `acilamayan surumdeki DWG ice aktarilir ve dosya kaybolmaz`() {
+        val entry = store.import("plan.dwg", dwgHeader("AC1021")).valueOrNull()
         assertNotNull(entry, "DWG içe aktarılamadı")
         assertEquals(FileFormat.DWG, entry.format)
         assertTrue(entry.file.exists(), "dosya saklanmamış")
@@ -39,18 +39,18 @@ class DwgProjectTest {
     }
 
     @Test
-    fun `yeni surumle kaydedilmis DWG acilirken yil soylenir`() {
-        val entry = store.import("plan.dwg", dwgHeader("AC1032")).valueOrNull()!!
+    fun `acilamayan surumdeki DWG acilirken yil soylenir`() {
+        val entry = store.import("plan.dwg", dwgHeader("AC1021")).valueOrNull()!!
         val project = store.open(entry.file).valueOrNull()
         assertNotNull(project, "proje açılamadı")
 
         val failure = assertIs<StoreResult.Failure>(project.openAsDrawing()).failure
         val unreadable = assertIs<StoreFailure.Unreadable>(failure)
         assertEquals(FileFormat.DWG, unreadable.format)
-        assertEquals(UnreadableReason.FORMAT_TOO_NEW, unreadable.reason)
+        assertEquals(UnreadableReason.FORMAT_NOT_SUPPORTED, unreadable.reason)
         // The year is what makes the advice usable: it is the one in the user's
         // own "Save as" list.
-        assertEquals(2018, unreadable.formatYear)
+        assertEquals(2007, unreadable.formatYear)
     }
 
     @Test

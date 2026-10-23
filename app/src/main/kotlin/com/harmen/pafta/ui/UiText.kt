@@ -131,8 +131,8 @@ public fun StoreFailure.mesaj(): String = when (this) {
             // Sürüm sorunu. Burada "açamıyorum" demek yetmez: kullanıcının
             // kendi programında otuz saniyede çözeceği bir şey, yeter ki hangi
             // seçeneği seçeceğini bilsin. Yıl dosyanın kendi beyanı.
-            UnreadableReason.FORMAT_TOO_NEW -> stringResource(
-                R.string.error_format_too_new,
+            UnreadableReason.FORMAT_NOT_SUPPORTED -> stringResource(
+                R.string.error_format_not_supported,
                 formatYear ?: 0,
             )
 

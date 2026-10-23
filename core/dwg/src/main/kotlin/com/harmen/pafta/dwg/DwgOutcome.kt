@@ -21,12 +21,12 @@ public sealed interface DwgFailure {
     public data object NotADwg : DwgFailure
 
     /**
-     * A DWG, but from a version this build cannot open.
+     * A DWG, but from the one release this build cannot open.
      *
      * [version] is what the file says it is, so the screen can name the year
      * and tell the user which "Save as" option gets them a file PAFTA reads.
      */
-    public data class TooNew(val version: DwgVersion) : DwgFailure
+    public data class UnsupportedVersion(val version: DwgVersion) : DwgFailure
 
     /** A DWG of a readable version whose contents did not hold together. */
     public data object Damaged : DwgFailure

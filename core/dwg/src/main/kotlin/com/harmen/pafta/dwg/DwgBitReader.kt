@@ -207,3 +207,55 @@ internal class DwgTruncated : RuntimeException(null, null, false, false)
 internal class DwgMalformedValue : RuntimeException(null, null, false, false)
 
 private val TURKISH_CODE_PAGE = charset("windows-1254")
+
+/** An unsigned length-prefixed integer: seven bits a byte, low byte first. */
+internal fun DwgBitReader.unsignedModularChar(): Long {
+    var value = 0L
+    var shift = 0
+    while (true) {
+        val b = rawChar()
+        value = value or ((b and 0x7F).toLong() shl shift)
+        shift += 7
+        if (b and 0x80 == 0) return value
+        if (shift > 56) throw DwgMalformedValue()
+    }
+}
+
+/**
+ * An object type as AutoCAD 2010 and later write it.
+ *
+ * Two bits say how wide the number is, because by 2010 a drawing could hold
+ * types numbered past a byte and most files still only used the first few.
+ */
+internal fun DwgBitReader.objectType(): Int = when (twoBits()) {
+    0 -> bits(8)
+    1 -> bits(8) + 0x1F0
+    else -> rawShort()
+}
+
+/** A length-prefixed integer: three bits of byte count, then the bytes. */
+internal fun DwgBitReader.bitLongLong(): Long {
+    val count = bits(3)
+    var value = 0L
+    repeat(count) { value = (value shl 8) or rawChar().toLong() }
+    return value
+}
+
+/**
+ * Text as AutoCAD 2007 and later store it: a count of characters, then that
+ * many sixteen-bit characters.
+ *
+ * This is the one encoding in DWG that needs no guessing about code pages — it
+ * is Unicode, so a Turkish layer name is a Turkish layer name.
+ */
+internal fun DwgBitReader.unicodeText(): String {
+    val count = bitShort()
+    if (count <= 0) return ""
+    if (!has(count * 16)) throw DwgTruncated()
+    val out = StringBuilder(count)
+    repeat(count) {
+        val c = rawShort()
+        if (c != 0) out.append(c.toChar())
+    }
+    return out.toString()
+}

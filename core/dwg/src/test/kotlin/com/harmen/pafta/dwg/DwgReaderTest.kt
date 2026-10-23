@@ -10,13 +10,16 @@ import kotlin.test.assertTrue
 /**
  * Reads real AutoCAD files.
  *
- * The three files are AutoCAD's own, from the test set of the LibreDWG project
- * (GPL-3.0; recorded in `docs/LICENCES.md`). The first two are the same drawing
- * saved by two different AutoCAD versions, which is what makes the comparison
- * below worth having: two unrelated file layouts have to produce the same
- * geometry. The numbers asserted here were taken from the same drawing exported
- * to DXF — a format with a published specification — so they are the drawing's
- * real coordinates and not this reader's opinion of them.
+ * The four files are AutoCAD's own, from the test set of the LibreDWG project
+ * (GPL-3.0; recorded in `docs/LICENCES.md`), and they are all the same drawing
+ * saved by four different releases: R14, 2000, 2004 and 2018. That is what
+ * makes the comparison below worth having — four unrelated file layouts, from a
+ * plain file with a table of contents to a set of compressed pages with the
+ * text held separately as Unicode, all have to produce the same geometry.
+ *
+ * The numbers asserted here were taken from the same drawing exported to DXF —
+ * a format with a published specification — so they are the drawing's real
+ * coordinates and not this reader's opinion of them.
  */
 class DwgReaderTest {
 
@@ -109,32 +112,75 @@ class DwgReaderTest {
     }
 
     @Test
-    fun `ayni cizim R14 ve 2000 dosyasindan ayni okunur`() {
-        val old = drawingOf("autocad-r14.dwg")
-        val new = drawingOf("autocad-2000.dwg")
-
-        assertEquals(new.entities.size, old.entities.size)
-        assertEquals(
-            new.entities.groupingBy { it::class.simpleName!! }.eachCount(),
-            old.entities.groupingBy { it::class.simpleName!! }.eachCount(),
+    fun `dort ayri DWG surumu ayni cizimi ayni okur`() {
+        val files = listOf(
+            "autocad-r14.dwg",
+            "autocad-2000.dwg",
+            "autocad-2004.dwg",
+            "autocad-2018.dwg",
         )
-        // The layer names differ in case between the two versions, so the
-        // comparison is of the geometry: every line in one is a line in the
-        // other, to the millimetre.
+        val reference = drawingOf(files.first())
+
+        // Every line in one is a line in every other, to the micrometre. The
+        // comparison is of geometry rather than layer names because the names
+        // themselves differ in case between releases.
         val ends = { d: com.harmen.pafta.dxf.DxfDrawing ->
             d.entities.filterIsInstance<DxfEntity.Line>()
                 .map { "%.6f %.6f %.6f %.6f".format(it.start.x, it.start.y, it.end.x, it.end.y) }
                 .sorted()
         }
-        assertEquals(ends(new), ends(old))
+        val kinds = { d: com.harmen.pafta.dxf.DxfDrawing ->
+            d.entities.groupingBy { it::class.simpleName!! }.eachCount()
+        }
+
+        for (file in files.drop(1)) {
+            val other = drawingOf(file)
+            assertEquals(reference.entities.size, other.entities.size, file)
+            assertEquals(kinds(reference), kinds(other), file)
+            assertEquals(ends(reference), ends(other), file)
+            assertEquals(reference.entityTypeCounts["LINE"], other.entityTypeCounts["LINE"], file)
+        }
     }
 
     @Test
-    fun `2018 dosyasi yil bilgisiyle reddedilir`() {
-        val outcome = DwgReader.read(load("autocad-2018.dwg"))
+    fun `2018 dosyasindaki yazilar da okunur`() {
+        // From AutoCAD 2007 every string sits in a run at the end of its own
+        // object, as Unicode, and nothing at all is written where it is used.
+        // A reader that missed that would still get the geometry and lose
+        // every word in the drawing.
+        val texts = drawingOf("autocad-2018.dwg").entities.filterIsInstance<DxfEntity.Text>()
+        assertTrue(texts.any { it.value == "teksto simpla" }, "yazı okunamadı: ${texts.map { it.value }}")
+        assertEquals(
+            100.0,
+            texts.first { it.value == "teksto simpla" }.height,
+            1e-9,
+        )
+        assertTrue(
+            drawingOf("autocad-2018.dwg").layers.any { it.name == "Tavolo 3" },
+            "katman adı okunamadı",
+        )
+    }
+
+    @Test
+    fun `AutoCAD 2007 bicimi yil bilgisiyle reddedilir`() {
+        // The one release this reader does not open. The refusal has to carry
+        // the year, because that is what the user picks from in their own
+        // program's "Save as" list.
+        val outcome = DwgReader.read("AC1021".toByteArray() + ByteArray(4096))
         val reason = (outcome as DwgOutcome.Failure).reason
-        assertTrue(reason is DwgFailure.TooNew, "beklenen ret sebebi değil: $reason")
-        assertEquals(2018, (reason as DwgFailure.TooNew).version.year)
+        assertTrue(reason is DwgFailure.UnsupportedVersion, "beklenen ret sebebi değil: $reason")
+        assertEquals(2007, (reason as DwgFailure.UnsupportedVersion).version.year)
+    }
+
+    @Test
+    fun `her DWG surumu tanınır`() {
+        assertEquals(DwgVersion.R14, DwgVersion.of("AC1014".toByteArray()))
+        assertEquals(DwgVersion.R2000, DwgVersion.of("AC1015".toByteArray()))
+        assertEquals(DwgVersion.R2004, DwgVersion.of("AC1018".toByteArray()))
+        assertEquals(DwgVersion.R2018, DwgVersion.of("AC1032".toByteArray()))
+        assertEquals(null, DwgVersion.of("AC9999".toByteArray()))
+        // All but one open.
+        assertTrue(DwgVersion.entries.filter { !it.readable } == listOf(DwgVersion.R2007))
     }
 
     @Test
@@ -145,7 +191,11 @@ class DwgReaderTest {
 
     @Test
     fun `yarim kalmis dosya cokertmez`() {
-        val whole = load("autocad-2000.dwg")
+        for (name in listOf("autocad-2000.dwg", "autocad-2018.dwg")) cutShort(name)
+    }
+
+    private fun cutShort(name: String) {
+        val whole = load(name)
         // A file cut off part way through — a download that stopped, a copy that
         // ran out of space. It must come back as a refusal, never as a crash.
         for (fraction in listOf(2, 3, 5, 20)) {
@@ -160,7 +210,11 @@ class DwgReaderTest {
 
     @Test
     fun `bozulmus baytlar cokertmez`() {
-        val whole = load("autocad-2000.dwg")
+        for (name in listOf("autocad-2000.dwg", "autocad-2018.dwg")) scramble(name)
+    }
+
+    private fun scramble(name: String) {
+        val whole = load(name)
         // Every eleventh byte flipped: the version stays readable, so the reader
         // goes all the way in and has to survive nonsense at every step.
         val broken = whole.copyOf()

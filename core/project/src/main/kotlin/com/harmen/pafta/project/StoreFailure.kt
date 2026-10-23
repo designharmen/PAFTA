@@ -70,15 +70,14 @@ public enum class UnreadableReason {
     NO_VIEWER_YET,
 
     /**
-     * The format is one PAFTA reads, but this file was saved by a release that
-     * changed it beyond what this build understands.
+     * The format is one PAFTA reads, but not the release that wrote this file.
      *
-     * DWG is really a family of formats; AutoCAD 2004 replaced the whole layout
-     * of the file. Saying so, with the year, lets the user go back to their own
-     * program and save a file PAFTA can open — which is a thirty-second fix,
+     * DWG is really a family of formats, and PAFTA reads all of them but one.
+     * Saying which, by year, lets the user go back to their own program and
+     * save the drawing again as something PAFTA opens — a thirty-second fix,
      * where "this file cannot be opened" is a dead end.
      */
-    FORMAT_TOO_NEW,
+    FORMAT_NOT_SUPPORTED,
 
     /**
      * It read, and it points at a second file that was not imported with it.

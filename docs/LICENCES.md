@@ -42,15 +42,23 @@ reason.
 AutoCAD's DWG is read by `core:dwg`, written for this project in Kotlin. It
 depends on nothing, and it therefore adds **no licence obligation at all** — the
 GPL decision that the DWG phase was waiting on turned out not to be needed for
-reading. The reader covers AutoCAD R13, R14 and 2000; files from AutoCAD 2004
-onwards are recognised and refused by their year.
+reading. The reader covers **every DWG version except AutoCAD 2007**: R13, R14,
+2000, 2004, 2010, 2013 and 2018. A 2007 file is recognised and refused by its
+year, with the one step that fixes it.
 
 **Test files.** `core/dwg/src/test/resources/autocad-*.dwg` are AutoCAD files
 from the test set of the **LibreDWG** project (`LibreDWG/libredwg`,
 **GPL-3.0**). They are test material only: they are not in the application, not
-shipped in the APK, and nothing links against LibreDWG. PAFTA is distributed
-under GPL-3.0 in any case, so their presence in the repository is consistent
-with the project's own licence.
+shipped in the APK, and nothing links against LibreDWG.
+
+**One algorithm came from reading LibreDWG's source.** The compression AutoCAD
+2004 introduced is undocumented, and LibreDWG's implementation of it
+(`src/decode.c`, GPL-3.0) is where its rules were learned. PAFTA's
+`core/dwg/.../DwgLz77.kt` is written from those rules rather than translated
+from that code, and it is credited here because learning a format's rules from
+GPL source is exactly the kind of thing that should be said out loud. PAFTA is
+distributed under GPL-3.0 in any case, so this is consistent with both
+licences.
 
 ## Planned, not yet added
 

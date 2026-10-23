@@ -30,17 +30,68 @@ public object DwgReader {
 
     public fun read(bytes: ByteArray): DwgOutcome {
         val version = DwgVersion.of(bytes) ?: return DwgOutcome.Failure(DwgFailure.NotADwg)
-        if (!version.readable) return DwgOutcome.Failure(DwgFailure.TooNew(version))
+        if (!version.readable) return DwgOutcome.Failure(DwgFailure.UnsupportedVersion(version))
         return try {
-            DwgParse(bytes, version).read()
+            val sections = sections(bytes, version)
+                ?: return DwgOutcome.Failure(DwgFailure.Damaged)
+            DwgParse(sections, version).read()
         } catch (e: RuntimeException) {
             DwgOutcome.Failure(DwgFailure.Damaged)
         }
     }
-}
 
-/** Where one part of the file begins and how long it is. */
-private class Locator(val offset: Int, val size: Int)
+    /**
+     * The two parts of the drawing, however the file keeps them.
+     *
+     * Up to AutoCAD 2000 the objects are simply the file, and a table near the
+     * end says where each one starts; from 2004 both are sections of a
+     * compressed container. Past this point nothing cares which it was.
+     */
+    private fun sections(bytes: ByteArray, version: DwgVersion): DwgSections? {
+        if (version.pagedContainer) return DwgContainer.read(bytes)
+        val locators = legacyLocators(bytes) ?: return null
+        val map = locators[OBJECT_MAP_RECORD] ?: return null
+        val handles = slice(bytes, map) ?: return null
+        return DwgSections(
+            objects = bytes,
+            handles = handles,
+            classes = locators[CLASS_RECORD]?.let { slice(bytes, it) },
+        )
+    }
+
+    private fun slice(bytes: ByteArray, at: IntArray): ByteArray? {
+        val from = at[0]
+        val to = at[0] + at[1]
+        if (from < 0 || to > bytes.size || to <= from) return null
+        return bytes.copyOfRange(from, to)
+    }
+
+    /**
+     * The table of contents of a file up to AutoCAD 2000: a count, then one
+     * nine-byte record per part saying what it is and where.
+     */
+    private fun legacyLocators(bytes: ByteArray): Map<Int, IntArray>? {
+        if (bytes.size < LOCATOR_START + 9) return null
+        fun int32(at: Int): Int = (bytes[at].toInt() and 0xFF) or
+            ((bytes[at + 1].toInt() and 0xFF) shl 8) or
+            ((bytes[at + 2].toInt() and 0xFF) shl 16) or
+            ((bytes[at + 3].toInt() and 0xFF) shl 24)
+
+        val count = int32(LOCATOR_COUNT_AT)
+        if (count <= 0 || count > MAX_LOCATORS) return null
+        val out = HashMap<Int, IntArray>()
+        var at = LOCATOR_START
+        repeat(count) {
+            if (at + 9 > bytes.size) return out
+            val id = bytes[at].toInt() and 0xFF
+            val offset = int32(at + 1)
+            val size = int32(at + 5)
+            if (offset in 0 until bytes.size && size >= 0) out[id] = intArrayOf(offset, size)
+            at += 9
+        }
+        return out
+    }
+}
 
 /** An object's place in the file, before anything inside it is read. */
 private class RawObject(
@@ -55,12 +106,26 @@ private class RawObject(
     val headerBitSize: Int,
 )
 
-/** An entity's common header: the part every entity has, whatever it draws. */
+/**
+ * An entity's common header: the part every entity has, whatever it draws.
+ *
+ * Several of these fields are flags whose only use is to say which handles
+ * follow in the handle stream, which is why they are carried rather than read
+ * and dropped.
+ */
 private class EntityHeader(
     val entityMode: Int,
     val reactors: Int,
     val noLinks: Boolean,
+    val byLayerLineType: Boolean,
+    val extensionDictionaryMissing: Boolean,
     val colour: Int,
+    val colourIsHandle: Boolean,
+    val lineTypeFlags: Int,
+    val plotStyleFlags: Int,
+    val materialFlags: Int,
+    val shadowFlags: Int,
+    val visualStyles: Int,
     val handleStreamBit: Int,
 )
 
@@ -82,23 +147,39 @@ private class Placed(
     val entityMode: Int,
 )
 
-private class DwgParse(private val data: ByteArray, private val version: DwgVersion) {
+private class DwgParse(sections: DwgSections, private val version: DwgVersion) {
+
+    /** Every object in the drawing, back to back. */
+    private val data: ByteArray = sections.objects
+
+    /** The index into [data]: which handle starts where. */
+    private val handleTable: ByteArray = sections.handles
+
+    /** The object types the file declares for itself, if it says. */
+    private val classTable: ByteArray? = sections.classes
 
     /** True for the AutoCAD 2000 layout, which moved several fields. */
-    private val modern: Boolean = version.ordinal >= DwgVersion.R2000.ordinal
+    private val modern: Boolean = version.since2000
 
     private val typeCounts = LinkedHashMap<String, Int>()
     private val unsupported = LinkedHashSet<String>()
     private var declared: Map<Int, DeclaredClass> = emptyMap()
 
     fun read(): DwgOutcome {
-        val locators = locators() ?: return DwgOutcome.Failure(DwgFailure.Damaged)
-        val map = locators[OBJECT_MAP_RECORD]
-            ?: return DwgOutcome.Failure(DwgFailure.Damaged)
-        declared = locators[CLASS_RECORD]?.let { declaredClasses(it) } ?: emptyMap()
+        // Only for the older files, and only because they need it: before
+        // AutoCAD 2004 the lightweight polyline most plans are drawn with is a
+        // declared type, so without this table it is an unknown number. From
+        // 2004 it is a fixed type again, and the table would buy nothing but
+        // nicer names for the types this reader skips anyway — which is not
+        // worth reading a differently-laid-out table wrong.
+        declared = if (version.since2004) {
+            emptyMap()
+        } else {
+            classTable?.let { declaredClasses(it) } ?: emptyMap()
+        }
 
         val objects = ArrayList<RawObject>()
-        for ((handle, offset) in objectMap(map)) {
+        for ((handle, offset) in objectMap()) {
             val o = try {
                 header(handle, offset)
             } catch (e: RuntimeException) {
@@ -130,24 +211,36 @@ private class DwgParse(private val data: ByteArray, private val version: DwgVers
             .firstOrNull { it.value.equals(MODEL_SPACE, ignoreCase = true) }
             ?.key
 
+        // A classic polyline keeps its points in separate objects, and every one
+        // of them says which polyline owns it. Up to AutoCAD 2000 they also sat
+        // directly behind it in the file, which is how the DXF reader finds
+        // them; from 2004 they do not, so going by what they say is the only
+        // way that works for every version.
+        val verticesByOwner = HashMap<Long, MutableList<RawObject>>()
+        for (o in objects) {
+            if (!isVertex(o.type)) continue
+            val owner = try {
+                ownerOf(o)
+            } catch (e: RuntimeException) {
+                null
+            } ?: continue
+            verticesByOwner.getOrPut(owner) { ArrayList() } += o
+        }
+
         val placed = ArrayList<Placed>()
-        var index = 0
-        while (index < objects.size) {
-            val o = objects[index]
-            if (!isEntity(o.type)) {
-                index++
-                continue
-            }
+        for (o in objects) {
+            if (!isEntity(o.type)) continue
             typeCounts[typeName(o.type)] = (typeCounts[typeName(o.type)] ?: 0) + 1
+            // Counted above, drawn as part of the polyline that owns them.
+            if (isVertex(o.type) || o.type == DwgObjectType.SEQEND) continue
 
             if (isPolyline(o.type)) {
-                val run = polylineRun(objects, index)
+                val vertices = verticesByOwner[o.handle] ?: adjacentVertices(objects, o)
                 try {
-                    placed += readPolyline(o, run, layerNames, typeCounts)
+                    placed += readPolyline(o, vertices, layerNames)
                 } catch (e: RuntimeException) {
                     unsupported += typeName(o.type)
                 }
-                index = run.endIndex
                 continue
             }
             try {
@@ -156,7 +249,6 @@ private class DwgParse(private val data: ByteArray, private val version: DwgVers
             } catch (e: RuntimeException) {
                 unsupported += typeName(o.type)
             }
-            index++
         }
 
         // A block's geometry is the entities that say the block owns them; the
@@ -213,33 +305,6 @@ private class DwgParse(private val data: ByteArray, private val version: DwgVers
         )
     }
 
-    // --- the file's table of contents ---------------------------------------
-
-    private fun int32(at: Int): Int {
-        if (at < 0 || at + 4 > data.size) throw DwgTruncated()
-        return (data[at].toInt() and 0xFF) or
-            ((data[at + 1].toInt() and 0xFF) shl 8) or
-            ((data[at + 2].toInt() and 0xFF) shl 16) or
-            ((data[at + 3].toInt() and 0xFF) shl 24)
-    }
-
-    private fun locators(): Map<Int, Locator>? {
-        if (data.size < LOCATOR_START + 9) return null
-        val count = int32(LOCATOR_COUNT_AT)
-        if (count <= 0 || count > MAX_LOCATORS) return null
-        val out = HashMap<Int, Locator>()
-        var at = LOCATOR_START
-        repeat(count) {
-            if (at + 9 > data.size) return null
-            val id = data[at].toInt() and 0xFF
-            val offset = int32(at + 1)
-            val size = int32(at + 5)
-            if (offset in 0 until data.size && size >= 0) out[id] = Locator(offset, size)
-            at += 9
-        }
-        return out
-    }
-
     /**
      * The kinds of object the file declares for itself.
      *
@@ -250,14 +315,16 @@ private class DwgParse(private val data: ByteArray, private val version: DwgVers
      * not optional: without it, the lightweight polyline that most plans are
      * drawn with is an unknown number in half the files in the world.
      */
-    private fun declaredClasses(l: Locator): Map<Int, DeclaredClass> {
+    private fun declaredClasses(table: ByteArray): Map<Int, DeclaredClass> {
         val out = HashMap<Int, DeclaredClass>()
         try {
-            val start = l.offset + CLASS_SENTINEL_BYTES
-            if (start + 4 > data.size) return out
-            val r = DwgBitReader(data, start * 8)
+            val sentinel = indexOfSentinel(table)
+            if (sentinel < 0) return out
+            val start = sentinel + CLASS_SENTINEL.size
+            if (start + 4 > table.size) return out
+            val r = DwgBitReader(table, start * 8)
             val size = r.rawLong()
-            if (size <= 0 || start + 4 + size > data.size) return out
+            if (size <= 0 || start + 4 + size > table.size) return out
             val end = (start + 4 + size) * 8
             while (r.position < end - 8 && out.size < MAX_DECLARED_CLASSES) {
                 val number = r.bitShort()
@@ -278,6 +345,22 @@ private class DwgParse(private val data: ByteArray, private val version: DwgVers
             return out
         }
         return out
+    }
+
+    /**
+     * Where the list of declared types starts.
+     *
+     * The section is introduced by sixteen fixed bytes rather than by its
+     * length, so it is found by looking for them.
+     */
+    private fun indexOfSentinel(table: ByteArray): Int {
+        outer@ for (at in 0..table.size - CLASS_SENTINEL.size) {
+            for (i in CLASS_SENTINEL.indices) {
+                if (table[at + i] != CLASS_SENTINEL[i]) continue@outer
+            }
+            return at
+        }
+        return -1
     }
 
     /** What the file calls this type of object. */
@@ -310,21 +393,21 @@ private class DwgParse(private val data: ByteArray, private val version: DwgVers
      * as though it continued the previous one lands on nothing. Each run also
      * ends with two bytes of checksum that are not part of it.
      */
-    private fun objectMap(l: Locator): LinkedHashMap<Long, Int> {
+    private fun objectMap(): LinkedHashMap<Long, Int> {
+        val table = handleTable
         val out = LinkedHashMap<Long, Int>()
-        val limit = minOf(l.offset + l.size, data.size)
-        var at = l.offset
-        while (at + 2 <= limit) {
-            val runSize = ((data[at].toInt() and 0xFF) shl 8) or (data[at + 1].toInt() and 0xFF)
+        var at = 0
+        while (at + 2 <= table.size) {
+            val runSize = ((table[at].toInt() and 0xFF) shl 8) or (table[at + 1].toInt() and 0xFF)
             if (runSize <= 2) break
             val runEnd = at + runSize
-            if (runEnd > limit) break
+            if (runEnd > table.size) break
             var handle = 0L
             var location = 0L
             var p = at + 2
             while (p < runEnd) {
-                val handleStep = unsignedModular(p)
-                val locationStep = signedModular(handleStep.second)
+                val handleStep = unsignedModular(table, p)
+                val locationStep = signedModular(table, handleStep.second)
                 handle += handleStep.first
                 location += locationStep.first
                 p = locationStep.second
@@ -335,13 +418,13 @@ private class DwgParse(private val data: ByteArray, private val version: DwgVers
         return out
     }
 
-    private fun unsignedModular(from: Int): Pair<Long, Int> {
-        var at = from
+    private fun unsignedModular(from: ByteArray, start: Int): Pair<Long, Int> {
+        var at = start
         var value = 0L
         var shift = 0
         while (true) {
-            if (at >= data.size || shift > 56) throw DwgTruncated()
-            val b = data[at].toInt() and 0xFF
+            if (at >= from.size || shift > 56) throw DwgTruncated()
+            val b = from[at].toInt() and 0xFF
             at++
             value = value or ((b and 0x7F).toLong() shl shift)
             shift += 7
@@ -349,13 +432,13 @@ private class DwgParse(private val data: ByteArray, private val version: DwgVers
         }
     }
 
-    private fun signedModular(from: Int): Pair<Long, Int> {
-        var at = from
+    private fun signedModular(from: ByteArray, start: Int): Pair<Long, Int> {
+        var at = start
         var value = 0L
         var shift = 0
         while (true) {
-            if (at >= data.size || shift > 56) throw DwgTruncated()
-            var b = data[at].toInt() and 0xFF
+            if (at >= from.size || shift > 56) throw DwgTruncated()
+            var b = from[at].toInt() and 0xFF
             at++
             if (b and 0x80 != 0) {
                 value = value or ((b and 0x7F).toLong() shl shift)
@@ -383,11 +466,19 @@ private class DwgParse(private val data: ByteArray, private val version: DwgVers
     private fun header(handle: Long, offset: Int): RawObject? {
         val r = DwgBitReader(data, offset * 8)
         val size = r.modularShort()
+        // From AutoCAD 2010 the object states how many of its bits are handles
+        // instead of how many are data, and this field is not counted in its
+        // own size. Everything after it is measured from here.
+        val handleBits = if (version.since2010) r.unsignedModularChar() else 0L
         val afterSize = r.position
         if (size <= 0 || afterSize / 8 + size > data.size) return null
-        val type = r.bitShort()
-        val bitSize = if (modern) r.rawLong() else -1
-        if (modern && (bitSize <= 0 || bitSize > size * 8 + 16)) return null
+        val type = if (version.since2010) r.objectType() else r.bitShort()
+        val bitSize = when {
+            version.since2010 -> (size.toLong() * 8 - handleBits).toInt()
+            version.since2000 -> r.rawLong()
+            else -> -1
+        }
+        if (version.since2000 && (bitSize <= 0 || bitSize > size * 8 + 16)) return null
         val own = r.handle()
         if (own.code != 0 || own.value != handle) return null
         return RawObject(handle, offset, type, afterSize, r.position, bitSize)
@@ -418,29 +509,37 @@ private class DwgParse(private val data: ByteArray, private val version: DwgVers
     private fun tableBody(o: RawObject): DwgBitReader {
         val r = DwgBitReader(data, o.bodyBit)
         skipExtendedData(r)
-        if (!modern) r.rawLong()
+        if (!version.since2000) r.rawLong()
         r.bitLong()
+        if (version.since2004) r.boolean()
+        if (version.since2013) r.boolean()
         return r
     }
 
     private fun readName(o: RawObject): String? = try {
-        tableBody(o).text().takeIf { it.isNotEmpty() }
+        val r = tableBody(o)
+        text(r, stringStream(o)).takeIf { it.isNotEmpty() }
     } catch (e: RuntimeException) {
         null
     }
 
     private fun readBlockHeader(o: RawObject): Pair<String, Vec2>? = try {
         val r = tableBody(o)
-        val name = r.text()
+        val name = text(r, stringStream(o))
         if (name.isEmpty()) throw DwgMalformedValue()
-        r.boolean()
+        // Every table entry says whether it came from a referenced drawing.
+        // AutoCAD 2007 dropped two of the three fields that said it, and the
+        // two bits they cost are enough to read the base point below out of
+        // the middle of something else.
+        if (!version.since2007) r.boolean()
         r.bitShort()
+        if (!version.since2007) r.boolean()
         r.boolean()
         r.boolean()
-        r.boolean()
-        r.boolean()
-        r.boolean()
-        if (modern) r.boolean()
+        val isReference = r.boolean()
+        val isOverlaid = r.boolean()
+        if (version.since2000) r.boolean()
+        if (version.since2004 && !isReference && !isOverlaid) r.bitLong()
         val x = r.bitDouble()
         val y = r.bitDouble()
         r.bitDouble()
@@ -461,34 +560,137 @@ private class DwgParse(private val data: ByteArray, private val version: DwgVers
         null
     }
 
-    private fun entityHeader(o: RawObject, r: DwgBitReader): EntityHeader {
+    private fun entityHeader(
+        o: RawObject,
+        r: DwgBitReader,
+        strings: DwgBitReader?,
+    ): EntityHeader {
         skipExtendedData(r)
         if (r.boolean()) {
-            val size = r.rawLong()
-            if (size < 0 || size > data.size || !r.has(size * 8)) throw DwgTruncated()
-            r.skip(size * 8)
+            // A thumbnail of the entity, which PAFTA draws itself and does not
+            // need. From AutoCAD 2010 its length is written differently.
+            val size = if (version.since2010) r.bitLongLong() else r.rawLong().toLong()
+            if (size < 0 || size > data.size) throw DwgTruncated()
+            val bits = (size * 8).toInt()
+            if (!r.has(bits)) throw DwgTruncated()
+            r.skip(bits)
         }
-        val bitSize = if (modern) o.headerBitSize else r.rawLong()
+        val bitSize = if (version.since2000) o.headerBitSize else r.rawLong()
         if (bitSize <= 0 || o.afterSizeBit + bitSize > r.bitLength) throw DwgTruncated()
+
         val entityMode = r.twoBits()
         val reactors = r.bitLong()
-        if (!modern) r.boolean()
-        val noLinks = r.boolean()
-        val colour = r.bitShort()
+        // One bit, three meanings, depending on the release. Up to R14 it says
+        // the line type is the layer's; from 2004 it says the entity has no
+        // extension dictionary; in between, and up to 2002, it says the entity
+        // is not linked to its neighbours. Getting this wrong puts every later
+        // field one bit out.
+        var byLayerLineType = false
+        var extensionDictionaryMissing = false
+        var noLinks = true
+        if (!version.since2000) byLayerLineType = r.boolean()
+        if (version.since2004) extensionDictionaryMissing = r.boolean()
+        if (!version.since2004) noLinks = r.boolean()
+        if (version.since2013) r.boolean()
+
+        var colour = COLOUR_BY_LAYER
+        var colourIsHandle = false
+        if (version.since2004) {
+            // 2004 replaced the colour index with an index plus flags saying
+            // what else was written: true colour, transparency, a named colour
+            // from a book, or a reference to a colour object.
+            val raw = r.bitShort()
+            val flags = (raw ushr 8) and 0xFF
+            colour = raw and 0x1FF
+            if (flags and 0x20 != 0) r.bitLong()
+            if (flags and 0x40 != 0) {
+                colourIsHandle = true
+            } else if (flags and 0x80 != 0) {
+                r.bitLong()
+            }
+            if (flags and 0x41 == 0x41) text(r, strings)
+            if (flags and 0x42 == 0x42) text(r, strings)
+        } else {
+            colour = r.bitShort()
+        }
+
         r.bitDouble()
-        if (modern) {
-            r.twoBits()
-            r.twoBits()
+        var lineTypeFlags = 0
+        var plotStyleFlags = 0
+        var materialFlags = 0
+        var shadowFlags = 0
+        if (version.since2000) {
+            lineTypeFlags = r.twoBits()
+            if (version.since2007) {
+                materialFlags = r.twoBits()
+                plotStyleFlags = r.twoBits()
+                shadowFlags = r.rawChar()
+            } else {
+                plotStyleFlags = r.twoBits()
+            }
+        }
+        var visualStyles = 0
+        if (version.since2010) {
+            if (r.boolean()) visualStyles++
+            if (r.boolean()) visualStyles++
+            if (r.boolean()) visualStyles++
         }
         r.bitShort()
-        if (modern) r.rawChar()
+        if (version.since2000) r.rawChar()
+
         return EntityHeader(
             entityMode = entityMode,
             reactors = reactors,
             noLinks = noLinks,
+            byLayerLineType = byLayerLineType,
+            extensionDictionaryMissing = extensionDictionaryMissing,
             colour = colour,
+            colourIsHandle = colourIsHandle,
+            lineTypeFlags = lineTypeFlags,
+            plotStyleFlags = plotStyleFlags,
+            materialFlags = materialFlags,
+            shadowFlags = shadowFlags,
+            visualStyles = visualStyles,
             handleStreamBit = o.afterSizeBit + bitSize,
         )
+    }
+
+    /**
+     * Where an object keeps its text, from AutoCAD 2007 on.
+     *
+     * That release moved every string out of the middle of the object and into
+     * a run at its end, as Unicode. The run's length is written backwards from
+     * the object's last bit, which is also where a single bit says whether
+     * there is one at all.
+     */
+    private fun stringStream(o: RawObject): DwgBitReader? {
+        if (!version.since2007 || o.headerBitSize <= 0) return null
+        val last = o.afterSizeBit + o.headerBitSize - 1
+        if (last <= o.bodyBit || last >= data.size * 8) return null
+        if (DwgBitReader(data, last).bit() == 0) return null
+        if (last - 32 < o.bodyBit) return null
+        var size = DwgBitReader(data, last - 16).rawShort()
+        val begin: Int
+        if (size and 0x8000 != 0) {
+            val high = DwgBitReader(data, last - 32).rawShort()
+            size = (size and 0x7FFF) or (high shl 15)
+            begin = last - 32 - size
+        } else {
+            begin = last - 16 - size
+        }
+        if (begin < o.bodyBit || begin >= last) return null
+        return DwgBitReader(data, begin)
+    }
+
+    /**
+     * One string, from wherever this release keeps them.
+     *
+     * Before 2007 a string sits where it is used; from 2007 nothing at all is
+     * written in its place, so an object with no text run has no text.
+     */
+    private fun text(r: DwgBitReader, strings: DwgBitReader?): String = when {
+        version.since2007 -> strings?.unicodeText() ?: ""
+        else -> r.text()
     }
 
     /**
@@ -503,18 +705,33 @@ private class DwgParse(private val data: ByteArray, private val version: DwgVers
      */
     private fun links(o: RawObject, h: EntityHeader): EntityLinks {
         val r = DwgBitReader(data, h.handleStreamBit)
+        // A colour that refers to a colour object is the one handle read before
+        // the owner, because the colour is part of the data the handles follow.
+        if (h.colourIsHandle) r.handle()
         val owner = if (h.entityMode == 0) resolve(r.handle(), o.handle) else null
         repeat(h.reactors.coerceIn(0, MAX_REACTORS)) { r.handle() }
-        r.handle()
+        if (!h.extensionDictionaryMissing) r.handle()
         val layer: Long?
-        if (modern) {
+        if (version.since2000) {
             if (!h.noLinks) {
                 r.handle()
                 r.handle()
             }
             layer = resolve(r.handle(), o.handle)
+            if (h.lineTypeFlags == 3) r.handle()
+            if (version.since2007) {
+                if (h.materialFlags == 3) r.handle()
+                if (h.shadowFlags == 3) r.handle()
+            }
+            if (h.plotStyleFlags == 3) r.handle()
+            repeat(h.visualStyles) { r.handle() }
         } else {
             layer = resolve(r.handle(), o.handle)
+            if (!h.byLayerLineType) r.handle()
+            if (!h.noLinks) {
+                r.handle()
+                r.handle()
+            }
         }
         val extra = ArrayList<Long>()
         for (i in 0 until MAX_TRAILING_HANDLES) {
@@ -554,7 +771,8 @@ private class DwgParse(private val data: ByteArray, private val version: DwgVers
         typeByHandle: Map<Long, Int>,
     ): Placed? {
         val r = DwgBitReader(data, o.bodyBit)
-        val h = entityHeader(o, r)
+        val strings = stringStream(o)
+        val h = entityHeader(o, r, strings)
         val l = links(o, h)
         val layer = layerNames[l.layer] ?: DEFAULT_LAYER
         val colour = if (h.colour == 0 || h.colour > 255) COLOUR_BY_LAYER else h.colour
@@ -583,8 +801,8 @@ private class DwgParse(private val data: ByteArray, private val version: DwgVers
             DwgObjectType.SOLID, DwgObjectType.TRACE ->
                 readSolid(r, layer, colour) ?: return null
             DwgObjectType.LWPOLYLINE -> readLwPolyline(r, layer, colour)
-            DwgObjectType.TEXT -> readText(r, layer, colour)
-            DwgObjectType.MTEXT -> readMText(r, layer, colour)
+            DwgObjectType.TEXT -> readText(r, strings, layer, colour)
+            DwgObjectType.MTEXT -> readMText(r, strings, layer, colour)
             DwgObjectType.INSERT -> {
                 val block = l.extra.firstOrNull {
                     typeByHandle[it] == DwgObjectType.BLOCK_HEADER
@@ -607,7 +825,7 @@ private class DwgParse(private val data: ByteArray, private val version: DwgVers
      * which for a line in a wall is a couple of bytes instead of twenty-four.
      */
     private fun readLine(r: DwgBitReader): Pair<Vec3, Vec3> {
-        if (!modern) return point3(r) to point3(r)
+        if (!version.since2000) return point3(r) to point3(r)
         val flat = r.boolean()
         val x1 = r.rawDouble()
         val x2 = r.bitDoubleWithDefault(x1)
@@ -664,7 +882,7 @@ private class DwgParse(private val data: ByteArray, private val version: DwgVers
      */
     private fun readFace3d(r: DwgBitReader, layer: String, colour: Int): DxfEntity? {
         val corners: List<Vec3>
-        if (modern) {
+        if (version.since2000) {
             val noFlags = r.boolean()
             val flat = r.boolean()
             val x = r.rawDouble()
@@ -727,13 +945,15 @@ private class DwgParse(private val data: ByteArray, private val version: DwgVers
         }
         val count = r.bitLong()
         val bulges = if (flags and LW_BULGES != 0) r.bitLong() else 0
+        val vertexIds =
+            if (version.since2010 && flags and LW_VERTEX_IDS != 0) r.bitLong() else 0
         val widths = if (flags and LW_WIDTHS != 0) r.bitLong() else 0
         if (count < 0 || count > MAX_VERTICES) throw DwgMalformedValue()
         // Before AutoCAD 2000 every vertex is written out in full; from it,
         // each one after the first is the difference from the one before.
         val points = ArrayList<Vec2>(count)
         for (i in 0 until count) {
-            points += if (i == 0 || !modern) {
+            points += if (i == 0 || !version.since2000) {
                 Vec2(r.rawDouble(), r.rawDouble())
             } else {
                 val last = points[i - 1]
@@ -741,6 +961,7 @@ private class DwgParse(private val data: ByteArray, private val version: DwgVers
             }
         }
         repeat(bulges.coerceIn(0, MAX_VERTICES)) { r.bitDouble() }
+        repeat(vertexIds.coerceIn(0, MAX_VERTICES)) { r.bitLong() }
         repeat(widths.coerceIn(0, MAX_VERTICES)) {
             r.bitDouble()
             r.bitDouble()
@@ -762,13 +983,18 @@ private class DwgParse(private val data: ByteArray, private val version: DwgVers
      * stores the sizes and angles as plain numbers here rather than shortened
      * ones, which earlier versions do not.
      */
-    private fun readText(r: DwgBitReader, layer: String, colour: Int): DxfEntity {
+    private fun readText(
+        r: DwgBitReader,
+        strings: DwgBitReader?,
+        layer: String,
+        colour: Int,
+    ): DxfEntity {
         val position: Vec3
         val height: Double
         val rotation: Double
         val value: String
         val alignCode: Int
-        if (modern) {
+        if (version.since2000) {
             val flags = r.rawChar()
             val elevation = if (flags and 0x01 != 0) 0.0 else r.rawDouble()
             val x = r.rawDouble()
@@ -783,7 +1009,7 @@ private class DwgParse(private val data: ByteArray, private val version: DwgVers
             rotation = if (flags and 0x08 != 0) 0.0 else r.rawDouble()
             height = r.rawDouble()
             if (flags and 0x10 == 0) r.rawDouble()
-            value = r.text()
+            value = text(r, strings)
             if (flags and 0x20 == 0) r.bitShort()
             alignCode = if (flags and 0x40 != 0) 0 else r.bitShort()
             position = Vec3(x, y, elevation)
@@ -799,7 +1025,7 @@ private class DwgParse(private val data: ByteArray, private val version: DwgVers
             rotation = r.bitDouble()
             height = r.bitDouble()
             r.bitDouble()
-            value = r.text()
+            value = text(r, strings)
             r.bitShort()
             alignCode = r.bitShort()
             position = Vec3(x, y, elevation)
@@ -820,17 +1046,23 @@ private class DwgParse(private val data: ByteArray, private val version: DwgVers
     }
 
     /** A paragraph of text. Its rotation is a direction vector, not an angle. */
-    private fun readMText(r: DwgBitReader, layer: String, colour: Int): DxfEntity {
+    private fun readMText(
+        r: DwgBitReader,
+        strings: DwgBitReader?,
+        layer: String,
+        colour: Int,
+    ): DxfEntity {
         val position = point3(r)
         point3(r)
         val axis = point3(r)
         r.bitDouble()
+        if (version.since2007) r.bitDouble()
         val height = r.bitDouble()
         r.bitShort()
         r.bitShort()
         r.bitDouble()
         r.bitDouble()
-        val value = r.text()
+        val value = text(r, strings)
         return DxfEntity.Text(
             layer = layer,
             position = position,
@@ -850,7 +1082,7 @@ private class DwgParse(private val data: ByteArray, private val version: DwgVers
     ): DxfEntity {
         val position = point3(r)
         val scale: Vec3
-        if (modern) {
+        if (version.since2000) {
             scale = when (r.twoBits()) {
                 0 -> {
                     val x = r.rawDouble()
@@ -880,7 +1112,34 @@ private class DwgParse(private val data: ByteArray, private val version: DwgVers
 
     // --- the polyline family ------------------------------------------------
 
-    private class PolylineRun(val vertices: List<RawObject>, val endIndex: Int)
+    /** Which object says it owns this one, if it says. */
+    private fun ownerOf(o: RawObject): Long? {
+        val r = DwgBitReader(data, o.bodyBit)
+        val h = entityHeader(o, r, stringStream(o))
+        if (h.entityMode != 0) return null
+        val stream = DwgBitReader(data, h.handleStreamBit)
+        if (h.colourIsHandle) stream.handle()
+        return resolve(stream.handle(), o.handle)
+    }
+
+    /**
+     * The vertices directly behind [polyline] in the file.
+     *
+     * The fallback for a file whose vertices do not name their owner: up to
+     * AutoCAD 2000 they are written in a run behind the polyline, ending at a
+     * marker.
+     */
+    private fun adjacentVertices(objects: List<RawObject>, polyline: RawObject): List<RawObject> {
+        val from = objects.indexOf(polyline)
+        if (from < 0) return emptyList()
+        val out = ArrayList<RawObject>()
+        var i = from + 1
+        while (i < objects.size && isVertex(objects[i].type)) {
+            out += objects[i]
+            i++
+        }
+        return out
+    }
 
     private fun isPolyline(type: Int): Boolean = type == DwgObjectType.POLYLINE_2D ||
         type == DwgObjectType.POLYLINE_3D ||
@@ -889,39 +1148,13 @@ private class DwgParse(private val data: ByteArray, private val version: DwgVers
 
     private fun isVertex(type: Int): Boolean = type in DwgObjectType.VERTEX_2D..DwgObjectType.VERTEX_PFACE_FACE
 
-    /**
-     * The vertices belonging to the polyline at [from].
-     *
-     * The classic polyline keeps its points in separate objects that follow it
-     * in the file and stop at an end marker — exactly as the same entity does in
-     * a DXF file.
-     */
-    private fun polylineRun(objects: List<RawObject>, from: Int): PolylineRun {
-        val vertices = ArrayList<RawObject>()
-        var i = from + 1
-        while (i < objects.size) {
-            val type = objects[i].type
-            if (isVertex(type)) {
-                vertices += objects[i]
-                i++
-                continue
-            }
-            if (type == DwgObjectType.SEQEND) {
-                i++
-            }
-            break
-        }
-        return PolylineRun(vertices, i)
-    }
-
     private fun readPolyline(
         o: RawObject,
-        run: PolylineRun,
+        vertices: List<RawObject>,
         layerNames: Map<Long, String>,
-        counts: MutableMap<String, Int>,
     ): List<Placed> {
         val r = DwgBitReader(data, o.bodyBit)
-        val h = entityHeader(o, r)
+        val h = entityHeader(o, r, stringStream(o))
         val l = links(o, h)
         val layer = layerNames[l.layer] ?: DEFAULT_LAYER
         val colour = if (h.colour == 0 || h.colour > 255) COLOUR_BY_LAYER else h.colour
@@ -936,11 +1169,10 @@ private class DwgParse(private val data: ByteArray, private val version: DwgVers
 
         val points = ArrayList<Vec3>()
         val faces = ArrayList<List<Int>>()
-        for (v in run.vertices) {
-            counts["VERTEX"] = (counts["VERTEX"] ?: 0) + 1
+        for (v in vertices.sortedBy { it.offset }) {
             val vr = DwgBitReader(data, v.bodyBit)
             try {
-                entityHeader(v, vr)
+                entityHeader(v, vr, stringStream(v))
                 if (v.type == DwgObjectType.VERTEX_PFACE_FACE) {
                     faces += listOf(vr.bitShort(), vr.bitShort(), vr.bitShort(), vr.bitShort())
                 } else {
@@ -992,7 +1224,12 @@ private fun Double.orOne(): Double = if (isFinite() && this != 0.0) this else 1.
 /** The file's own table of contents puts the list of objects in this slot. */
 private const val OBJECT_MAP_RECORD = 2
 private const val CLASS_RECORD = 1
-private const val CLASS_SENTINEL_BYTES = 16
+private val CLASS_SENTINEL: ByteArray = byteArrayOf(
+    0x8D.toByte(), 0xA1.toByte(), 0xC4.toByte(), 0xB8.toByte(),
+    0xC4.toByte(), 0xA9.toByte(), 0xF8.toByte(), 0xC5.toByte(),
+    0xC0.toByte(), 0xDC.toByte(), 0xF4.toByte(), 0x5F.toByte(),
+    0xE7.toByte(), 0xCF.toByte(), 0xB6.toByte(), 0x8A.toByte(),
+)
 private const val FIRST_DECLARED_CLASS = 500
 private const val DECLARED_ENTITY = 0x1F2
 private const val MAX_DECLARED_CLASSES = 2048
@@ -1018,3 +1255,4 @@ private const val LW_ELEVATION = 0x8
 private const val LW_BULGES = 0x10
 private const val LW_WIDTHS = 0x20
 private const val LW_CLOSED = 0x200
+private const val LW_VERTEX_IDS = 0x400

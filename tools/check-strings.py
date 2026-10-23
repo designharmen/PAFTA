@@ -740,7 +740,12 @@ def check_expression_body_return() -> list[str]:
             for index, line in enumerate(lines):
                 if not re.search(r"=\s*(try\s*\{|when\s*\{|\{)\s*$", line):
                     continue
-                if "fun " not in line and not re.match(r"\s*\)\s*:", line):
+                if "fun " not in line:
+                    continue
+                # Açık dönüş tipi yazılmışsa Kotlin `return`a izin veriyor;
+                # yasak olan, tipin gövdeden çıkarıldığı hâl.
+                head = line.rsplit("=", 1)[0]
+                if re.search(r"\)\s*:", head):
                     continue
                 depth = 0
                 for ahead in lines[index:]:
