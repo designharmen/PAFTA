@@ -99,6 +99,17 @@ public class ProjectStore(
             if (failure != null) return StoreResult.Failure(failure)
         }
 
+        // The same judgement for a DWG, but drawn finer. A file called .dwg that
+        // is not one at all is refused here, by the six bytes every DWG begins
+        // with. A real DWG is kept whatever else is wrong with it — above all
+        // when it is too new to read, because that is something the user can fix
+        // in their own program, and only if the file is still here.
+        if (format == FileFormat.DWG && com.harmen.pafta.dwg.DwgVersion.of(payload) == null) {
+            return StoreResult.Failure(
+                StoreFailure.Unreadable(FileFormat.DWG, UnreadableReason.MALFORMED),
+            )
+        }
+
         val now = clock()
         val project = newProject(
             projectName = projectName,

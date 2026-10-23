@@ -1,5 +1,8 @@
 package com.harmen.pafta.project
 
+import com.harmen.pafta.dwg.DwgFailure
+import com.harmen.pafta.dwg.DwgOutcome
+import com.harmen.pafta.dwg.DwgReader
 import com.harmen.pafta.dxf.DxfDrawing
 import com.harmen.pafta.dxf.DxfReader
 import com.harmen.pafta.geometry.Aabb
@@ -39,7 +42,7 @@ public data class DrawingDocument(
  */
 public fun PaftaProject.openAsDrawing(): StoreResult<DrawingDocument> {
     val format = manifest.format
-    if (format != FileFormat.DXF) {
+    if (format != FileFormat.DXF && format != FileFormat.DWG) {
         return StoreResult.Failure(
             if (format == null) {
                 StoreFailure.UnknownFormat(manifest.source.format)
@@ -49,12 +52,41 @@ public fun PaftaProject.openAsDrawing(): StoreResult<DrawingDocument> {
         )
     }
 
-    val drawing = try {
-        DxfReader.read(payload.inputStream())
-    } catch (e: Exception) {
-        return StoreResult.Failure(
-            StoreFailure.Unreadable(FileFormat.DXF, UnreadableReason.MALFORMED),
-        )
+    // The two drawing formats hold the same geometry and are read into the same
+    // value, so everything past this point — drawing, measuring, snapping, the
+    // 3D view — cannot tell which of the two the project came from.
+    val drawing = if (format == FileFormat.DWG) {
+        when (val outcome = DwgReader.read(payload)) {
+            is DwgOutcome.Success -> outcome.drawing
+            is DwgOutcome.Failure -> when (val reason = outcome.reason) {
+                // It read, and the file holds nothing this reader can draw. That
+                // is not a failure yet: the project may have hand-drawn walls on
+                // top of it. The file's own inventory is carried forward so that
+                // if there is nothing at all, the screen can say what is in there.
+                is DwgFailure.NothingInIt ->
+                    DxfDrawing(entityTypeCounts = reason.objectTypeCounts)
+
+                is DwgFailure.TooNew -> return StoreResult.Failure(
+                    StoreFailure.Unreadable(
+                        FileFormat.DWG,
+                        UnreadableReason.FORMAT_TOO_NEW,
+                        formatYear = reason.version.year,
+                    ),
+                )
+
+                DwgFailure.NotADwg, DwgFailure.Damaged -> return StoreResult.Failure(
+                    StoreFailure.Unreadable(FileFormat.DWG, UnreadableReason.MALFORMED),
+                )
+            }
+        }
+    } else {
+        try {
+            DxfReader.read(payload.inputStream())
+        } catch (e: Exception) {
+            return StoreResult.Failure(
+                StoreFailure.Unreadable(FileFormat.DXF, UnreadableReason.MALFORMED),
+            )
+        }
     }
 
     // What the user drew, joined to the file's own geometry — but only to decide
@@ -78,7 +110,7 @@ public fun PaftaProject.openAsDrawing(): StoreResult<DrawingDocument> {
     if (merged.entities.isEmpty() && !manifest.blank) {
         return StoreResult.Failure(
             StoreFailure.Unreadable(
-                FileFormat.DXF,
+                format,
                 UnreadableReason.NO_DRAWABLE_CONTENT,
                 found = FileInventory(
                     recordTypes = drawing.entityTypeCounts,

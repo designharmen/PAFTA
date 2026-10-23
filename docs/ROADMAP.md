@@ -1225,7 +1225,7 @@ being straight about which is which matters more than the code does.
 | **DXF** | already opened; nothing needed |
 | **STL** | **opens now** — pure Kotlin reader, no dependency |
 | **OBJ** | **opens now** — pure Kotlin reader, no dependency |
-| **DWG** | needs LibreDWG: a C library, GPL-3.0, cross-compiled for Android through the NDK. A phase of its own, and one that cannot be built or tested in the development container at all |
+| **DWG** | **opens now** for AutoCAD R13, R14 and 2000 — PAFTA's own reader, pure Kotlin, no dependency. AutoCAD 2004 and later are refused by their year, with the Save-As step that fixes it. See *Phase F*. |
 | **SKP** | **no free library exists.** Trimble reads its own format only through its own paid SDK. This is not a matter of effort |
 
 ### STL and OBJ were nearly free, because the viewer already existed
@@ -1467,3 +1467,123 @@ bytes, and a binary-format reader written blind is a reader that is wrong.
 
 So the ask is specific now, and it is small: **`rozet.dxf` itself.** With it,
 this becomes a solvable problem rather than a guess.
+
+
+---
+
+## Phase F — DWG, read in our own code
+
+### The mistake that held this up for three sessions
+
+Every previous answer about DWG said the same thing: it needs LibreDWG, a C
+library cross-compiled through the NDK, and a binary format cannot be
+reverse-engineered without a real file — so send one.
+
+**The second half of that was false, and it was the expensive half.** This
+container can fetch files over HTTPS. The LibreDWG project publishes a test set
+of AutoCAD files covering every DWG version ever written, and the same drawings
+exported to DXF. That is a specification and an answer sheet, available the
+whole time. Three rounds were spent asking the owner for a file that was never
+needed.
+
+The lesson is not about DWG. It is: **before reporting that something cannot be
+done without the owner, check whether it can be done without the owner.**
+
+### What DWG actually is
+
+Not a format — a family of them, and a file of bits rather than bytes.
+
+- The first six bytes name the AutoCAD version. **R13, R14 and 2000** share one
+  layout. **2004 onwards** replaced it entirely with compressed pages.
+- A number is packed at whatever bit the previous one ended on, and the common
+  cases are shortened: a scale of 1.0 is two bits, not eight bytes; a polyline
+  vertex close to the one before it carries only the bytes that changed.
+- Near the end of the file is a table of every object with its handle and where
+  it starts. It is kept in runs; **each run counts from zero again**, and each
+  run ends with two bytes of checksum that are not part of it. Read as though
+  the runs continued one another, two thirds of the file points at nothing.
+- The handle steps in that table are **unsigned**; the position steps are
+  **signed**. Reading both as signed drifts the handles by whatever the first
+  step over 63 was — in the test file, by 178 — and every layer lookup then
+  lands on the wrong object.
+- **Every entity type has its own field order, and the order changed in 2000.**
+  A line stores its two ends interleaved from 2000 and plainly before it. Text
+  stores its height as a plain number where everything around it is shortened.
+  A lightweight polyline writes its vertices in full before 2000 and as
+  differences from 2000. None of this is guessable; all of it is checkable.
+- **The entity types are not even fixed.** DWG numbers the types it has always
+  had — a line is 19 — but everything added since R13 is declared in a table at
+  the front of the file and numbered by whatever that table says. The same
+  lightweight polyline is 535 in one file and 538 in another. Without reading
+  that table, the entity most plans are drawn with is an unknown number in half
+  the files in the world.
+
+### How it was made trustworthy
+
+Every object repeats its own handle a few fields in. Checking it against the
+handle the table gave is what makes a misread table harmless: an entry pointing
+into the middle of something else is dropped rather than drawn as nonsense.
+**In all three test files, 100% of objects validate** — 5785, 832 and 750.
+
+Then each entity type was confirmed two ways:
+
+1. **Against the DXF export of the same drawing**, coordinate by coordinate. All
+   68 lines in the AutoCAD 2000 file match to the last digit; so do the text
+   strings, their heights and their rotations, the polyline vertices, and all
+   ten block references including one with a scale of 3256 and a rotation of
+   311°.
+2. **Against the end of the entity.** Every object says how many bits it is. A
+   reader that gets a field order wrong ends somewhere else. Arcs, circles,
+   ellipses, points, filled quads, faces and polylines all end **exactly** on
+   the bit the object says they do.
+
+That second check is the one that found the real answers. The published
+descriptions of `TEXT` and `MTEXT` did not match the files; the bit arithmetic
+said where the fields actually were.
+
+### What it reads
+
+Lines, points, circles, arcs, ellipses, lightweight and classic polylines,
+polyface meshes, 3D faces, filled quads, single-line text, paragraph text, and
+block references — which are expanded into their geometry, nested, with the same
+depth and budget limits the DXF reader uses. Layers come out with their real
+names.
+
+The result is a `DxfDrawing`: the same value the DXF reader produces. So
+everything already built — drawing, measuring, snapping, the layer palette, the
+3D view — works on a DWG without knowing one from the other. That is why this
+was a two-file change outside the reader itself.
+
+**Proof it is right, not just self-consistent:** the R14 file and the 2000 file
+are the same drawing saved by two AutoCAD versions with unrelated internal
+layouts. They now produce **identical output** — same entity count, same kinds,
+same coordinates to six decimals. A test asserts it.
+
+### What it does not read, and what happens instead
+
+- **AutoCAD 2004 and later.** Refused by name and year, with the fix: open the
+  drawing in its own program, Save As, choose *AutoCAD 2000/LT2000 Drawing* or
+  *AutoCAD 2000 DXF*. A thirty-second fix in the owner's own program, which is
+  worth far more than a half-right drawing.
+- **Dimensions.** A DWG dimension keeps its arrows and text in an anonymous
+  block that nothing references directly; the lines are there, the entity that
+  places them is not read yet.
+- **Hatching, splines, 3D solids, tables, multileaders.** Counted in the file's
+  own inventory, so a drawing made entirely of them says what it is made of
+  instead of showing an empty sheet.
+- A damaged file, or one cut off part way through, comes back as a refusal.
+  Tests cut the file to a half, a third, a fifth and a twentieth, and flip every
+  eleventh byte, and require that nothing throws.
+
+### Two new guards before the build
+
+Each cost a build or would have:
+
+- **A module that exists but is not in the build.** Adding `core:dwg` without
+  wiring it in fails nowhere in this container and fails the Android build
+  minutes later. Both directions are now checked.
+- **`= try { ... return ... }`.** Kotlin forbids a `return` in an expression
+  body. Easy to write, costs a compile.
+
+Both were verified by reintroducing the exact mistake and watching the check
+catch it.

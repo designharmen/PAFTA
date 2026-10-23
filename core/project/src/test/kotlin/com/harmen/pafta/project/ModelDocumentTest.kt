@@ -147,7 +147,6 @@ class ModelDocumentTest {
         assertTrue(FileFormat.OBJ.readable)
         assertEquals(ViewerKind.MODEL, FileFormat.STL.viewer)
         // And the ones that still cannot be read have not quietly changed.
-        assertTrue(!FileFormat.DWG.readable)
         assertTrue(!FileFormat.SKP.readable)
     }
 
@@ -395,9 +394,13 @@ class SniffTest {
     }
 
     @Test
-    fun `a DWG is not sniffed into something it is not`() {
-        // Real DWG files begin with a version string like AC1032.
-        val dwg = "AC1032".toByteArray() + ByteArray(300) { 0 }
-        assertNull(FileFormat.sniff(dwg))
+    fun `a DWG is recognised by its version string`() {
+        // Every DWG opens with the AutoCAD release that wrote it. Recognising it
+        // from the bytes is what lets a file called `plan` with no extension —
+        // which is what a phone's download folder often holds — still open.
+        assertEquals(FileFormat.DWG, FileFormat.sniff("AC1032".toByteArray() + ByteArray(300) { 0 }))
+        assertEquals(FileFormat.DWG, FileFormat.sniff("AC1015".toByteArray() + ByteArray(300) { 0 }))
+        // `AC10` with something else after it is not a version string.
+        assertNull(FileFormat.sniff("AC10xx".toByteArray() + ByteArray(300) { 0 }))
     }
 }

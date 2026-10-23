@@ -509,13 +509,19 @@ public object DxfReader {
         ) to i
     }
 
-    /** Strips the MTEXT formatting codes a 2D viewer cannot honour. */
-    private fun unescapeMText(value: String, isMText: Boolean): String {
-        if (!isMText) return value
-        return value
-            .replace("\\P", "\n")
-            .replace(Regex("""\\[A-Za-z][^;\\]*;"""), "")
-            .replace("{", "")
-            .replace("}", "")
-    }
+}
+
+/**
+ * Strips the MTEXT formatting codes a 2D viewer cannot honour.
+ *
+ * Public because the DWG reader hands it the same strings: MTEXT carries the
+ * same escape codes whichever of the two files it arrives in.
+ */
+public fun unescapeMText(value: String, isMText: Boolean): String {
+    if (!isMText) return value
+    return value
+        .replace("\\P", "\n")
+        .replace(Regex("""\\[A-Za-z][^;\\]*;"""), "")
+        .replace("{", "")
+        .replace("}", "")
 }

@@ -689,6 +689,73 @@ def check_build_list_receiver() -> list[str]:
     return problems
 
 
+def check_modules() -> list[str]:
+    """Her çekirdek modülün derlemeye dahil olduğunu doğrular.
+
+    Yeni bir modül klasörü açıp ayarlara yazmayı unutmak, konteynerde hiç
+    görünmeyen ama Android derlemesini dakikalar sonra düşüren bir hata: modül
+    derlenmediği için eksik sınıf hatası ancak uygulama derlenirken çıkar.
+    Bu yüzden iki yön birlikte denetlenir — klasörü olan her modül ayarlarda,
+    ayarlardaki her modülün de klasörü yerinde olmalı.
+    """
+    problems: list[str] = []
+    settings = ROOT / "settings.gradle.kts"
+    if not settings.exists():
+        return [f"{settings.name} bulunamadı."]
+    text = settings.read_text()
+
+    listed = set(re.findall(r'include\("(:[^"]+)"\)', text))
+
+    for build in sorted(ROOT.glob("core/*/build.gradle.kts")):
+        name = ":core:" + build.parent.name
+        if name not in listed:
+            problems.append(
+                f"{build.parent.relative_to(ROOT)} bir modül ama settings.gradle.kts "
+                f'içinde include("{name}") satırı yok.'
+            )
+
+    for name in sorted(listed):
+        folder = ROOT / Path(*name.lstrip(":").split(":"))
+        if not (folder / "build.gradle.kts").exists():
+            problems.append(
+                f'settings.gradle.kts içinde include("{name}") var ama '
+                f"{folder.relative_to(ROOT)}/build.gradle.kts yok."
+            )
+
+    return problems
+
+
+def check_expression_body_return() -> list[str]:
+    """`= try {` gövdesinin içinde `return` aramaz.
+
+    Kotlin tek satırlık (eşittirli) gövdede `return` kabul etmez; derleyici
+    bunu hata sayar. Yazarken farkına varılması zor, derlemeye mal oluyor.
+    """
+    problems: list[str] = []
+    for directory in ALL_KOTLIN_DIRS:
+        if not directory.is_dir():
+            continue
+        for path in sorted(directory.rglob("*.kt")):
+            lines = path.read_text().splitlines()
+            for index, line in enumerate(lines):
+                if not re.search(r"=\s*(try\s*\{|when\s*\{|\{)\s*$", line):
+                    continue
+                if "fun " not in line and not re.match(r"\s*\)\s*:", line):
+                    continue
+                depth = 0
+                for ahead in lines[index:]:
+                    depth += ahead.count("{") - ahead.count("}")
+                    if ahead is not line and re.search(r"(^|\s)return(\s|$)", ahead):
+                        problems.append(
+                            f"{path.relative_to(ROOT)}:{index + 1}: eşittirli gövdede "
+                            "`return` var; süslü parantezli gövdeye çevir."
+                        )
+                        break
+                    if depth <= 0:
+                        break
+    return problems
+
+
 def main() -> int:
     if not STRINGS.exists():
         fail(f"{STRINGS} bulunamadı")
@@ -719,6 +786,8 @@ def main() -> int:
         + check_enum_branches()
         + check_tool_placement()
         + check_build_list_receiver()
+        + check_modules()
+        + check_expression_body_return()
     )
 
     if problems:

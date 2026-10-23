@@ -34,6 +34,15 @@ public sealed interface StoreFailure {
         val format: FileFormat,
         val reason: UnreadableReason,
         val found: FileInventory? = null,
+        /**
+         * The release of the program that wrote the file, when the file says so
+         * and that is the reason it cannot be read.
+         *
+         * A number, not a name: the screen turns it into Turkish, and a year is
+         * also what the user sees in their own program's "Save as" list, so it
+         * is the one thing that makes the advice actionable.
+         */
+        val formatYear: Int? = null,
     ) : StoreFailure
 
     /**
@@ -59,6 +68,17 @@ public enum class UnreadableReason {
 
     /** PAFTA recognises the format but has no viewer for it in this build. */
     NO_VIEWER_YET,
+
+    /**
+     * The format is one PAFTA reads, but this file was saved by a release that
+     * changed it beyond what this build understands.
+     *
+     * DWG is really a family of formats; AutoCAD 2004 replaced the whole layout
+     * of the file. Saying so, with the year, lets the user go back to their own
+     * program and save a file PAFTA can open — which is a thirty-second fix,
+     * where "this file cannot be opened" is a dead end.
+     */
+    FORMAT_TOO_NEW,
 
     /**
      * It read, and it points at a second file that was not imported with it.

@@ -11,6 +11,7 @@ dependencies {
     api(project(":core:units"))
     api(project(":core:measure"))
     api(project(":core:dxf"))
+    api(project(":core:dwg"))
     api(project(":core:mesh"))
     implementation(libs.kotlinx.serialization.json)
     testImplementation(libs.kotlin.test)

@@ -4,7 +4,7 @@ import java.util.Locale
 
 /** Which viewer a file opens in. */
 public enum class ViewerKind {
-    /** 2D drawing: DXF today, DWG once LibreDWG lands. */
+    /** 2D drawing: DXF or DWG. */
     DRAWING,
 
     /** 3D model: glTF today, the Assimp formats later. */
@@ -33,7 +33,9 @@ public enum class FileFormat(
     public val readable: Boolean,
 ) {
     DXF("dxf", ViewerKind.DRAWING, readable = true),
-    DWG("dwg", ViewerKind.DRAWING, readable = false),
+    // AutoCAD's own file. Read here, in Kotlin, for the versions up to AutoCAD
+    // 2000; a file from 2004 or later is recognised and refused by its year.
+    DWG("dwg", ViewerKind.DRAWING, readable = true),
 
     // What everything exports today: Blender, SketchUp, Revit, Rhino and every
     // web tool. JSON describing where the numbers are, plus the numbers.
@@ -106,6 +108,15 @@ public enum class FileFormat(
             // glTF's binary wrapper says its own name in the first four bytes.
             if (bytes.size >= 12 && bytes.startsWith("glTF")) return GLB
 
+            // A DWG opens with the AutoCAD version that wrote it: `AC` and four
+            // digits. Which version it is decides whether PAFTA can draw it, and
+            // the reader answers that; here it is enough that the file is a DWG.
+            if (bytes.size >= 6 && bytes.startsWith("AC10") && bytes[4].isAsciiDigit() &&
+                bytes[5].isAsciiDigit()
+            ) {
+                return DWG
+            }
+
             // A binary STL is exactly 84 bytes plus 50 a triangle, and that is
             // checked before the text sniffing below — a binary file is allowed
             // to begin with the word `solid` too.
@@ -141,6 +152,8 @@ public enum class FileFormat(
                 else -> null
             }
         }
+
+        private fun Byte.isAsciiDigit(): Boolean = this >= '0'.code.toByte() && this <= '9'.code.toByte()
 
         private fun ByteArray.startsWith(text: String): Boolean {
             val wanted = text.toByteArray(Charsets.US_ASCII)

@@ -169,9 +169,9 @@ private fun angleOf(centre: Vec2, point: Vec2): Double {
 private fun signOrOne(v: Double): Double = if (v == 0.0) 1.0 else sign(v)
 
 /** A block definition: the base point it is drawn around, and its geometry. */
-internal data class BlockDefinition(
-    val base: Vec2,
-    val entities: List<DxfEntity>,
+public data class BlockDefinition(
+    public val base: Vec2,
+    public val entities: List<DxfEntity>,
 )
 
 /**
@@ -184,17 +184,17 @@ internal data class BlockDefinition(
  * [truncated] records that the drawing is not complete, so the screen can say so
  * rather than quietly showing less than the file holds.
  */
-internal class BlockExpansion(private val blocks: Map<String, BlockDefinition>) {
+public class BlockExpansion(private val blocks: Map<String, BlockDefinition>) {
 
-    val out: MutableList<DxfEntity> = ArrayList()
+    public val out: MutableList<DxfEntity> = ArrayList()
 
-    var truncated: Boolean = false
+    public var truncated: Boolean = false
         private set
 
     private val active = HashSet<String>()
     private var budget = MAX_EXPANDED_ENTITIES
 
-    fun place(
+    public fun place(
         entities: List<DxfEntity>,
         transform: BlockTransform?,
         layerOverride: String?,

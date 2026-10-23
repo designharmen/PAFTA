@@ -128,6 +128,14 @@ public fun StoreFailure.mesaj(): String = when (this) {
             UnreadableReason.NEEDS_ANOTHER_FILE ->
                 stringResource(R.string.error_needs_another_file, tur)
 
+            // Sürüm sorunu. Burada "açamıyorum" demek yetmez: kullanıcının
+            // kendi programında otuz saniyede çözeceği bir şey, yeter ki hangi
+            // seçeneği seçeceğini bilsin. Yıl dosyanın kendi beyanı.
+            UnreadableReason.FORMAT_TOO_NEW -> stringResource(
+                R.string.error_format_too_new,
+                formatYear ?: 0,
+            )
+
             UnreadableReason.NO_VIEWER_YET -> {
                 // "Henüz açamıyorum" tek başına çıkmaz sokaktır. Bugün işe
                 // yarayan bir yol varsa onu da söyle.
@@ -357,7 +365,6 @@ public fun OpeningKind.adi(): String = stringResource(
 @Composable
 @ReadOnlyComposable
 private fun FileFormat.ipucu(): String? = when (this) {
-    FileFormat.DWG -> stringResource(R.string.hint_dwg)
     FileFormat.RVT -> stringResource(R.string.hint_rvt)
     FileFormat.SKP -> stringResource(R.string.hint_skp)
     FileFormat.IFC -> stringResource(R.string.hint_ifc)

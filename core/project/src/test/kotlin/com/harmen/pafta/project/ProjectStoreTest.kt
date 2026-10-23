@@ -380,7 +380,7 @@ class StoreFailureTest {
         assertEquals(IoCause.entries.size, IoCause.entries.toSet().size)
         assertEquals(UnreadableReason.entries.size, UnreadableReason.entries.toSet().size)
         assertEquals(6, IoCause.entries.size)
-        assertEquals(4, UnreadableReason.entries.size)
+        assertEquals(5, UnreadableReason.entries.size)
     }
 }
 
@@ -414,8 +414,12 @@ class FileFormatTest {
         assertTrue(FileFormat.GLB.readable)
         assertTrue(FileFormat.GLTF.readable)
 
+        // AutoCAD's own format, read in plain Kotlin for the versions up to
+        // AutoCAD 2000. A newer DWG is refused by the reader with its year,
+        // which is a different thing from the format being unreadable.
+        assertTrue(FileFormat.DWG.readable)
+
         // And the ones that genuinely need something PAFTA does not have.
-        assertFalse(FileFormat.DWG.readable, "DWG needs LibreDWG, built through the NDK")
         assertFalse(FileFormat.SKP.readable, "no free library reads SketchUp's own format")
         assertFalse(FileFormat.IFC.readable, "IFC needs geometry evaluation, a phase of its own")
     }
@@ -437,12 +441,12 @@ class FileFormatTest {
         val dir = createTempDirectory("pafta-fmt").toFile()
         try {
             val s = ProjectStore(dir, clock = { 1_700_000_000_000 })
-            for (name in listOf("plan.dwg", "bina.rvt", "model.ifc", "ev.skp")) {
+            for (name in listOf("bina.rvt", "model.ifc", "ev.skp")) {
                 val entry = s.import(name, byteArrayOf(1, 2, 3, 4)).valueOrNull()
                 assertNotNull(entry, "$name içe aktarılamadı")
                 assertFalse(entry.format!!.readable)
             }
-            assertEquals(4, s.list().size)
+            assertEquals(3, s.list().size)
         } finally {
             dir.deleteRecursively()
         }
