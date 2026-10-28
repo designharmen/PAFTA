@@ -50,6 +50,31 @@ class DwgEndToEndTest {
     }
 
     @Test
+    fun `cizim acilinca binaya bakar, kacak bir isarete degil`() {
+        // This drawing really does hold a block placed at three thousand times
+        // its size, two and a half million units from everything else — which
+        // is ordinary in real CAD files and exactly what makes a drawing open
+        // on an apparently blank screen. The opening view has to be the
+        // building; the stray geometry is still there to zoom out to.
+        val name = "ornek-cizim-autocad-2018.dwg"
+        val imported = store.import(name, bytes(name).inputStream())
+        val entry = assertIs<StoreResult.Success<ProjectEntry>>(imported).value
+        val project = assertIs<StoreResult.Success<PaftaProject>>(store.open(entry.file)).value
+        val document = assertIs<StoreResult.Success<DrawingDocument>>(project.openAsDrawing()).value
+
+        val width = document.bounds.max.x - document.bounds.min.x
+        val whole = document.drawing.bounds
+        assertTrue(
+            (whole.max.x - whole.min.x) > 1_000_000.0,
+            "bu dosyada uzakta kalmış öğe yok, test anlamını yitirmiş",
+        )
+        assertTrue(
+            width < 100_000.0,
+            "açılış görünümü hâlâ kaçak işarete göre ayarlanmış: $width",
+        )
+    }
+
+    @Test
     fun `uzantisi olmayan bir DWG de ayni sekilde acilir`() {
         // Android hands over whatever name the app the file came from chose, and
         // a download or a cloud drive routinely hands over no extension at all.

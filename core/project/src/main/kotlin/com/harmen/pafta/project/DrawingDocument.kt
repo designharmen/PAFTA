@@ -5,6 +5,7 @@ import com.harmen.pafta.dwg.DwgOutcome
 import com.harmen.pafta.dwg.DwgReader
 import com.harmen.pafta.dxf.DxfDrawing
 import com.harmen.pafta.dxf.DxfReader
+import com.harmen.pafta.dxf.openingBounds
 import com.harmen.pafta.geometry.Aabb
 import com.harmen.pafta.geometry.Vec3
 
@@ -130,7 +131,11 @@ public fun PaftaProject.openAsDrawing(): StoreResult<DrawingDocument> {
             // was imported. A project with nothing in it yet has no extent to
             // frame, so it gets a sheet to start on instead of a view zoomed so
             // far in that a metre fills the screen.
-            bounds = if (merged.bounds.isEmpty) BLANK_SHEET else merged.bounds,
+            // Where the view starts, which is not the same as what the file
+            // covers: see `openingBounds`. A file whose only content is a
+            // stray mark three thousand times too far out would otherwise open
+            // on a blank screen.
+            bounds = merged.openingBounds().let { if (it.isEmpty) BLANK_SHEET else it },
             unsupportedEntityTypes = merged.unsupportedEntityTypes,
         ),
     )
