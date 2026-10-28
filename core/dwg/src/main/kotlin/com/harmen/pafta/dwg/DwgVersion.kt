@@ -9,26 +9,37 @@ package com.harmen.pafta.dwg
  * version that wrote it — a number, so it can be shown to the user in any
  * language.
  */
-public enum class DwgVersion(internal val tag: String, public val year: Int) {
-    R13("AC1012", 1994),
-    R14("AC1014", 1997),
-    R2000("AC1015", 2000),
-    R2004("AC1018", 2004),
-    R2007("AC1021", 2007),
-    R2010("AC1024", 2010),
-    R2013("AC1027", 2013),
-    R2018("AC1032", 2018),
-    ;
-
+public enum class DwgVersion(
+    internal val tag: String,
+    public val year: Int,
     /**
-     * True for the versions this reader understands, which is all but one.
+     * True for the versions this reader understands.
      *
-     * AutoCAD 2007 is the exception. Every other release either uses the plain
-     * layout of R13 to 2000 or the compressed-page container of 2004; 2007
-     * alone wrapped that container in an error-correcting code of its own,
-     * which later releases dropped again.
+     * The ones before R13 are a different format again — they predate the
+     * layout everything since is a variation of. They are listed so that such
+     * a file is refused by its year, with the one step that fixes it, instead
+     * of being called damaged: an old drawing is not a broken drawing.
+     *
+     * AutoCAD 2007 is the other exception. Every release around it either uses
+     * the plain layout of R13 to 2000 or the compressed-page container of
+     * 2004; 2007 alone wrapped that container in an error-correcting code of
+     * its own, which the next release dropped again.
      */
-    public val readable: Boolean get() = this != R2007
+    public val readable: Boolean,
+) {
+    R9("AC1004", 1987, readable = false),
+    R10("AC1006", 1988, readable = false),
+    R11("AC1008", 1990, readable = false),
+    R12("AC1009", 1992, readable = false),
+    R13("AC1012", 1994, readable = true),
+    R14("AC1014", 1997, readable = true),
+    R2000("AC1015", 2000, readable = true),
+    R2004("AC1018", 2004, readable = true),
+    R2007("AC1021", 2007, readable = false),
+    R2010("AC1024", 2010, readable = true),
+    R2013("AC1027", 2013, readable = true),
+    R2018("AC1032", 2018, readable = true),
+    ;
 
     /** From 2004 the drawing lives in compressed pages. */
     internal val pagedContainer: Boolean get() = ordinal >= R2004.ordinal

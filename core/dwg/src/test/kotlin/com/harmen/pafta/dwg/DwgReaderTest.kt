@@ -179,8 +179,13 @@ class DwgReaderTest {
         assertEquals(DwgVersion.R2004, DwgVersion.of("AC1018".toByteArray()))
         assertEquals(DwgVersion.R2018, DwgVersion.of("AC1032".toByteArray()))
         assertEquals(null, DwgVersion.of("AC9999".toByteArray()))
-        // All but one open.
-        assertTrue(DwgVersion.entries.filter { !it.readable } == listOf(DwgVersion.R2007))
+        // The old formats are recognised so they can be refused by year rather
+        // than called damaged, and 2007 is the one modern version left out.
+        assertEquals(DwgVersion.R12, DwgVersion.of("AC1009".toByteArray()))
+        assertEquals(
+            listOf(DwgVersion.R9, DwgVersion.R10, DwgVersion.R11, DwgVersion.R12, DwgVersion.R2007),
+            DwgVersion.entries.filter { !it.readable },
+        )
     }
 
     @Test
