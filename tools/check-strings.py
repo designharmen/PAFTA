@@ -761,6 +761,34 @@ def check_expression_body_return() -> list[str]:
     return problems
 
 
+def check_test_names() -> list[str]:
+    """Ters tırnaklı test adında Kotlin'in kabul etmediği harfleri arar.
+
+    `fun \u0060şu olunca bu: olur\u0060()` derlenmez — iki nokta, nokta, nokta
+    virgül, köşeli parantez ve eğik çizgi yasak. Yazarken fark edilmiyor,
+    derlemeye mal oluyor; bu proje aynı hatayı iki kez yaptı.
+    """
+    problems: list[str] = []
+    forbidden = set(":.;[]/\\<>")
+    for directory in sorted(ROOT.glob("core/*/src/test/kotlin")) + [
+        ROOT / "app/src/test/kotlin"
+    ]:
+        if not directory.is_dir():
+            continue
+        for path in sorted(directory.rglob("*.kt")):
+            for index, line in enumerate(path.read_text().splitlines()):
+                match = re.search(r"fun\s+`([^`]*)`", line)
+                if not match:
+                    continue
+                bad = sorted(set(match.group(1)) & forbidden)
+                if bad:
+                    problems.append(
+                        f"{path.relative_to(ROOT)}:{index + 1}: test adında "
+                        f"kullanılamayan karakter: {' '.join(bad)}"
+                    )
+    return problems
+
+
 def main() -> int:
     if not STRINGS.exists():
         fail(f"{STRINGS} bulunamadı")
@@ -793,6 +821,7 @@ def main() -> int:
         + check_build_list_receiver()
         + check_modules()
         + check_expression_body_return()
+        + check_test_names()
     )
 
     if problems:

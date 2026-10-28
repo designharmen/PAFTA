@@ -200,7 +200,10 @@ public fun newProject(
         projectName = projectName,
         source = SourceRef(
             fileName = fileName,
-            format = fileName.substringAfterLast('.', "").lowercase(),
+            // Locale.ROOT, not the device's: a Turkish phone lowercases `I`
+            // to a dotless `ı`, which would store `.ıfc` and make the format
+            // unrecognisable when the project is opened again.
+            format = fileName.substringAfterLast('.', "").lowercase(java.util.Locale.ROOT),
             sizeBytes = payload.size.toLong(),
             importedFrom = importedFrom,
         ),

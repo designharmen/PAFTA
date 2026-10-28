@@ -206,7 +206,21 @@ internal class DwgTruncated : RuntimeException(null, null, false, false)
 /** A value used an encoding the format does not define. */
 internal class DwgMalformedValue : RuntimeException(null, null, false, false)
 
-private val TURKISH_CODE_PAGE = charset("windows-1254")
+/**
+ * The code page DWG text is read in, when the device has it.
+ *
+ * Windows-1254 is the Turkish code page, so a Turkish layer name written by a
+ * Turkish AutoCAD arrives correct. Asking a device for a code page it does not
+ * carry throws, and this is a value built once when the class loads — so a
+ * device without it would fail *every* DWG, reporting a damaged file for a
+ * perfectly good drawing. The fallback keeps every drawing opening and costs
+ * only the accents.
+ */
+private val TURKISH_CODE_PAGE: java.nio.charset.Charset = try {
+    charset("windows-1254")
+} catch (e: Exception) {
+    Charsets.ISO_8859_1
+}
 
 /** An unsigned length-prefixed integer: seven bits a byte, low byte first. */
 internal fun DwgBitReader.unsignedModularChar(): Long {

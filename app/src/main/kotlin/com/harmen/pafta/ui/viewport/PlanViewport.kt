@@ -932,7 +932,7 @@ private fun DrawScope.drawArrowHead(tip: Vec2, angle: Double, colour: Color) {
 /** Room names: thin, tracked, and deliberately quiet against the linework. */
 private fun DrawScope.drawRoomLabel(label: RoomLabel, v: Viewport2D, measurer: TextMeasurer) {
     drawLabel(
-        text = label.name.uppercase(),
+        text = label.name.uppercase(java.util.Locale.ROOT),
         at = v.toScreen(label.position),
         style = HarmenType.RoomLabel.copy(color = HarmenColours.Text.copy(alpha = 0.45f)),
         measurer = measurer,

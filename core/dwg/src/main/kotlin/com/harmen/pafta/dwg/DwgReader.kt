@@ -336,7 +336,7 @@ private class DwgParse(sections: DwgSections, private val version: DwgVersion) {
                 val itemClass = r.bitShort()
                 if (number >= FIRST_DECLARED_CLASS && name.isNotEmpty()) {
                     out[number] = DeclaredClass(
-                        name = name.uppercase(),
+                        name = name.uppercase(java.util.Locale.ROOT),
                         isEntity = itemClass == DECLARED_ENTITY,
                     )
                 }
