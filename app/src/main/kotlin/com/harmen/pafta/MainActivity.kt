@@ -1,5 +1,7 @@
 package com.harmen.pafta
 
+import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -47,13 +49,31 @@ import java.io.File
  */
 public class MainActivity : ComponentActivity() {
 
+    /**
+     * The drawing another app asked PAFTA to open, until it has been taken in.
+     *
+     * PAFTA tells Android it can open files, so tapping a drawing in a file
+     * manager or a downloads list offers PAFTA — and until now, choosing it
+     * opened the library and did nothing at all, which from the outside is
+     * indistinguishable from the file being unopenable. The file arrives here.
+     */
+    private val incomingFile = mutableStateOf<Uri?>(null)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        incomingFile.value = documentOf(intent)
 
         setContent {
             PaftaTheme {
                 PaftaApp(
+                    incoming = incomingFile.value,
+                    onIncomingTaken = {
+                        incomingFile.value = null
+                        // Forget the request as well, so a restart does not
+                        // import the same file a second time.
+                        setIntent(Intent())
+                    },
                     modifier = Modifier
                         .fillMaxSize()
                         .windowInsetsPadding(WindowInsets.systemBars),
@@ -61,10 +81,24 @@ public class MainActivity : ComponentActivity() {
             }
         }
     }
+
+    /** A second file tapped while PAFTA is already running. */
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        incomingFile.value = documentOf(intent)
+    }
+
+    private fun documentOf(intent: Intent?): Uri? =
+        if (intent?.action == Intent.ACTION_VIEW) intent.data else null
 }
 
 @Composable
-private fun PaftaApp(modifier: Modifier = Modifier) {
+private fun PaftaApp(
+    incoming: Uri?,
+    onIncomingTaken: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val context = LocalContext.current
     val repository = remember { ProjectRepository(context) }
 
@@ -115,6 +149,16 @@ private fun PaftaApp(modifier: Modifier = Modifier) {
     val picker = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument(),
     ) { uri -> if (uri != null) libraryViewModel.import(uri) }
+
+    // A file tapped in another app goes in exactly as one chosen from PAFTA's
+    // own picker: taken into a project, then opened — which the effect below
+    // does for everything the library imports.
+    LaunchedEffect(incoming) {
+        if (incoming != null) {
+            libraryViewModel.import(incoming)
+            onIncomingTaken()
+        }
+    }
 
     /** Opens a library row, remembering which of the two screens it needs. */
     fun open(entry: ProjectEntry) {
