@@ -281,6 +281,13 @@ private class DwgParse(sections: DwgSections, private val version: DwgVersion) {
                 continue
             }
             val owner = p.owner ?: continue
+            // Owned by a block reference rather than by a block: a filled-in
+            // attribute, which is already placed where it belongs. Dropping it
+            // for want of a block to put it in is how the words went missing.
+            if (typeByHandle[owner] == DwgObjectType.INSERT) {
+                model += p.entity
+                continue
+            }
             val name = blockNames[owner] ?: continue
             if (name.equals(MODEL_SPACE, ignoreCase = true)) {
                 model += p.entity
@@ -818,7 +825,11 @@ private class DwgParse(sections: DwgSections, private val version: DwgVersion) {
             DwgObjectType.SOLID, DwgObjectType.TRACE ->
                 readSolid(r, layer, colour) ?: return null
             DwgObjectType.LWPOLYLINE -> readLwPolyline(r, layer, colour)
-            DwgObjectType.TEXT -> readText(r, strings, layer, colour)
+            // A block's filled-in text: a room's name, a door's number, the
+            // fields of a title block. It is written exactly like any other
+            // text, in the drawing's own coordinates, and until now none of it
+            // was drawn — which on a real plan is most of the words on it.
+            DwgObjectType.TEXT, DwgObjectType.ATTRIB -> readText(r, strings, layer, colour)
             DwgObjectType.MTEXT -> readMText(r, strings, layer, colour)
             DwgObjectType.INSERT -> {
                 val name = blockOf(l, blockNames, typeByHandle) ?: return null

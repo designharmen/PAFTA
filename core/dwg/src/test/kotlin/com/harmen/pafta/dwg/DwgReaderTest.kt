@@ -137,6 +137,20 @@ class DwgReaderTest {
     }
 
     @Test
+    fun `bloga doldurulmus yazilar da ciziliyor`() {
+        // A block's filled-in text — a room name, a door number, a title block
+        // field. It belongs to the block reference rather than to a block, and
+        // was being dropped for want of a block to put it in.
+        val texts = drawingOf("autocad-2000.dwg").entities.filterIsInstance<DxfEntity.Text>()
+        val filled = texts.firstOrNull { it.value == "valoro de la teksto en bloko" }
+        assertNotNull(filled, "blok yazısı çizime girmemiş: ${texts.map { it.value }}")
+        assertEquals(100.0, filled.height, 1e-9)
+        // In the drawing's own coordinates, not the block's.
+        assertEquals(3352.9, filled.position.x, 0.1)
+        assertEquals(5848.0, filled.position.y, 0.1)
+    }
+
+    @Test
     fun `dort ayri DWG surumu ayni cizimi ayni okur`() {
         val files = listOf(
             "autocad-r14.dwg",
