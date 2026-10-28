@@ -112,6 +112,31 @@ class DwgReaderTest {
     }
 
     @Test
+    fun `olcu cizgileri de ciziliyor`() {
+        val drawing = drawingOf("autocad-2000.dwg")
+        assertEquals(9, drawing.entityTypeCounts["DIMENSION"])
+
+        // A dimension keeps its line, its arrows and its number in a block of
+        // its own, so reading the dimension means placing that block. Each one
+        // has its own, and every one of them is called `*D` — so they are kept
+        // apart by which object they are, not by their name. Nine dimensions
+        // that collapsed into one would draw the same pile nine times.
+        val dimensionBlocks = drawing.blockEntityCounts.keys.filter { it.startsWith("*D") }
+        assertTrue(
+            dimensionBlocks.size >= 9,
+            "ölçü blokları birbirine karışmış: $dimensionBlocks",
+        )
+
+        // The measurement itself is a piece of text inside that block, so a
+        // drawn dimension is a drawn number.
+        val numbers = drawing.entities.filterIsInstance<DxfEntity.Text>().map { it.value }
+        assertTrue(
+            numbers.any { it == "1504,68" },
+            "ölçü rakamı çizime girmemiş: $numbers",
+        )
+    }
+
+    @Test
     fun `dort ayri DWG surumu ayni cizimi ayni okur`() {
         val files = listOf(
             "autocad-r14.dwg",

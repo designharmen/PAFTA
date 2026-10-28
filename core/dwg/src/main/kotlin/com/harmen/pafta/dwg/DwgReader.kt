@@ -211,6 +211,22 @@ private class DwgParse(sections: DwgSections, private val version: DwgVersion) {
             .firstOrNull { it.value.equals(MODEL_SPACE, ignoreCase = true) }
             ?.key
 
+        // Every block a dimension draws itself with is called `*D`. All of
+        // them. In a DXF export they come out numbered, but in the file itself
+        // the name is just `*D`, so going by name would pile nine dimensions'
+        // geometry into one block and then draw that pile nine times. Blocks
+        // are therefore keyed by the object they are, and the name is kept only
+        // for what the name is for: telling model space from the rest.
+        val blockKeys = blockNames.mapValues { (handle, name) ->
+            if (name.startsWith(ANONYMOUS) && !name.equals(MODEL_SPACE, ignoreCase = true) &&
+                !name.equals(PAPER_SPACE, ignoreCase = true)
+            ) {
+                "$name#$handle"
+            } else {
+                name
+            }
+        }
+
         // A classic polyline keeps its points in separate objects, and every one
         // of them says which polyline owns it. Up to AutoCAD 2000 they also sat
         // directly behind it in the file, which is how the DXF reader finds
@@ -244,7 +260,7 @@ private class DwgParse(sections: DwgSections, private val version: DwgVersion) {
                 continue
             }
             try {
-                val one = readEntity(o, layerNames, blockNames, typeByHandle)
+                val one = readEntity(o, layerNames, blockKeys, typeByHandle)
                 if (one != null) placed += one else unsupported += typeName(o.type)
             } catch (e: RuntimeException) {
                 unsupported += typeName(o.type)
@@ -264,19 +280,20 @@ private class DwgParse(sections: DwgSections, private val version: DwgVersion) {
                 model += p.entity
                 continue
             }
-            val name = p.owner?.let { blockNames[it] } ?: continue
+            val owner = p.owner ?: continue
+            val name = blockNames[owner] ?: continue
             if (name.equals(MODEL_SPACE, ignoreCase = true)) {
                 model += p.entity
             } else {
-                blocks.getOrPut(name) { ArrayList() } += p.entity
+                blocks.getOrPut(blockKeys[owner] ?: name) { ArrayList() } += p.entity
             }
         }
 
-        val definitions = blocks.mapValues { (name, entities) ->
-            val base = blockNames.entries.firstOrNull { it.value == name }
-                ?.let { blockBases[it.key] }
-                ?: Vec2.ZERO
-            BlockDefinition(base = base, entities = entities)
+        val basesByKey = blockKeys.entries.associate { (handle, key) ->
+            key to (blockBases[handle] ?: Vec2.ZERO)
+        }
+        val definitions = blocks.mapValues { (key, entities) ->
+            BlockDefinition(base = basesByKey[key] ?: Vec2.ZERO, entities = entities)
         }
 
         val expansion = BlockExpansion(definitions)
@@ -804,16 +821,38 @@ private class DwgParse(sections: DwgSections, private val version: DwgVersion) {
             DwgObjectType.TEXT -> readText(r, strings, layer, colour)
             DwgObjectType.MTEXT -> readMText(r, strings, layer, colour)
             DwgObjectType.INSERT -> {
-                val block = l.extra.firstOrNull {
-                    typeByHandle[it] == DwgObjectType.BLOCK_HEADER
-                }
-                val name = block?.let { blockNames[it] } ?: return null
+                val name = blockOf(l, blockNames, typeByHandle) ?: return null
                 readInsert(r, layer, colour, name)
+            }
+
+            // A dimension is a line, two arrows and a number, and AutoCAD keeps
+            // all of it in a block of its own — already in the drawing's own
+            // coordinates. So a dimension needs none of its own fields read:
+            // placing its block at the origin puts every part of it exactly
+            // where it belongs. This is most of what makes a plan look like a
+            // plan, which is why it is worth doing before the rest.
+            in DIMENSION_TYPES -> {
+                val name = blockOf(l, blockNames, typeByHandle) ?: return null
+                DxfEntity.Insert(
+                    layer = layer,
+                    blockName = name,
+                    position = Vec3(0.0, 0.0, 0.0),
+                    colour = colour,
+                )
             }
             else -> return null
         }
         return Placed(entity, l.owner, h.entityMode)
     }
+
+    /** The block an entity draws itself with, named so it can be placed. */
+    private fun blockOf(
+        l: EntityLinks,
+        blockNames: Map<Long, String>,
+        typeByHandle: Map<Long, Int>,
+    ): String? = l.extra
+        .firstOrNull { typeByHandle[it] == DwgObjectType.BLOCK_HEADER }
+        ?.let { blockNames[it] }
 
     private fun point3(r: DwgBitReader): Vec3 = Vec3(r.bitDouble(), r.bitDouble(), r.bitDouble())
 
@@ -1245,6 +1284,11 @@ private const val MAX_COORDINATE = 1e12
 private const val DEFAULT_TEXT_HEIGHT = 2.5
 private const val DEFAULT_LAYER = "0"
 private const val MODEL_SPACE = "*Model_Space"
+private const val PAPER_SPACE = "*Paper_Space"
+private const val ANONYMOUS = "*"
+
+/** Every flavour of dimension: lengths, angles, radii, diameters, ordinates. */
+private val DIMENSION_TYPES = 20..26
 private const val ENTITY_MODE_MODEL_SPACE = 2
 private const val ELLIPSE_SEGMENTS = 64
 
