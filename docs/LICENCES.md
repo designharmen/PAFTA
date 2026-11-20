@@ -60,6 +60,16 @@ GPL source is exactly the kind of thing that should be said out loud. PAFTA is
 distributed under GPL-3.0 in any case, so this is consistent with both
 licences.
 
+## The CAD colour table
+
+A drawing stores colours as numbers, not as colours: `1` is red, `4` cyan, and
+the 256 of them are a table AutoCAD fixed decades ago. The values in
+`core/dxf/.../AciColours.kt` are taken from the **ezdxf** project
+(`mozman/ezdxf`, **MIT**), which is the table as AutoCAD renders it against a
+dark background — the background PAFTA draws on. MIT permits this without
+condition beyond attribution, which this is. Nothing else of ezdxf is used and
+nothing links against it.
+
 ## Planned, not yet added
 
 | Component | Licence | Note |

@@ -51,6 +51,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.harmen.pafta.R
+import com.harmen.pafta.dxf.AciColours
 import com.harmen.pafta.project.AnnotationKind
 import com.harmen.pafta.project.DoorSwing
 import com.harmen.pafta.project.DrawnShape
@@ -66,6 +67,7 @@ import com.harmen.pafta.ui.state.MaterialSwatch
 import com.harmen.pafta.ui.state.PropertyRow
 import com.harmen.pafta.ui.theme.HarmenColours
 import com.harmen.pafta.ui.theme.HarmenType
+import com.harmen.pafta.ui.theme.cadColour
 import com.harmen.pafta.ui.theme.metrics
 
 /**
@@ -701,7 +703,7 @@ private fun LayerRow(
             .clickable(role = Role.Checkbox) { onVisibilityToggled(!layer.visible) }
             .padding(horizontal = 4.dp, vertical = 5.dp),
     ) {
-        ColourChip(layer.colour, dimmed = !layer.visible)
+        ColourChip(layer.colour, layer.fileColour, dimmed = !layer.visible)
         Spacer(Modifier.width(8.dp))
         Text(
             text = layer.name,
@@ -728,24 +730,22 @@ private fun LayerRow(
 /**
  * A 9dp square in the layer's colour.
  *
- * A layer with no colour override shows the accent outline rather than a filled
- * chip, so "inherits from the file" is visibly different from "set to copper".
+ * It shows the colour the layer is actually drawn in: the user's own override
+ * if they set one, otherwise the colour the file gives the layer. A palette
+ * showing nothing while the drawing is cyan is a palette that cannot be
+ * matched to the drawing.
  */
 @Composable
-private fun ColourChip(colour: String?, dimmed: Boolean) {
-    val parsed = parseHexColour(colour)
+private fun ColourChip(colour: String?, fileColour: Int, dimmed: Boolean) {
+    val shown = parseHexColour(colour) ?: cadColour(AciColours.BY_LAYER, fileColour)
     Box(
         Modifier
             .size(9.dp)
-            .background(
-                if (parsed != null) {
-                    if (dimmed) parsed.copy(alpha = 0.35f) else parsed
-                } else {
-                    Color.Transparent
-                },
-            )
+            .background(if (dimmed) shown.copy(alpha = 0.35f) else shown)
             .drawBehind {
-                if (parsed != null) return@drawBehind
+                // An outline marks a colour the user chose themselves, so "set
+                // by me" stays distinguishable from "out of the file".
+                if (colour == null) return@drawBehind
                 drawRect(
                     color = if (dimmed) HarmenColours.TextFaint else HarmenColours.Accent,
                     style = Stroke(width = 1.dp.toPx()),

@@ -789,6 +789,30 @@ def check_test_names() -> list[str]:
     return problems
 
 
+def check_locale_case() -> list[str]:
+    """Dile bağlı büyük/küçük harf çevirisi arar.
+
+    Türkçe ayarlı bir cihazda `"I".lowercase()` noktasız `"ı"` verir ve
+    `"i".uppercase()` noktalı `"İ"`. Bir dosya uzantısı ya da bir katman adı
+    bu yüzden tanınmaz hâle gelebiliyor. Doğrusu `lowercase(Locale.ROOT)`.
+    Bu hata bu projede iki kez yapıldı; ikisi de kullanıcıda çıkabilecek,
+    testte çıkmayacak türdendi.
+    """
+    problems: list[str] = []
+    pattern = re.compile(r"\.(lowercase|uppercase)\(\s*\)")
+    for directory in ALL_KOTLIN_DIRS:
+        if not directory.is_dir():
+            continue
+        for path in sorted(directory.rglob("*.kt")):
+            for index, line in enumerate(path.read_text().splitlines()):
+                if pattern.search(line):
+                    problems.append(
+                        f"{path.relative_to(ROOT)}:{index + 1}: "
+                        "dile bağlı harf çevirisi; Locale.ROOT ver."
+                    )
+    return problems
+
+
 def main() -> int:
     if not STRINGS.exists():
         fail(f"{STRINGS} bulunamadı")
@@ -822,6 +846,7 @@ def main() -> int:
         + check_modules()
         + check_expression_body_return()
         + check_test_names()
+        + check_locale_case()
     )
 
     if problems:

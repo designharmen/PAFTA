@@ -53,6 +53,7 @@ import com.harmen.pafta.project.WallMaterial
 import com.harmen.pafta.project.ZonePlan
 import com.harmen.pafta.ui.theme.HarmenColours
 import com.harmen.pafta.ui.theme.HarmenType
+import com.harmen.pafta.ui.theme.cadColour
 import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.hypot
@@ -273,12 +274,12 @@ public fun PlanViewport(
             val v = active ?: return@Canvas
 
             if (gridVisible) drawGrid(v, gridSpacingMm, size)
-            drawEntities(drawing.entities, layers, v)
+            drawEntities(drawing.entities, layers, drawing, v)
             // What the user drew is linework like any other: same layer rules,
             // same visibility, same opacity.
             // Floors go under everything: a room is what the walls stand on.
             if (zones.isNotEmpty()) drawZones(zones, layers, v, measurer, zoneLabel)
-            if (drawn.isNotEmpty()) drawEntities(drawn, layers, v)
+            if (drawn.isNotEmpty()) drawEntities(drawn, layers, drawing, v)
             if (walls.isNotEmpty()) drawWalls(walls, layers, v, highlightedWallId, openings)
             if (openings.isNotEmpty()) drawOpenings(openings, layers, v, highlightedWallId)
             drawDrawingText(drawing, layers, v, measurer)
@@ -646,6 +647,7 @@ private fun DrawScope.drawSnapMark(at: Vec2) {
 private fun DrawScope.drawEntities(
     entities: List<DxfEntity>,
     layers: List<LayerState>,
+    drawing: DxfDrawing,
     v: Viewport2D,
 ) {
     val byName = layers.associateBy { it.name }
@@ -656,7 +658,7 @@ private fun DrawScope.drawEntities(
         val alpha = (state?.opacity ?: 1.0).toFloat()
         if (alpha <= 0.01f) continue
 
-        val colour = state?.colour?.let { parseHex(it) } ?: HarmenColours.Linework
+        val colour = colourOf(entity, drawing, state?.colour)
         drawEntity(entity, v, colour.copy(alpha = colour.alpha * alpha))
     }
 }
@@ -741,7 +743,7 @@ private fun DrawScope.drawDrawingText(
         val heightPx = v.lengthToScreen(entity.height)
         if (heightPx < 6.0) continue
 
-        val colour = (state?.colour?.let { parseHex(it) } ?: HarmenColours.Linework)
+        val colour = colourOf(entity, drawing, state?.colour)
             .let { it.copy(alpha = it.alpha * alpha) }
 
         val style = HarmenType.RoomLabel.copy(
@@ -982,6 +984,22 @@ private fun parseHex(hex: String): Color {
     }
     return parsed?.let { Color(it) } ?: HarmenColours.Linework
 }
+
+/**
+ * The colour an entity is drawn in.
+ *
+ * Three answers, in order: the colour the user set for the layer in the
+ * palette, the colour the file itself names, and failing both, PAFTA's own
+ * linework colour. Until now only the first and the last were used, so a plan
+ * whose author coloured it by trade — which is most plans — opened in one flat
+ * tone, and the colour, which on a plan is information, was gone.
+ */
+private fun colourOf(entity: DxfEntity, drawing: DxfDrawing, override: String?): Color =
+    if (override != null) {
+        parseHex(override)
+    } else {
+        cadColour(entity.colour, drawing.layer(entity.layer).colour)
+    }
 
 /** `Unit 101 – Lvl 2` in the bottom-left corner. */
 @Composable

@@ -2,6 +2,7 @@ package com.harmen.pafta.dwg
 
 import com.harmen.pafta.dxf.BlockDefinition
 import com.harmen.pafta.dxf.BlockExpansion
+import com.harmen.pafta.dxf.AciColours
 import com.harmen.pafta.dxf.COLOUR_BY_LAYER
 import com.harmen.pafta.dxf.DxfDrawing
 import com.harmen.pafta.dxf.DxfEntity
@@ -194,11 +195,15 @@ private class DwgParse(sections: DwgSections, private val version: DwgVersion) {
         for (o in objects) typeByHandle[o.handle] = o.type
 
         val layerNames = HashMap<Long, String>()
+        val layerRecords = LinkedHashMap<Long, DxfLayer>()
         val blockNames = HashMap<Long, String>()
         val blockBases = HashMap<Long, Vec2>()
         for (o in objects) {
             when (o.type) {
-                DwgObjectType.LAYER -> readName(o)?.let { layerNames[o.handle] = it }
+                DwgObjectType.LAYER -> readLayer(o)?.let {
+                    layerNames[o.handle] = it.name
+                    layerRecords[o.handle] = it
+                }
                 DwgObjectType.BLOCK_HEADER -> {
                     val block = readBlockHeader(o) ?: continue
                     blockNames[o.handle] = block.first
@@ -316,7 +321,12 @@ private class DwgParse(sections: DwgSections, private val version: DwgVersion) {
             return DwgOutcome.Failure(DwgFailure.NothingInIt(typeCounts.toMap()))
         }
 
-        val layers = layerNames.values.distinct().map { DxfLayer(name = it) }
+        // One row per name, layer `0` first and the rest by name — which is
+        // how every CAD program lists them, and the only order a user can
+        // predict. The order they happen to sit in the file is not one.
+        val layers = layerRecords.values
+            .distinctBy { it.name }
+            .sortedWith(compareBy({ it.name != DEFAULT_LAYER }, { it.name.lowercase(java.util.Locale.ROOT) }))
         return DwgOutcome.Success(
             DxfDrawing(
                 layers = layers,
@@ -547,17 +557,69 @@ private class DwgParse(sections: DwgSections, private val version: DwgVersion) {
         null
     }
 
+    /**
+     * A layer: its name, its colour, and whether it starts switched off.
+     *
+     * The colour is the point. Almost every line in a real drawing says "my
+     * layer's colour" rather than naming one, so a reader that skips this reads
+     * a plan with no colour in it at all — which is what PAFTA was doing.
+     *
+     * AutoCAD 2004 changed how it is written: before, a plain number; from
+     * then, a number and a four-byte field whose top byte says what the rest
+     * means. Both say `4` for cyan in the end.
+     */
+    private fun readLayer(o: RawObject): DxfLayer? = try {
+        val r = tableBody(o)
+        val name = text(r, stringStream(o))
+        if (name.isEmpty()) throw DwgMalformedValue()
+        skipCrossReferenceFlags(r)
+
+        val frozen: Boolean
+        if (version.since2000) {
+            frozen = r.bitShort() and LAYER_FROZEN != 0
+        } else {
+            frozen = r.boolean()
+            r.boolean()
+            r.boolean()
+            r.boolean()
+        }
+
+        var colour = r.bitShort()
+        if (version.since2004) {
+            val packed = r.bitLong()
+            val method = (packed ushr 24) and 0xFF
+            colour = when {
+                method == COLOUR_IS_INDEX -> packed and 0xFF
+                packed and 0xFFFF00 == 0 -> packed and 0xFF
+                else -> COLOUR_BY_LAYER
+            }
+        }
+        DxfLayer(
+            name = name,
+            colour = if (colour in 1 until AciColours.COUNT) colour else DEFAULT_COLOUR,
+            frozen = frozen,
+        )
+    } catch (e: RuntimeException) {
+        null
+    }
+
+    /**
+     * The fields that say whether a table entry came from a referenced drawing.
+     *
+     * AutoCAD 2007 dropped two of the three, and the two bits they cost are
+     * enough to read everything after them out of the middle of something else.
+     */
+    private fun skipCrossReferenceFlags(r: DwgBitReader) {
+        if (!version.since2007) r.boolean()
+        r.bitShort()
+        if (!version.since2007) r.boolean()
+    }
+
     private fun readBlockHeader(o: RawObject): Pair<String, Vec2>? = try {
         val r = tableBody(o)
         val name = text(r, stringStream(o))
         if (name.isEmpty()) throw DwgMalformedValue()
-        // Every table entry says whether it came from a referenced drawing.
-        // AutoCAD 2007 dropped two of the three fields that said it, and the
-        // two bits they cost are enough to read the base point below out of
-        // the middle of something else.
-        if (!version.since2007) r.boolean()
-        r.bitShort()
-        if (!version.since2007) r.boolean()
+        skipCrossReferenceFlags(r)
         r.boolean()
         r.boolean()
         val isReference = r.boolean()
@@ -1294,6 +1356,15 @@ private const val MAX_VERTICES = 200_000
 private const val MAX_COORDINATE = 1e12
 private const val DEFAULT_TEXT_HEIGHT = 2.5
 private const val DEFAULT_LAYER = "0"
+
+/** What a layer is drawn in when the file's own answer will not read. */
+private const val DEFAULT_COLOUR = 7
+
+/** Bit 0 of a layer's flags: the layer starts switched off. */
+private const val LAYER_FROZEN = 1
+
+/** From AutoCAD 2004, the byte that says the rest of the field is a number. */
+private const val COLOUR_IS_INDEX = 0xC3
 private const val MODEL_SPACE = "*Model_Space"
 private const val PAPER_SPACE = "*Paper_Space"
 private const val ANONYMOUS = "*"

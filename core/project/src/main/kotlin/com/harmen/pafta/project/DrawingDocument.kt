@@ -182,6 +182,9 @@ internal fun mergeLayers(drawing: DxfDrawing, saved: List<LayerState>): List<Lay
             visible = override?.visible ?: fromFile.visible,
             opacity = override?.opacity ?: 1.0,
             colour = override?.colour,
+            // Always the file's, never the saved copy: the file decides what
+            // colour its layers are, and it may have been revised since.
+            fileColour = fromFile.colour,
             locked = override?.locked ?: false,
         )
     }

@@ -33,8 +33,10 @@ class DwgReaderTest {
     fun `AutoCAD 2000 dosyasi okunur`() {
         val drawing = drawingOf("autocad-2000.dwg")
 
+        // Layer `0` first, then by name: predictable, and the same whichever
+        // order the file happens to keep them in.
         assertEquals(
-            listOf("0", "Tavolo 2", "Tavolo 3", "ADSK_SYSTEM_LIGHTS", "Defpoints"),
+            listOf("0", "ADSK_SYSTEM_LIGHTS", "Defpoints", "Tavolo 2", "Tavolo 3"),
             drawing.layers.map { it.name },
         )
         // What the file says it holds, which is also what the DXF export of the
@@ -148,6 +150,42 @@ class DwgReaderTest {
         // In the drawing's own coordinates, not the block's.
         assertEquals(3352.9, filled.position.x, 0.1)
         assertEquals(5848.0, filled.position.y, 0.1)
+    }
+
+    @Test
+    fun `katmanlarin renkleri okunuyor`() {
+        // The whole point of reading them: every entity in this drawing says
+        // "my layer's colour" rather than naming one, so without the layer's
+        // colour the plan has no colour in it at all. The numbers are the ones
+        // the DXF export of the same drawing gives.
+        for (file in listOf(
+            "autocad-r14.dwg",
+            "autocad-2000.dwg",
+            "autocad-2004.dwg",
+            "autocad-2018.dwg",
+        )) {
+            val layers = drawingOf(file).layers.associateBy { it.name.uppercase() }
+            assertEquals(7, layers["0"]?.colour, file)
+            assertEquals(2, layers["TAVOLO 2"]?.colour ?: layers["TAVOLO_2"]?.colour, file)
+            assertEquals(4, layers["TAVOLO 3"]?.colour ?: layers["TAVOLO_3"]?.colour, file)
+        }
+
+        // And every entity defers to its layer, which is why it matters.
+        val drawing = drawingOf("autocad-2000.dwg")
+        assertTrue(
+            drawing.entities.all { it.colour == com.harmen.pafta.dxf.AciColours.BY_LAYER },
+            "bu çizimde öğeler kendi rengini söylüyor, test anlamını yitirmiş",
+        )
+    }
+
+    @Test
+    fun `kapatilmis katman kapali geliyor`() {
+        // AutoCAD 2000 and earlier mark this drawing's lights layer frozen.
+        val layers = drawingOf("autocad-2000.dwg").layers
+        val frozen = layers.firstOrNull { it.name == "ADSK_SYSTEM_LIGHTS" }
+        assertNotNull(frozen, "katman bulunamadı: ${layers.map { it.name }}")
+        assertTrue(frozen.frozen, "donmuş katman açık geliyor")
+        assertTrue(!frozen.visible)
     }
 
     @Test

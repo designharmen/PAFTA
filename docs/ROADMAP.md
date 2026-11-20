@@ -1695,3 +1695,56 @@ do not** — they are scattered. But every point says which polyline owns it, in
 every version, so that is what the reader goes by now, with the old
 walk-behind-it as the fallback. Before that, a 2018 file lost its 3D polyline
 and its mesh silently.
+
+
+---
+
+## Phase F, part three — the drawing's own colours
+
+The owner: *"kat planları beyaz ve renksiz görünüyor. tüm çizimler kendi
+renginde olsun."*
+
+Correct, and the cause was in three places at once.
+
+**A drawing does not store colours, it stores numbers.** `1` is red, `2`
+yellow, `4` cyan; there are 256 of them in a table AutoCAD fixed decades ago.
+PAFTA carried the number through faithfully and then drew everything in one
+house colour, with a comment saying so. For export that was right. For looking
+at a plan it was wrong: on a plan the colour *is* information — which layer,
+which trade, which weight the plotter will use.
+
+**Almost nothing in a real drawing names its own colour.** In the test files
+every single one of the 218 entities says "my layer's colour". So the entity's
+colour was never the missing piece; the *layer's* was — and the DWG reader was
+not reading it at all. It now does, in every version, and the numbers match the
+DXF export of the same drawing exactly: `0` is 7, `Tavolo 2` is 2, `Tavolo 3`
+is 4.
+
+AutoCAD 2004 changed how a layer's colour is written — before it, a plain
+number; from it, a number plus a four-byte field whose top byte says what the
+rest means. Both come out as 4 for cyan.
+
+**Two corrections the file itself asks for.** Colour 7 means "the opposite of
+the background", which on a dark canvas is white; PAFTA's own off-white is that
+same answer in the house palette, so the default layer still looks like PAFTA
+rather than going stark white. And the table holds colours meant for white
+paper, so a near-black line would be invisible here — which looks exactly like
+a layer that failed to draw. Such a colour is lifted until it can be seen, hue
+kept, brightness raised, and only when it has to be.
+
+**The palette shows it too.** A layer row's chip used to be empty unless the
+user had overridden the colour. A palette showing nothing while the drawing is
+cyan is a palette that cannot be matched to the drawing, so the chip now shows
+what the layer is actually drawn in; an outline still marks a colour the user
+chose themselves.
+
+The owner's own sample plan is the quickest check: its doors are green, its
+windows blue, its furniture grey and its labels yellow, and all four were
+white.
+
+### One guard added
+
+`lowercase()` with no locale, for the second time in this project. On a Turkish
+device it turns `I` into a dotless `ı`, which has already been able to make a
+file extension unrecognisable. It is now checked for before every build, and
+the check was verified by putting the mistake back.

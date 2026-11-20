@@ -32,6 +32,10 @@ public data class SourceRef(
     val importedFrom: String? = null,
 )
 
+/** The colour a layer has when the file says nothing: white, which on a dark
+ * canvas is PAFTA's own linework colour. */
+public const val DEFAULT_LAYER_COLOUR: Int = 7
+
 /** A visibility/opacity override for one layer or model node. */
 @Serializable
 public data class LayerState(
@@ -42,6 +46,15 @@ public data class LayerState(
     val opacity: Double = 1.0,
     /** `#RRGGBB`, or null to keep the colour the source file specifies. */
     val colour: String? = null,
+    /**
+     * The colour the file gives this layer, as the CAD colour number.
+     *
+     * Derived from the file, not chosen by the user: [colour] is the user's own
+     * override and wins over it. It rides on the row so the palette can show
+     * the same colour the drawing is drawn in, and it is rebuilt from the file
+     * every time the project opens, so a saved value never decides anything.
+     */
+    val fileColour: Int = DEFAULT_LAYER_COLOUR,
     val locked: Boolean = false,
 ) {
     init {
