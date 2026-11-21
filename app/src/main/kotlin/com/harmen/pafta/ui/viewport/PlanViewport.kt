@@ -40,6 +40,7 @@ import com.harmen.pafta.dxf.DxfDrawing
 import com.harmen.pafta.dxf.DxfEntity
 import com.harmen.pafta.dxf.DxfTextAlign
 import com.harmen.pafta.dxf.mayBeVisible
+import com.harmen.pafta.dxf.modelSpan
 import com.harmen.pafta.geometry.Aabb
 import com.harmen.pafta.geometry.Vec2
 import com.harmen.pafta.geometry.Viewport2D
@@ -680,14 +681,54 @@ private fun DrawScope.drawEntities(
         if (!entity.mayBeVisible(window)) continue
 
         val override = state?.colour
-        val colour = if (override != null) {
+        val base = if (override != null) {
             parseHex(override)
         } else {
             cadColour(entity.colour, layerColours[entity.layer] ?: DEFAULT_LAYER_COLOUR)
         }
-        drawEntity(entity, v, colour.copy(alpha = colour.alpha * alpha))
+        val colour = base.copy(alpha = base.alpha * alpha)
+
+        // Zoomed out to the whole building, a door or a chair is a couple of
+        // pixels across. Drawing it as sixty-four points puts the same two
+        // pixels on the screen at sixty-four times the cost, so below a pixel
+        // and a half it is drawn as the mark it already looks like.
+        if (v.lengthToScreen(entity.modelSpan()) < SMALLEST_SHAPE_PX) {
+            drawSpeck(entity, v, colour)
+            continue
+        }
+        drawEntity(entity, v, colour)
     }
 }
+
+/**
+ * An entity too small to have a shape, drawn as one mark.
+ *
+ * Text is left out: it has its own pass, which decides by legibility rather
+ * than by size.
+ */
+private fun DrawScope.drawSpeck(entity: DxfEntity, v: Viewport2D, colour: Color) {
+    if (entity is DxfEntity.Text) return
+    val anchor = when (entity) {
+        is DxfEntity.Line -> entity.start.toVec2()
+        is DxfEntity.Point -> entity.position.toVec2()
+        is DxfEntity.Insert -> entity.position.toVec2()
+        is DxfEntity.Circle -> entity.centre.toVec2()
+        is DxfEntity.Arc -> entity.centre.toVec2()
+        is DxfEntity.Polyline -> entity.vertices.firstOrNull() ?: return
+        is DxfEntity.Face -> entity.points.firstOrNull()?.toVec2() ?: return
+        is DxfEntity.Text -> return
+    }
+    drawCircle(
+        colour,
+        radius = SPECK_RADIUS,
+        center = Offset(v.screenX(anchor.x).toFloat(), v.screenY(anchor.y).toFloat()),
+    )
+}
+
+/** Below this many pixels across, a shape is a mark. */
+private const val SMALLEST_SHAPE_PX = 1.5
+
+private const val SPECK_RADIUS = 0.8f
 
 private fun DrawScope.drawEntity(entity: DxfEntity, v: Viewport2D, colour: Color) {
     // Arc segment count follows the on-screen radius: a small arc needs few

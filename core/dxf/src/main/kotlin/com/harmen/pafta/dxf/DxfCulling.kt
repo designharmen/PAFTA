@@ -101,3 +101,41 @@ private fun overlaps(
 
 /** How many times its own height a line of text may run on for. */
 private const val TEXT_REACH = 80.0
+
+
+/**
+ * How big this entity is, in drawing units: the longer side of the box round
+ * it.
+ *
+ * For deciding how much detail it is worth. Zoomed out to the whole building, a
+ * door's arc is two pixels across and tessellating it into sixty-four points
+ * draws the same two pixels at sixty-four times the cost. Like [mayBeVisible]
+ * this is deliberately cheap: no tessellation, no allocation.
+ */
+public fun DxfEntity.modelSpan(): Double = when (this) {
+    is DxfEntity.Line -> maxOf(abs(end.x - start.x), abs(end.y - start.y))
+    is DxfEntity.Point -> 0.0
+    is DxfEntity.Insert -> 0.0
+    is DxfEntity.Circle -> abs(radius) * 2.0
+    is DxfEntity.Arc -> abs(radius) * 2.0
+    is DxfEntity.Text -> abs(height)
+    is DxfEntity.Polyline -> spanOf(vertices.size, { vertices[it].x }, { vertices[it].y })
+    is DxfEntity.Face -> spanOf(points.size, { points[it].x }, { points[it].y })
+}
+
+private inline fun spanOf(count: Int, x: (Int) -> Double, y: (Int) -> Double): Double {
+    if (count == 0) return 0.0
+    var minX = Double.MAX_VALUE
+    var minY = Double.MAX_VALUE
+    var maxX = -Double.MAX_VALUE
+    var maxY = -Double.MAX_VALUE
+    for (i in 0 until count) {
+        val px = x(i)
+        val py = y(i)
+        if (px < minX) minX = px
+        if (px > maxX) maxX = px
+        if (py < minY) minY = py
+        if (py > maxY) maxY = py
+    }
+    return maxOf(maxX - minX, maxY - minY)
+}

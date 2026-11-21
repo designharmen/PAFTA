@@ -4,6 +4,7 @@ import com.harmen.pafta.geometry.Aabb
 import com.harmen.pafta.geometry.Vec2
 import com.harmen.pafta.geometry.Vec3
 import kotlin.test.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
@@ -72,6 +73,32 @@ class DxfCullingTest {
                 .mayBeVisible(window),
         )
         assertTrue(DxfEntity.Insert("0", "KAPI", Vec3(10.0, 10.0, 0.0)).mayBeVisible(window))
+    }
+
+    @Test
+    fun `ogenin boyu kendi olculerinden hesaplaniyor`() {
+        // What it is for: deciding how much detail is worth drawing. A door's
+        // arc zoomed out to the whole building is two pixels, and sixty-four
+        // points draw the same two pixels.
+        assertEquals(
+            10.0,
+            DxfEntity.Line("0", Vec3(0.0, 0.0, 0.0), Vec3(10.0, 3.0, 0.0)).modelSpan(),
+            1e-9,
+        )
+        assertEquals(8.0, DxfEntity.Circle("0", Vec3(5.0, 5.0, 0.0), 4.0).modelSpan(), 1e-9)
+        assertEquals(
+            8.0,
+            DxfEntity.Arc("0", Vec3(5.0, 5.0, 0.0), -4.0, 0.0, 90.0).modelSpan(),
+            1e-9,
+        )
+        assertEquals(
+            7.0,
+            DxfEntity.Polyline("0", listOf(Vec2(1.0, 1.0), Vec2(8.0, 3.0))).modelSpan(),
+            1e-9,
+        )
+        // A point and a block mark have no size of their own.
+        assertEquals(0.0, DxfEntity.Point("0", Vec3(5.0, 5.0, 0.0)).modelSpan(), 1e-9)
+        assertEquals(0.0, DxfEntity.Polyline("0", emptyList()).modelSpan(), 1e-9)
     }
 
     @Test
