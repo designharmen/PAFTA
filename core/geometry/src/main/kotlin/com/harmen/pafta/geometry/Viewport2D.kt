@@ -33,6 +33,41 @@ public data class Viewport2D(
     /** Converts a model length to its on-screen length in pixels. */
     public fun lengthToScreen(modelLength: Double): Double = modelLength * scale
 
+    /**
+     * The same transform, one coordinate at a time.
+     *
+     * [toScreen] is the readable form and is right nearly everywhere. These two
+     * exist for the drawing loop, which runs over every point of every visible
+     * entity sixty times a second: there, returning a point means allocating
+     * one, and a plan with a hundred thousand lines in it allocates millions of
+     * them per second — which is most of what makes a large drawing stutter.
+     */
+    public fun screenX(modelX: Double): Double = modelX * scale + panX
+
+    public fun screenY(modelY: Double): Double = -modelY * scale + panY
+
+    /**
+     * The part of the drawing a screen of this size is showing, in model
+     * coordinates.
+     *
+     * What it is for: an entity outside this rectangle cannot be seen, so it
+     * does not have to be transformed, tessellated or drawn. On a plan zoomed
+     * in on one room that is the difference between touching a hundred
+     * thousand entities per frame and touching a few hundred.
+     */
+    public fun visibleBounds(widthPx: Double, heightPx: Double): Aabb {
+        val left = (0.0 - panX) / scale
+        val right = (widthPx - panX) / scale
+        // Screen y grows downwards and model y grows upwards, so the top of the
+        // screen is the larger model y.
+        val top = -(0.0 - panY) / scale
+        val bottom = -(heightPx - panY) / scale
+        return Aabb(
+            Vec3(minOf(left, right), minOf(top, bottom), 0.0),
+            Vec3(maxOf(left, right), maxOf(top, bottom), 0.0),
+        )
+    }
+
     /** Converts a screen length in pixels back to model units. */
     public fun lengthToModel(screenLength: Double): Double = screenLength / scale
 

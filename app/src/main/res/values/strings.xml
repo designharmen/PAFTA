@@ -279,7 +279,7 @@
     <string name="error_unknown_format">PAFTA .%1$s uzantılı dosyaları tanımıyor</string>
     <string name="error_no_extension">Bu dosyanın uzantısı yok, bu yüzden PAFTA ne tür bir dosya olduğunu anlayamıyor</string>
     <string name="error_empty_file">Bu dosyanın içi boş</string>
-    <string name="error_too_large">Dosya %1$d MB. En fazla %2$d MB kabul ediliyor</string>
+    <string name="error_too_large">Bu çizim %1$d MB ve bu cihazda açılamayacak kadar büyük. PAFTA bir çizimi açarken dosyanın yaklaşık dört katı kadar belleğe ihtiyaç duyuyor; bu cihazda açılabilecek üst sınır yaklaşık %2$d MB. Yapabileceğin şu: çizimi kendi programında aç, sadece ihtiyacın olan katı ya da bölgeyi seçip yeni bir dosya olarak kaydet (AutoCAD\'de WBLOCK komutu), ya da kullanmadığın katmanları silip kaydet. Küçülen dosya burada açılır.</string>
     <string name="error_malformed">Bu %1$s bozuk görünüyor, okunamadı</string>
     <string name="error_no_drawable">Bu %1$s açıldı ama içinde çizilecek bir şey yok</string>
     <!-- İkinci bölüm dosyanın kendi kayıt adlarıdır: veri, arayüz metni değil. -->

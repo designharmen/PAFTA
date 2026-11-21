@@ -1748,3 +1748,73 @@ white.
 device it turns `I` into a dotless `ı`, which has already been able to make a
 file extension unrecognisable. It is now checked for before every build, and
 the check was verified by putting the mistake back.
+
+
+---
+
+## Phase F, part four — making a real drawing usable
+
+The owner: *"uygulama aşırı derecede kasıyor. 90mb lik proje açmak istedim onu
+da açamadı."* Two separate faults, both measured rather than guessed.
+
+### The stutter: the frame was doing the whole drawing, every time
+
+Measured on 200,000 entities, on a desktop JVM — a tablet is several times
+slower:
+
+| | per frame |
+| --- | --- |
+| tessellating every entity (`outline()`) | **156 ms** |
+| looking up each entity's layer colour | **36 ms** |
+| the budget for 60 frames a second | **16.7 ms** |
+
+So a large plan was spending over ten frames' worth of work on every frame, and
+most of it on entities that were not on the screen.
+
+Three things changed:
+
+- **Nothing off the screen is touched.** The view works out which rectangle of
+  the drawing it is showing, and an entity outside it is skipped before it is
+  transformed or tessellated. An arc is tested as a centre and a radius, not as
+  sixty-four points, and the test allocates nothing.
+- **A line is drawn as a line.** It was going through a list, a `Path` and a
+  point object per end — three allocations per line per frame, on a drawing
+  made of lines. Polylines and faces are now walked where they already sit
+  rather than copied into a new list first.
+- **A coordinate transform no longer allocates a point.** The readable form
+  returns one; the drawing loop asks for the two numbers instead.
+
+The same 200,000 entities, zoomed to a room: **10.5 ms**, inside the budget and
+eighteen times faster. One of those 36 ms was self-inflicted, from the colour
+work the day before: resolving a layer's colour per entity meant scanning the
+layer list a hundred thousand times a frame. It is worked out once per frame
+now.
+
+### The 90MB file: it could not fit, and said nothing
+
+Opening a drawing needs room for several copies of it at once — the file's own
+bytes, the unpacked contents, and the geometry built from them. Measured on the
+real test files, the geometry alone retains **about 1.8 times** the file's size,
+and the peak is about four times.
+
+A 90MB drawing therefore wants something like 400MB at once. A tablet gives an
+app 192–512MB. So it did not fail, it **died** — and dying looks exactly like
+nothing happening.
+
+A drawing that cannot fit is now turned away before anything is unpacked, and
+the limit is **the device's own memory divided by six**, not a number chosen
+here: tablets differ by a factor of three, and a limit that suited the smallest
+would turn away files the largest opens comfortably. There is a floor of 8MB so
+a device reporting an implausible heap still opens ordinary drawings. If a file
+slips past the judgement and the device runs out anyway, that is caught too and
+reported the same way rather than taking the app down.
+
+The message says the size, the device's limit, and the fix: open the drawing in
+its own program and save out just the floor or the area needed — `WBLOCK` in
+AutoCAD — or delete the unused layers and save.
+
+**What this does not do:** it does not make a 90MB drawing open. That needs the
+geometry held in a far more compact form — points in flat arrays instead of
+objects, which is most of the 1.8× — or read in pieces as the view needs them.
+Both are real work and neither is started. Until then the owner gets a sentence
+that tells them what to do instead of an app that disappears.

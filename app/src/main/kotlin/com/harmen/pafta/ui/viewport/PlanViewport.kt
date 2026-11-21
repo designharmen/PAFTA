@@ -39,6 +39,7 @@ import androidx.compose.ui.unit.dp
 import com.harmen.pafta.dxf.DxfDrawing
 import com.harmen.pafta.dxf.DxfEntity
 import com.harmen.pafta.dxf.DxfTextAlign
+import com.harmen.pafta.dxf.mayBeVisible
 import com.harmen.pafta.geometry.Aabb
 import com.harmen.pafta.geometry.Vec2
 import com.harmen.pafta.geometry.Viewport2D
@@ -46,6 +47,7 @@ import com.harmen.pafta.geometry.tessellateArc
 import com.harmen.pafta.measure.Measurement
 import com.harmen.pafta.measure.MeasurementDisplay
 import com.harmen.pafta.measure.label
+import com.harmen.pafta.project.DEFAULT_LAYER_COLOUR
 import com.harmen.pafta.project.LayerState
 import com.harmen.pafta.project.OpeningPlan
 import com.harmen.pafta.project.WallBand
@@ -273,16 +275,20 @@ public fun PlanViewport(
         Canvas(Modifier.fillMaxSize()) {
             val v = active ?: return@Canvas
 
+            // What the screen is showing, in the drawing's own coordinates.
+            // Everything below asks this before doing any work per entity.
+            val window = v.visibleBounds(size.width.toDouble(), size.height.toDouble())
+
             if (gridVisible) drawGrid(v, gridSpacingMm, size)
-            drawEntities(drawing.entities, layers, drawing, v)
+            drawEntities(drawing.entities, layers, drawing, v, window)
             // What the user drew is linework like any other: same layer rules,
             // same visibility, same opacity.
             // Floors go under everything: a room is what the walls stand on.
             if (zones.isNotEmpty()) drawZones(zones, layers, v, measurer, zoneLabel)
-            if (drawn.isNotEmpty()) drawEntities(drawn, layers, drawing, v)
+            if (drawn.isNotEmpty()) drawEntities(drawn, layers, drawing, v, window)
             if (walls.isNotEmpty()) drawWalls(walls, layers, v, highlightedWallId, openings)
             if (openings.isNotEmpty()) drawOpenings(openings, layers, v, highlightedWallId)
-            drawDrawingText(drawing, layers, v, measurer)
+            drawDrawingText(drawing, layers, v, window, measurer)
             measurements.forEach { drawMeasurement(it, v, display, measurer) }
             // Selection is drawn over the linework rather than instead of it, so
             // the shape stays legible while it is picked.
@@ -643,22 +649,42 @@ private fun DrawScope.drawSnapMark(at: Vec2) {
     )
 }
 
-/** Draws every entity on a visible layer, honouring the layer's opacity. */
+/**
+ * Draws every entity on a visible layer, honouring the layer's opacity.
+ *
+ * This runs for every entity in the drawing on every frame, so what it does
+ * *not* do matters more than what it does. It does not ask the drawing for a
+ * layer's colour per entity — that was a scan of the layer list a hundred
+ * thousand times a frame — and it does not transform or tessellate anything
+ * that is off the screen, which on a plan zoomed in on one room is nearly all
+ * of it.
+ */
 private fun DrawScope.drawEntities(
     entities: List<DxfEntity>,
     layers: List<LayerState>,
     drawing: DxfDrawing,
     v: Viewport2D,
+    window: Aabb,
 ) {
+    if (entities.isEmpty()) return
     val byName = layers.associateBy { it.name }
+    // The file's colour per layer, worked out once for the frame.
+    val layerColours = HashMap<String, Int>(drawing.layers.size * 2 + 2)
+    for (layer in drawing.layers) layerColours[layer.name] = layer.colour
 
     for (entity in entities) {
         val state = byName[entity.layer]
         if (state != null && !state.visible) continue
         val alpha = (state?.opacity ?: 1.0).toFloat()
         if (alpha <= 0.01f) continue
+        if (!entity.mayBeVisible(window)) continue
 
-        val colour = colourOf(entity, drawing, state?.colour)
+        val override = state?.colour
+        val colour = if (override != null) {
+            parseHex(override)
+        } else {
+            cadColour(entity.colour, layerColours[entity.layer] ?: DEFAULT_LAYER_COLOUR)
+        }
         drawEntity(entity, v, colour.copy(alpha = colour.alpha * alpha))
     }
 }
@@ -701,20 +727,64 @@ private fun DrawScope.drawEntity(entity: DxfEntity, v: Viewport2D, colour: Color
             )
         }
 
+        // A line is two points. Going through a list and a Path for it meant
+        // three objects per line per frame, which on a plan made of lines is
+        // most of the work the frame does.
+        is DxfEntity.Line -> drawLine(
+            colour,
+            Offset(v.screenX(entity.start.x).toFloat(), v.screenY(entity.start.y).toFloat()),
+            Offset(v.screenX(entity.end.x).toFloat(), v.screenY(entity.end.y).toFloat()),
+            strokeWidth = LINEWORK_WIDTH,
+            cap = StrokeCap.Round,
+        )
+
+        // A polyline and a face already hold their own points, so they are
+        // walked where they are rather than copied into a new list first.
+        is DxfEntity.Polyline -> strokePath(colour) { path ->
+            val n = entity.vertices.size
+            if (n < 2) return
+            moveTo(path, v, entity.vertices[0].x, entity.vertices[0].y)
+            for (k in 1 until n) lineTo(path, v, entity.vertices[k].x, entity.vertices[k].y)
+            if (entity.closed && n > 2) {
+                lineTo(path, v, entity.vertices[0].x, entity.vertices[0].y)
+            }
+        }
+
+        is DxfEntity.Face -> strokePath(colour) { path ->
+            val n = entity.points.size
+            if (n < 2) return
+            moveTo(path, v, entity.points[0].x, entity.points[0].y)
+            for (k in 1 until n) lineTo(path, v, entity.points[k].x, entity.points[k].y)
+            lineTo(path, v, entity.points[0].x, entity.points[0].y)
+        }
+
         else -> {
             val points = entity.outline(segments)
             if (points.size < 2) return
-            val path = Path()
-            val first = v.toScreen(points.first())
-            path.moveTo(first.x.toFloat(), first.y.toFloat())
-            for (k in 1 until points.size) {
-                val p = v.toScreen(points[k])
-                path.lineTo(p.x.toFloat(), p.y.toFloat())
+            strokePath(colour) { path ->
+                moveTo(path, v, points[0].x, points[0].y)
+                for (k in 1 until points.size) lineTo(path, v, points[k].x, points[k].y)
             }
-            drawPath(path, colour, style = Stroke(width = 1.2f, cap = StrokeCap.Round))
         }
     }
 }
+
+private inline fun DrawScope.strokePath(colour: Color, build: (Path) -> Unit) {
+    val path = Path()
+    build(path)
+    drawPath(path, colour, style = Stroke(width = LINEWORK_WIDTH, cap = StrokeCap.Round))
+}
+
+private fun moveTo(path: Path, v: Viewport2D, x: Double, y: Double) {
+    path.moveTo(v.screenX(x).toFloat(), v.screenY(y).toFloat())
+}
+
+private fun lineTo(path: Path, v: Viewport2D, x: Double, y: Double) {
+    path.lineTo(v.screenX(x).toFloat(), v.screenY(y).toFloat())
+}
+
+/** The width every piece of imported linework is drawn at. */
+private const val LINEWORK_WIDTH = 1.2f
 
 /**
  * Draws the drawing's own TEXT and MTEXT entities.
@@ -728,6 +798,7 @@ private fun DrawScope.drawDrawingText(
     drawing: DxfDrawing,
     layers: List<LayerState>,
     v: Viewport2D,
+    window: Aabb,
     measurer: TextMeasurer,
 ) {
     val byName = layers.associateBy { it.name }
@@ -742,6 +813,7 @@ private fun DrawScope.drawDrawingText(
 
         val heightPx = v.lengthToScreen(entity.height)
         if (heightPx < 6.0) continue
+        if (!entity.mayBeVisible(window)) continue
 
         val colour = colourOf(entity, drawing, state?.colour)
             .let { it.copy(alpha = it.alpha * alpha) }

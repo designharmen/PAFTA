@@ -41,7 +41,13 @@ public data class DrawingDocument(
  * drawing format or will not parse, so the editor never shows a blank canvas
  * with no explanation.
  */
-public fun PaftaProject.openAsDrawing(): StoreResult<DrawingDocument> {
+public fun PaftaProject.openAsDrawing(
+    /**
+     * How much memory the device has to work with. Taken from the device
+     * itself; a parameter so the limit below can be tested without one.
+     */
+    memoryBudgetBytes: Long = Runtime.getRuntime().maxMemory(),
+): StoreResult<DrawingDocument> {
     val format = manifest.format
     if (format != FileFormat.DXF && format != FileFormat.DWG) {
         return StoreResult.Failure(
@@ -53,11 +59,32 @@ public fun PaftaProject.openAsDrawing(): StoreResult<DrawingDocument> {
         )
     }
 
+    // Drawings are opened whole, and opening one needs room for several copies
+    // of it at once — the file's bytes, the unpacked contents, and the geometry
+    // built from them. Measured on real files that is about four times the
+    // file's size. Asked for more than the device has, the app does not fail,
+    // it dies; so a file that cannot fit is turned away with its size, the
+    // device's limit, and what to do about it.
+    val openable = openableDrawingBytes(memoryBudgetBytes)
+    if (payload.size > openable) {
+        return StoreResult.Failure(StoreFailure.TooLarge(payload.size.toLong(), openable))
+    }
+
     // The two drawing formats hold the same geometry and are read into the same
     // value, so everything past this point — drawing, measuring, snapping, the
     // 3D view — cannot tell which of the two the project came from.
     val drawing = if (format == FileFormat.DWG) {
-        when (val outcome = DwgReader.read(payload)) {
+        val outcome = try {
+            DwgReader.read(payload)
+        } catch (e: OutOfMemoryError) {
+            // The guard above is a judgement about sizes; this is the fact. A
+            // drawing that turns out to need more than the device has must end
+            // as a sentence on the screen, not as the app vanishing.
+            return StoreResult.Failure(
+                StoreFailure.TooLarge(payload.size.toLong(), openable),
+            )
+        }
+        when (outcome) {
             is DwgOutcome.Success -> outcome.drawing
             is DwgOutcome.Failure -> when (val reason = outcome.reason) {
                 // It read, and the file holds nothing this reader can draw. That
@@ -83,6 +110,10 @@ public fun PaftaProject.openAsDrawing(): StoreResult<DrawingDocument> {
     } else {
         try {
             DxfReader.read(payload.inputStream())
+        } catch (e: OutOfMemoryError) {
+            return StoreResult.Failure(
+                StoreFailure.TooLarge(payload.size.toLong(), openable),
+            )
         } catch (e: Exception) {
             return StoreResult.Failure(
                 StoreFailure.Unreadable(FileFormat.DXF, UnreadableReason.MALFORMED),
@@ -140,6 +171,30 @@ public fun PaftaProject.openAsDrawing(): StoreResult<DrawingDocument> {
         ),
     )
 }
+
+/**
+ * The largest drawing this device can be asked to open.
+ *
+ * The device's own memory rather than a fixed number, because tablets differ by
+ * a factor of three or more: a limit that suited the smallest would turn away
+ * files the largest opens without trouble. Divided by six — about four for the
+ * copies a drawing needs while it is being opened, and the rest for everything
+ * else the app is holding at the time.
+ *
+ * The floor keeps small drawings opening on a device that reports an
+ * implausibly small heap; the ceiling is the import limit, since nothing larger
+ * can be in the library to begin with.
+ */
+internal fun openableDrawingBytes(memoryBudgetBytes: Long): Long =
+    (memoryBudgetBytes / COPIES_WHILE_OPENING)
+        .coerceIn(SMALLEST_PROMISE, LARGEST_PROMISE)
+
+/** Copies of itself a drawing needs room for while it is being opened. */
+private const val COPIES_WHILE_OPENING = 6L
+
+private const val SMALLEST_PROMISE = 8L * 1024 * 1024
+
+private const val LARGEST_PROMISE = 256L * 1024 * 1024
 
 /**
  * The sheet a brand-new project opens on: twenty metres by fifteen.
